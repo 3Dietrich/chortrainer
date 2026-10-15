@@ -1,0 +1,1204 @@
+/* ============================================================
+   Chor-Trainer – Stylesheet
+   ============================================================
+   Handy zuerst: Kopfzeile oben, Spieler unten, Einstellungen als
+   Blatt von unten, Vollbild nur mit Noten.
+   Ab 900px Breite: eine Leiste oben, Einstellungen als Feld rechts.
+   Farben aus dem TotalVokal-Icon (Dunkel #1f1f1e, Rot #f85454).
+   Die bisherige Gestaltung liegt in style_alt.css (index_alt.html).
+   ============================================================ */
+
+/* --- Design-Tokens --- */
+:root {
+    --ink: #1f1f1e;          /* Leisten-Hintergrund */
+    --ink2: #2d2d2b;         /* Flächen auf der Leiste */
+    --line: #45453f;         /* Trennlinien, Schiebebahn */
+    --on-ink: #f2f2f0;       /* Schrift auf Dunkel */
+    --mute: #a8a8a8;         /* Nebenschrift auf Dunkel */
+    --red: #f85454;          /* Akzent: aktiv, Auswahl */
+    --paper: #ffffff;
+    --sheet: #f7f6f3;        /* Einstellungsblatt */
+    --sheet2: #e7e5df;       /* Flächen im Blatt */
+    --text: #1f1f1e;
+    --text-mute: #6b6a66;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Nirgends markieren: langes Drücken auf Noten oder Knöpfe öffnet sonst
+   "Kopieren | Mit Google suchen", und das bekommt man kaum wieder weg.
+   Nur das Takt-Feld bleibt beschreibbar (siehe #taktNummer). */
+body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* Noten: Doppeltipp wählt den Takt (trainer.js) statt zu zoomen; Pinch-Zoom bleibt */
+#alphaTab { touch-action: manipulation; }
+
+button {
+    touch-action: manipulation;   /* kein Doppeltipp-Zoom auf den Knöpfen */
+    font: inherit;
+    color: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+svg { display: block; }
+
+/* ==================== KOPFZEILE ==================== */
+#toolbar-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: var(--ink);
+    color: var(--on-ink);
+    padding-top: var(--safe-t);
+}
+
+.topbar {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px 0 12px;
+}
+
+.brand {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    flex-shrink: 0;
+}
+
+/* Songauswahl als Titel */
+.songwrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 46vw;
+}
+
+#songSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: var(--on-ink);
+    border: none;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+    /* als abgesetztes Feld: man sieht, dass man hier das Lied wählt */
+    padding: 7px 32px 7px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    width: 100%;          /* schrumpft mit .songwrap, wenn die Leiste eng wird */
+    min-width: 0;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+#songSelect:hover { background: rgba(255, 255, 255, 0.16); }
+
+#songSelect option { color: #000; }
+
+.songwrap .caret {
+    position: absolute;
+    right: 10px;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2.5;
+    pointer-events: none;
+}
+
+.spacer { flex: 1; }
+
+.icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--ink2);
+    flex-shrink: 0;
+}
+
+.icon-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.icon-btn.light { background: var(--sheet2); }
+
+/* Vollbild: hell und mit Text, damit man ihn findet */
+.fs-btn {
+    height: 38px;
+    padding: 0 12px 0 10px;
+    border-radius: 19px;
+    background: var(--on-ink);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.fs-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.icon-btn.light svg { stroke: var(--text); }
+
+/* ==================== SPIELER (Handy: unten) ==================== */
+#player {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--ink);
+    color: var(--on-ink);
+    border-radius: 18px 18px 0 0;
+    padding: 16px 14px calc(10px + var(--safe-b));
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.18);
+    touch-action: none;          /* Wischen auf der Leiste öffnet das Blatt, scrollt nie die Noten */
+}
+
+/* Griff oben an der Leiste: sichtbar nur der Strich, die Tippfläche reicht
+   unsichtbar über den Rand nach oben, damit sie groß genug ist ohne Platz zu kosten */
+.player-grab {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    width: 160px;
+    height: 30px;
+    margin-left: -80px;
+    touch-action: none;
+    cursor: grab;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    padding-bottom: 10px;
+}
+
+.player-grab i {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: #5c5c56;
+}
+
+/* Stimmenleiste: Segment und rechts daneben „nur gewählte zeigen“ */
+.p-voices { display: flex; gap: 6px; align-items: stretch; }
+.p-voices .seg { flex: 1; min-width: 0; }
+.nur-btn { flex: none; width: 48px; border-radius: 12px; background: var(--ink2); color: #d8d8d4;
+    display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
+.nur-btn::before { content: ""; position: absolute; inset: -6px -8px; }   /* größere Trefferfläche */
+.nur-btn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; }
+.nur-btn svg .blass { opacity: .35; stroke-width: 2; }
+.nur-btn.active { background: #f2f2f0; color: #1f1f1e; }
+.nur-btn:disabled { opacity: .3; cursor: default; background: var(--ink2); color: #d8d8d4; }
+
+/* Stimmen als Segment-Leiste */
+.seg {
+    display: flex;
+    background: var(--ink2);
+    border-radius: 12px;
+    padding: 3px;
+    gap: 3px;
+}
+
+.seg .v-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border-radius: 9px;
+    font-weight: 700;
+    font-size: 20px;
+    color: #d8d8d4;
+    white-space: nowrap;
+}
+
+.seg .v-btn.all { flex: 1.3; }
+
+/* „neu“ in den Noten über dem ersten geänderten Takt (trainer.js, neuTakteMarkieren).
+   Gelb = neue Fassung aktiv. Trefferfläche größer als das Schildchen. */
+.neu-marke { position: absolute; z-index: 5; padding: 3px 7px; border-radius: 6px;
+    font: 700 14px/1 -apple-system, BlinkMacSystemFont, Arial, sans-serif; letter-spacing: .02em;
+    background: #fff; color: #8a6200; border: 1.5px solid #d9a400; cursor: pointer; }
+.neu-marke::before { content: ""; position: absolute; inset: -12px -12px -8px; }
+.neu-marke.an { background: #ffd166; color: #1f1f1e; border-color: #d9a400; }
+.neu-marke-bild { padding: 2px 5px; border-radius: 6px; background: #ffd166; color: #1f1f1e; font-size: 12px; }
+.neu-takt { position: absolute; pointer-events: none; background: rgba(255, 200, 0, .14); border-radius: 3px; }
+/* Gewählter Takt (Tipp in die Noten): Rahmen, bis die Wiedergabe dort ist */
+.takt-wahl { position: absolute; z-index: 4; pointer-events: none; border: 2px solid var(--red); border-radius: 4px; background: rgba(248, 84, 84, .05); }
+.takt-wahl.bereich { background: rgba(248, 84, 84, .09); }
+/* alphaTabs eigene Bereichsmarkierung: ersetzt durch .takt-wahl.bereich */
+.at-selection { display: none; }
+/* Wiederholungszeichen am Bereich (Overlay), Trefferfläche seitlich größer */
+.wdh-zeichen { position: absolute; z-index: 5; cursor: pointer; }
+.wdh-zeichen::before { content: ""; position: absolute; inset: -6px -14px; }
+.wdh-zeichen svg { display: block; fill: var(--red); opacity: 0.3; }
+.wdh-zeichen.an svg { opacity: 1; }
+.seg .v-btn.active { background: var(--red); color: #fff; }
+
+/* Kurz-/Langtext der Stimmen: Handy S A T B, breit Sopran Alt … */
+.btn-long-text { display: none; }
+
+/* Schieber (im Einstellungsblatt) */
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    margin: 0;
+    --track: var(--line);
+    --thumb: #fff;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--track);
+}
+
+input[type=range]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--track);
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border-radius: 50%;
+    background: var(--thumb);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: var(--thumb);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+/* Bedienzeile: drei Spalten, Play genau in der Mitte */
+.p-ctl {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+}
+
+.ctl-side { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ctl-side.right { justify-content: flex-end; }
+
+/* Takt-Nummer + Go: ein Teil, Feld links weiß, Go rechts rot */
+.takt-box {
+    display: flex;
+    align-items: stretch;
+    height: 39px;                /* so hoch wie die Stimmknöpfe darüber: kleines Werkzeug */
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+#taktNummer {
+    width: 40px;
+    height: 39px;
+    border: none;
+    border-radius: 0;
+    text-align: center;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 700;
+    background: #fff;
+    color: var(--ink);
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+#taktNummer.flash { animation: takt-flash 0.8s ease; }
+
+@keyframes takt-flash {
+    0%, 40% { background: var(--red); color: #fff; }
+    100% { background: #fff; color: var(--ink); }
+}
+
+.go-btn {
+    height: 39px;
+    padding: 0 9px;
+    border-radius: 0;
+    background: var(--red);
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+}
+
+.go-btn:active { filter: brightness(0.9); }
+
+/* Metronom direkt in der Leiste */
+.metro-btn {
+    width: 40px;
+    height: 39px;
+    border-radius: 12px;
+    background: var(--ink2);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.metro-btn svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.metro-btn { position: relative; touch-action: none; }
+.metro-btn.dragging .bf-wert { display: block; }
+.metro-btn.active { background: rgba(248, 84, 84, 0.22); }
+.metro-btn.active svg { stroke: var(--red); }
+
+/* Wischflächen (Tempo, Lautstärke der anderen Stimmen) mit ‹ › als Hinweis */
+.swipe-box {
+    touch-action: none;          /* Wischen ändert den Wert statt die Seite zu scrollen */
+    cursor: ew-resize;
+    outline: none;
+}
+
+/* Im Blatt: ganze Zelle (Überschrift + Feld) ist Wischfläche */
+.set.swipe-box { position: relative; z-index: 0; }
+
+/* Im Blatt: senkrechtes Wischen scrollt (der Regler reagiert nur waagerecht,
+   trainer.js makeSwipe), und keine Trefferfläche über die Karte hinaus: was
+   Hintergrund ist, scrollt */
+#sheet .swipe-box { touch-action: pan-y; }
+
+.swipe-face {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px;
+    border-radius: 12px;
+    background: var(--sheet2);
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.swipe-face .chev { color: #6f6d68; font-size: 36px; width: 44px; height: 44px; }
+.swipe-face .chev:active { color: var(--text); }
+.set.swipe-box.dragging .swipe-face,
+.set.swipe-box:focus-visible .swipe-face { background: #d6d3cb; }
+
+/* Rechte Zelle: ganze Fläche schaltet "Nur … zeigen" */
+.sw-face {
+    width: 100%;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 12px;
+    border-radius: 12px;
+    background: var(--sheet2);
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.sw-face .sw-state::before { content: "aus"; color: var(--text-mute); font-weight: 600; }
+.sw-face.active .sw-state::before { content: "an"; color: var(--text); }
+.sw-face.active .sw { background: var(--red); }
+.sw-face.active .sw::after { transform: translateX(18px); }
+
+#soloLabel {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tempo-box {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--ink2);
+    padding: 0 2px;
+    gap: 0;
+    position: relative;
+    z-index: 0;
+}
+
+/* Tempo-Eingabe (Doppeltipp): Feld über der ganzen Tempo-Box, Schrift ≥ 16 px gegen iOS-Zoom */
+.tempo-eingabe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    border: 2px solid var(--red);
+    border-radius: 12px;
+    background: #fff;
+    color: #1f1f1e;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    z-index: 2;
+}
+
+.tempo-box::before {             /* größere Trefferfläche, auch über/unter dem Feld; hinter ‹ › */
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -9px -3px -12px;
+}
+
+.tempo-box.dragging,
+.tempo-box:focus-visible { background: var(--line); }
+
+/* ‹ › sind Knöpfe: antippen = ein Schritt (trainer.js makeSwipe) */
+.chev {
+    color: var(--mute);
+    font-size: 30px;
+    line-height: 1;
+    width: 26px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.chev:active { color: var(--on-ink); }
+
+.t-val {
+    min-width: 58px;
+    line-height: 1.02;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.1;
+}
+
+.t-val small { font-size: 10.5px; color: var(--mute); letter-spacing: 0.02em; }
+.t-val b { font-size: 20px; }
+.t-val span { font-size: 12px; color: var(--mute); }
+
+/* Abspielen: großer runder Knopf, Symbol wechselt mit dem Zustand */
+.play {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: var(--on-ink);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.play svg { width: 26px; height: 26px; fill: var(--ink); }
+
+/* Play in der Leiste: größer, mit hellem Ring und Schatten */
+.p-ctl .play {
+    width: 74px;
+    height: 74px;
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12), 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+.p-ctl .play svg { width: 30px; height: 30px; }
+
+/* Loop für den markierten Bereich, rechts neben Play. Auf dem Handy schwebt er neben
+   Play (absolut), damit Play in der Mitte bleibt; Trefferfläche unsichtbar größer. */
+.play-wrap { position: relative; display: flex; align-items: center; }
+.loop-btn {
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--ink2); display: grid; place-items: center;
+}
+.loop-btn::before { content: ""; position: absolute; inset: -8px; }
+.loop-btn svg { width: 26px; height: 26px; fill: none; stroke: var(--on-ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.loop-btn { outline: none; }
+.loop-btn.blass { opacity: 0.35; }
+/* an: volle rote Fläche, weißes Symbol (wie „Alle“ und „Go“), deutlich von aus zu unterscheiden */
+.loop-btn.active { background: var(--red); }   /* wie Rot 22 % auf der Leiste, aber deckend */
+.loop-btn.active svg { stroke: #fff; }
+
+/* Andere Stimmen als Chor-Regler neben „nur gewählte“: rot die eigene Stimme, hell die
+   Mitsänger (Größe nach Lautstärke, trainer.js). Trefferfläche unsichtbar größer; beim
+   Ziehen steht der Wert in einer Blase darüber. */
+.chor-regler { position: relative; flex: none; width: 64px; border-radius: 12px; background: var(--ink2);
+    display: flex; align-items: center; justify-content: center; cursor: ew-resize; }
+.chor-regler::before { content: ""; position: absolute; inset: -6px -8px; }
+.chor-regler svg { width: 54px; height: 29px; }
+.chor-regler .mit { fill: #d8d8d4; }
+.chor-regler .solo { fill: var(--red); }
+.chor-regler.blass { opacity: 0.35; }
+.chor-regler.dragging { box-shadow: inset 0 0 0 2px var(--mute); }
+.bf-wert { display: none; position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%);
+    padding: 4px 9px; border-radius: 8px; background: var(--on-ink); color: var(--ink); font-size: 15px; white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4); pointer-events: none; z-index: 10; }
+.chor-regler.dragging .bf-wert { display: block; }
+/* Handy: neben Play ist kein Platz (Tempo-Feld), dort sitzt er oben rechts an Play */
+@media (max-width: 899px) {
+    .loop-btn { left: auto; right: -10px; top: -16px; transform: none; width: 38px; height: 38px;
+        box-shadow: 0 0 0 2px var(--ink), 0 3px 8px rgba(0, 0, 0, 0.5); }
+    .loop-btn::before { inset: -5px; }
+    .loop-btn svg { width: 22px; height: 22px; }
+}
+.play .i-pause { display: none; }
+.play.active .i-play { display: none; }
+.play.active .i-pause { display: block; }
+
+/* ==================== NOTENBEREICH ==================== */
+#alphaTab {
+    position: relative;
+    background: var(--paper);
+    padding: 64px 0 200px;     /* oben/unten passt trainer.js an die Leisten an */
+    overflow-x: hidden;        /* alphaTab rechnet die Breite ohne Rand, sonst 4px zu breit */
+    overflow-x: clip;          /* wo möglich clip: kein eigener Scrollbereich */
+    z-index: 1;
+}
+
+/* Aktueller Takt */
+.at-cursor-bar {
+    background: rgba(248, 84, 84, 0.12) !important;
+}
+
+.at-cursor-beat {
+    background: var(--red) !important;
+    width: 3px !important;
+}
+
+/* Einzählen: Kreis (60 px) links über dem Startpunkt, schwarze Zahl (3 4 ►).
+   Milchglas nur, wo der Browser Blur kann (dann 10 % Farbe), sonst deckend. */
+#einzaehlZahl { position: fixed; z-index: 1200; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
+    background: #ffffff; color: #1f1f1e; font: 700 34px/1 -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12); pointer-events: none; opacity: 1; transition: opacity 0.6s ease; }
+#einzaehlZahl.weg { opacity: 0; }
+@supports ((backdrop-filter: blur(3px)) or (-webkit-backdrop-filter: blur(3px))) {
+    #einzaehlZahl { background: rgba(31, 31, 30, 0.10); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+}
+
+/* Beispielaufnahme oben links über den Noten (scrollt mit) */
+#hoerprobe {
+    position: absolute;
+    left: 10px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+#hoerprobe[hidden] { display: none; }
+
+/* Anhören und MP3-Download nebeneinander, Abstand deckt die erweiterten Trefferflächen */
+.hp-row { display: flex; gap: 16px; }
+
+.hp-btn {
+    height: 38px;
+    padding: 0 14px 0 10px;
+    border-radius: 19px;
+    background: var(--ink);
+    color: var(--on-ink);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 15px;
+    font-weight: 700;
+    position: relative;
+    text-decoration: none;
+}
+
+.hp-btn::before {                /* größere Trefferfläche */
+    content: "";
+    position: absolute;
+    inset: -6px -8px;
+}
+
+.hp-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#hoerprobe.offen #hpBtn { background: var(--red); }
+#hpAudio { display: none; width: min(320px, calc(100vw - 20px)); height: 40px; }
+#hoerprobe.offen #hpAudio { display: block; }
+body.vollbild #hoerprobe { display: none; }
+
+/* Fußzeile unter den Noten: Wechsel zur alten Ansicht */
+#pageFoot {
+    text-align: center;
+    padding: 6px 16px 40px;
+    font-size: 13px;
+    background: var(--paper);
+}
+
+#pageFoot a { color: var(--text-mute); }
+
+/* Versionsnummer: klein und grau, unter den Noten und ganz unten in den Einstellungen */
+.version { font-size: 11px; color: #9a988f; text-align: center; margin-top: 6px; user-select: all; }
+
+/* ==================== VOLLBILD (nur Noten) ==================== */
+.fs-float { display: none; }
+
+body.vollbild #toolbar-root,
+body.vollbild #player { display: none; }
+
+body.vollbild #alphaTab { padding: calc(8px + var(--safe-t)) 0 calc(90px + var(--safe-b)); }
+
+body.vollbild .fs-float {
+    display: flex;
+    position: fixed;
+    right: 14px;
+    bottom: calc(14px + var(--safe-b));
+    z-index: 1100;
+    gap: 10px;
+    align-items: center;
+}
+
+.fs-float .play {
+    width: 56px;
+    height: 56px;
+    background: rgba(31, 31, 30, 0.82);
+}
+
+.fs-float .play svg { fill: var(--on-ink); }
+
+.fs-exit {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(31, 31, 30, 0.6);
+}
+
+.fs-exit svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* ==================== EINSTELLUNGEN (Handy: Blatt) ==================== */
+#sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: min(85vh, max(50vh, 400px));   /* halbe Höhe, aber der Inhalt passt ohne Scrollen */
+    overflow-y: auto;
+    z-index: 1300;
+    background: var(--sheet);
+    color: var(--text);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.6);
+    padding: 8px 16px calc(14px + var(--safe-b));
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.22);
+    transform: translateY(105%);
+    transition: transform 0.25s ease;
+    touch-action: pan-y;             /* Wischen im Blatt scrollt das Blatt, nie die Noten darunter */
+    overscroll-behavior: contain;
+}
+
+.chips { touch-action: pan-x pan-y; }
+
+body.sheet-open #sheet { transform: none; }
+
+/* Handy: Spielerleiste weg, solange das Blatt offen ist (Play steht im Blatt),
+   sonst schimmert sie dunkel durch das durchsichtige Blatt */
+@media (max-width: 899px) {
+    #player { transition: opacity 0.2s; }
+    body.sheet-open #player { opacity: 0; pointer-events: none; }
+}
+
+/* Wo der Browser es kann: Blatt halbdurchsichtig mit leichtem Blur (Milchglas) */
+@supports ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))) {
+    #sheet {
+        background: rgba(31, 31, 30, 0.10);   /* 10 % Leistenfarbe (--ink) im Milchglas */
+        -webkit-backdrop-filter: blur(4px) saturate(1.2);
+        backdrop-filter: blur(4px) saturate(1.2);
+    }
+}
+
+.grab {
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: #9d9a92;
+    margin: 0 auto 8px;
+    position: relative;
+}
+
+/* Tippfläche des Strichs größer als der Strich selbst */
+.grab::before {
+    content: "";
+    position: absolute;
+    inset: -12px -60px;
+}
+
+.grab,
+.sheet-head { touch-action: none; cursor: grab; }
+
+.sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.sheet-head h2 { margin: 0; font-size: 19px; flex: 1; }
+
+#sheet .sheet-play {
+    width: 42px;
+    height: 42px;
+    margin-right: 10px;
+    background: var(--ink);
+}
+
+#sheet .sheet-play svg { width: 18px; height: 18px; fill: var(--on-ink); }
+
+/* Schmale Handys (z.B. iPhone mit "Größerer Text"-Zoom, 320-380px) */
+@media (max-width: 400px) {
+    #player { padding-left: 10px; padding-right: 10px; }
+    .p-ctl { gap: 8px; }
+    .p-ctl .play { width: 70px; height: 70px; }
+    .tempo-box .chev { width: 24px; }
+    .t-val { min-width: 52px; }
+    .songwrap { max-width: 40vw; }
+}
+
+/* Sehr schmal (320-360px): alles etwas enger, Play bleibt mittig */
+@media (max-width: 360px) {
+    .fs-btn span { display: none; }
+    .fs-btn { padding: 0 10px; }
+    .p-ctl { gap: 6px; }
+    .ctl-side { gap: 5px; }
+    #taktNummer { width: 36px; font-size: 18px; }
+    .go-btn { padding: 0 7px; font-size: 16px; }
+    .metro-btn { width: 36px; }
+    .p-ctl .play { width: 62px; height: 62px; }
+    .tempo-box .chev { width: 20px; }
+    .t-val { min-width: 50px; }
+    .t-val b { font-size: 18px; }
+    .seg .v-btn { font-size: 18px; }
+}
+
+/* Ganz schmal (bis 340px): Chor-Regler kleiner, damit die Stimmknöpfe Platz behalten */
+@media (max-width: 340px) {
+    .chor-regler { width: 52px; }
+    .chor-regler svg { width: 46px; }
+}
+
+/* Beschriftung dicht am Regler, mehr Luft zwischen den Gruppen: man sieht, was zusammengehört */
+.set { margin-bottom: 12px; }
+
+/* Halbzellen im Blatt: Beschriftung und Regler als eine Karte (Beschriftung innen oben) */
+#sheet .two .set { background: var(--sheet2); border-radius: 12px; padding: 7px 3px 0; margin-bottom: 10px; }
+#sheet .two .set .lab { padding-left: 9px; margin-bottom: 0; white-space: nowrap; overflow: hidden; }
+#sheet .two .set .lab-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.swipe-face b { white-space: nowrap; }
+/* Schmale Bildschirme (iPhone mit vergrößerter Anzeige: 320px): kleinere Beschriftung und
+   Pfeile, damit nichts umbricht; „ zeigen“ fällt weg */
+@media (max-width: 379px) {
+    #sheet .two .set .lab { font-size: 13px; padding-left: 7px; }
+    #sheet .lab-t { gap: 4px; }
+    #sheet .lab-i { width: 16px; height: 16px; }
+    #sheet .lab-lang { display: none; }
+    #sheet .swipe-face .chev { width: 34px; font-size: 30px; }
+    #sheet .swipe-face { font-size: 14px; }
+    #sheet .einz-seg button { font-size: 14px; }
+}
+#sheet .two .set .swipe-face, #sheet .two .set .sw-face, #sheet .two .set .einz-seg { background: transparent; }
+#sheet .two .set.swipe-box.dragging, #sheet .two .set.swipe-box:focus-visible { background: #d6d3cb; }
+#sheet .two .set.swipe-box.dragging .swipe-face, #sheet .two .set.swipe-box:focus-visible .swipe-face { background: transparent; }
+
+.lab {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    padding-left: 2px;
+}
+/* Beschriftung mit Symbol: Lupe = Größe, Lautsprecher = Lautstärke, Linien = nur gewählte */
+.lab-t { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.lab .lab-t span { font-weight: 600; color: inherit; }
+.lab-i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.lab-i .voll { fill: currentColor; stroke: none; }
+.lab-i .blass { opacity: .35; }
+.lab-i .rot, .nur-btn svg .rot, .k svg .rot { stroke: var(--red); stroke-width: 3; }
+
+.lab span { font-weight: 400; color: var(--text-mute); }
+
+/* Klänge in einer Zeile, seitlich wischbar */
+.chips { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 13px;
+    border-radius: 18px;
+    background: rgba(231, 229, 223, 0.85);
+}
+
+.chip.active { background: var(--ink); color: #fff; }
+
+#sheet input[type=range] { --track: #d6d3cb; --thumb: #fff; }
+#sheet input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
+#sheet input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; }
+#sheet input[type=range]::-moz-range-thumb { width: 24px; height: 24px; }
+
+.ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: #8a8984;
+    margin-top: 2px;
+}
+
+.two { display: flex; gap: 12px; }
+.two .set { flex: 1; min-width: 0; }
+/* Loop schmal (nur der Schalter, die Farbe zeigt an/aus), Einzählen bekommt den Platz */
+.two #loopRow { flex: 0 0 auto; }
+#loopRow .sw-face { width: auto; padding: 0 12px; justify-content: center; }
+#loopRow .sw-state { display: none; }
+
+/* Schalterzeilen (Loop) */
+.switches {
+    background: var(--sheet2);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px 9px 12px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.sw-text { flex: 1; min-width: 0; cursor: pointer; }
+.sw-btn { flex-shrink: 0; }
+
+.switch-row + .switch-row { border-top: 1px solid rgba(0, 0, 0, 0.07); }
+
+/* Einzählen: Dreifach-Schalter Aus / 1 Takt / 2 × ¼ in der Halbzelle, gleiche Höhe wie .sw-face */
+.einz-seg { display: flex; height: 44px; padding: 3px; gap: 2px; border-radius: 12px; background: var(--sheet2); box-sizing: border-box; }
+.einz-seg button { flex: 1; min-width: 0; padding: 0 2px; border-radius: 9px; font-size: 15px; font-weight: 700;
+    color: var(--text-mute); white-space: nowrap; }
+.einz-seg button.active { background: var(--ink); color: #fff; }
+.einz-seg button[data-art="aus"].active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+
+.switch-row small {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: #57554f;
+    margin-top: 1px;
+}
+
+/* Offline-Zeile: ganze Zeile ist die Trefferfläche, grün wenn alles gespeichert */
+.offline-row { cursor: pointer; min-height: 48px; }
+.offline-row small { font-size: 13px; }
+.offline-row.fertig small { color: #2f7d32; font-weight: 600; }
+.offline-row .offline-mehr { display: block; color: #57554f; font-weight: 400; }
+.offline-row.laeuft { cursor: progress; }
+/* Homescreen-Zeile: dasselbe Symbol wie später auf dem Handy */
+.hs-zeile-icon { width: 38px; height: 38px; border-radius: 9px; flex: none; }
+.offline-row .chip { font-size: 15px; padding: 10px 15px; }
+.offline-row.laeuft .chip { opacity: 0.5; }
+
+.sw {
+    display: block;
+    flex-shrink: 0;
+    width: 46px;
+    height: 28px;
+    border-radius: 14px;
+    background: #cfccc4;
+    position: relative;
+    transition: background 0.15s;
+}
+
+.sw::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+}
+
+.sw-btn.active .sw { background: var(--red); }
+.sw-btn.active .sw::after { transform: translateX(18px); }
+
+
+
+
+/* ==================== BREITER BILDSCHIRM (ab 900px) ====================
+   Kopfzeile und Spieler werden eine Leiste: .topbar und #player lösen sich
+   per display:contents auf, ihre Teile ordnen sich über "order".
+   Bis 1399px passt nicht alles in eine Zeile (u. a. Handy mit "Desktop-Website",
+   dort sind es 980px): die Stimmen rutschen dann in eine zweite Zeile darunter.
+   Sonst schiebt sich der Songtitel unter den Play-Knopf und fängt dessen Klicks ab. */
+@media (min-width: 900px) {
+    #toolbar-root {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 14px;
+        row-gap: 0;
+        padding: 0 14px;
+        min-height: 64px;
+    }
+
+    .topbar,
+    #player { display: contents; }
+
+    .brand { order: 1; width: 34px; height: 34px; }
+    .songwrap { order: 2; flex-shrink: 0; }
+    .p-ctl { order: 3; }
+    .p-voices { order: 8; flex-basis: 100%; padding-bottom: 10px; }
+    .spacer { order: 5; }
+    #fsBtn { order: 6; }
+    #hilfeBtn { order: 7; }
+    #setBtn { order: 7; }
+
+    /* Songauswahl hervorgehoben (Feld statt nur Titel), Bedienung in der Mitte:
+       automatische Ränder links und rechts von Play bis Tempo (ab 1400px samt
+       Stimmen) verteilen den freien Platz gleich, rechts bleiben Vollbild, ? und Zahnrad */
+    .songwrap { max-width: 260px; }
+    #songSelect { font-size: 20px; padding: 9px 38px 9px 14px; }
+    .songwrap .caret { right: 12px; }
+    .spacer { display: none; }
+    .p-ctl { margin-left: auto; margin-right: auto; }
+
+    .p-ctl { display: flex; gap: 10px; justify-content: flex-start; padding: 10px 0; }
+    .p-ctl .play-wrap { order: -1; gap: 10px; }
+    /* relative (nicht static): sonst bezieht sich die vergrößerte Trefferfläche (::before)
+       auf den ganzen Play-Bereich und fängt die Klicks auf Play ab */
+    .p-ctl .loop-btn { position: relative; left: auto; top: auto; transform: none; }
+    .ctl-side .bf-wert, .p-voices .bf-wert { bottom: auto; top: calc(100% + 10px); }   /* oben ist der Bildschirmrand */
+    .p-ctl .play { width: 48px; height: 48px; }
+    .p-ctl .play svg { width: 20px; height: 20px; }
+    .takt-box, .tempo-box { height: 44px; }
+    #taktNummer, .go-btn { height: 44px; font-size: 19px; }
+    .t-val b { font-size: 18px; }
+
+    .seg .v-btn { padding: 8px 13px; font-size: 17px; }
+    .btn-short-text { display: none; }
+    .btn-long-text { display: inline; }
+
+    #alphaTab { padding: 80px 16px 40px; }
+    .player-grab { display: none; }
+
+    /* Einstellungen als Feld rechts unter der Leiste */
+    #sheet {
+        left: auto;
+        right: 14px;
+        top: calc(var(--bar-h, 64px) + 12px);   /* --bar-h setzt trainer.js (Leiste ein- oder zweizeilig) */
+        bottom: auto;
+        width: 380px;
+        max-height: calc(100vh - 120px);
+        border-radius: 16px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+        transform: translateY(-12px);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.18s ease, opacity 0.18s;
+    }
+
+    body.sheet-open #sheet { transform: none; opacity: 1; pointer-events: auto; }
+    .grab { display: none; }
+}
+
+/* Ab 1400px ist Platz für alles in einer Zeile: Stimmen zwischen Tempo und Vollbild */
+@media (min-width: 1400px) {
+    #toolbar-root { flex-wrap: nowrap; }
+    .p-voices { order: 4; flex-basis: auto; padding-bottom: 0; margin-right: auto; }
+    .p-ctl { margin-right: 0; }
+}
+
+/* ==================== HILFE (?) ====================
+   Tipp-Modus: durchsichtige Fangfläche über allem, gestrichelte Rahmen um die
+   erklärten Knöpfe, eine Karte mit der Erklärung in der größten freien Lücke.
+   So-geht's-Seite: alle Knöpfe mit Bild, nach Gruppen. Schrift groß für ältere
+   Chormitglieder, Knöpfe mit großer Trefferfläche. */
+.hilfe-btn { font-size: 21px; font-weight: 700; color: var(--on-ink, #fff); line-height: 1; }
+.icon-btn.light.hilfe-btn { color: inherit; }
+.sheet-head .hilfe-btn { margin-right: 6px; }
+/* Hilfe an: „?“ gelb wie die Hilfe-Rahmen, zeigt, dass es ein Schalter ist */
+body.hilfe-an .hilfe-btn { background: #ffd166 !important; color: #1a1400 !important; }
+
+#hilfeModus { position: fixed; inset: 0; z-index: 2147483000;   /* über allem, auch dem Einstellungsblatt */
+    pointer-events: none;
+    font: 19px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; -webkit-text-size-adjust: 100%; }
+#hilfeModus .hm-fang { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; background: rgba(255, 209, 102, 0.06); }
+#hilfeModus .hm-rahmen { position: absolute; inset: 0; pointer-events: none; }
+#hilfeModus .hm-rahmen rect { fill: none; stroke: #b07a00; stroke-width: 2; stroke-dasharray: 6 4; }
+#hilfeModus .hm-rahmen rect.fest { fill: rgba(255, 209, 102, 0.25); stroke-width: 4; stroke-dasharray: none; }
+#hilfeModus .hm-karte { position: absolute; pointer-events: auto; overflow: auto; box-sizing: border-box;
+    padding: 16px 18px 14px; background: #fff; color: #1f1f1e; border: 2px solid #b07a00; border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(40, 40, 35, 0.3); }
+#hilfeModus .hm-text { min-height: 2.8em; }
+.hm-knoepfe { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.hm-knoepfe button, .sg-kopf .hm-fertig { font: 600 17px/1 -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    padding: 14px 18px; border-radius: 24px; border: 1px solid rgba(0, 0, 0, 0.12); background: #efede7; color: #1f1f1e; cursor: pointer; }
+.hm-knoepfe .hm-alles { flex: 1; }
+.hm-fertig { background: #1f1f1e !important; color: #fff !important; border-color: #1f1f1e !important; }
+
+#sogehts { position: fixed; inset: 0; z-index: 2147483001; overflow-y: auto; background: #fbfaf7; color: #1f1f1e;
+    font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; -webkit-text-size-adjust: 100%;
+    padding: env(safe-area-inset-top, 0px) 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+#sogehts .sg-kopf { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+    max-width: 680px; margin: 0 auto; padding: 12px 0; background: #fbfaf7; border-bottom: 1px solid #e3e0d8; }
+#sogehts h2 { margin: 0; font-size: 26px; }
+#sogehts .sg-inhalt { max-width: 680px; margin: 0 auto; }
+#sogehts h3 { margin: 26px 0 8px; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: #8a6200; }
+#sogehts .sg-zeile { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #ece9e1; }
+#sogehts .sg-bild { flex: 0 0 132px; max-width: 132px; display: flex; flex-wrap: wrap; gap: 4px; }
+#sogehts .sg-text { flex: 1; min-width: 0; }
+#sogehts .sg-fuss { margin-top: 24px; color: #57554f; }
+@media (max-width: 420px) { #sogehts .sg-bild { flex-basis: 104px; } }
+
+/* Knopfbilder auf der So-geht's-Seite: nachgebaut wie die echten Knöpfe */
+.k { display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 10px; border-radius: 9px;
+    background: #2d2d2b; color: #f2f2f0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.k.hell { background: #e7e5df; color: #1f1f1e; }
+.k.rot { background: #f85454; color: #fff; }
+.k.rund { width: 34px; padding: 0; justify-content: center; border-radius: 50%; }
+.k svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.k svg.i-play { fill: currentColor; stroke: none; }
+.k-sw { display: inline-block; width: 28px; height: 16px; border-radius: 8px; background: #f85454; position: relative; }
+.k-sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+.k-sw.aus { background: #c9c6be; }
+.k-sw.aus::after { right: auto; left: 2px; }
+
+/* ==================== RÜCKMELDUNG ====================
+   Nur mit Chor-Login sichtbar. Editor: Bildschirmfoto, auf dem man mit dem Finger
+   Rechtecke schwärzt, dazu Nachricht und freiwilliger Name. */
+body:not(.zugang) .nur-zugang { display: none; }
+
+#rueckmeldung { position: fixed; inset: 0; z-index: 2147483002; overflow-y: auto; background: #fbfaf7; color: #1f1f1e;
+    font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; -webkit-text-size-adjust: 100%;
+    padding: env(safe-area-inset-top, 0px) 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+#rueckmeldung .rm-innen { max-width: 680px; margin: 0 auto; }
+#rueckmeldung h2 { margin: 14px 0 6px; font-size: 24px; }
+#rueckmeldung .rm-hinweis { color: #57554f; font-size: 16px; margin: 4px 0 8px; }
+#rueckmeldung label { display: block; font-weight: 600; margin: 14px 0 6px; }
+#rueckmeldung textarea, #rueckmeldung input[type=text] { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px;
+    padding: 12px; border: 1px solid #cfccc4; border-radius: 10px; background: #fff; color: inherit; }
+#rueckmeldung textarea { min-height: 120px; resize: vertical; }
+#rueckmeldung .rm-bildzeile { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; font-weight: 600; }
+#rueckmeldung .rm-bildzeile input { width: 26px; height: 26px; }
+#rueckmeldung .rm-bild { position: relative; text-align: center; }
+#rueckmeldung .rm-werkzeuge { display: flex; gap: 10px; margin: 6px 0 4px; }
+#rueckmeldung .rm-werkzeuge .chip { font-size: 17px; padding: 12px 16px; }
+#rueckmeldung canvas { max-width: 100%; max-height: 60vh; border: 1px solid #cfccc4; border-radius: 8px; touch-action: none; cursor: crosshair; background: #fff; }
+#rueckmeldung .rm-warten { padding: 40px 0; text-align: center; color: #57554f; }
+#rueckmeldung .hm-knoepfe { margin-top: 18px; }
+#rueckmeldung .rm-status { margin-top: 12px; font-weight: 600; min-height: 1.4em; }
+#rueckmeldung .rm-status.gut { color: #2f7d32; }
+#rueckmeldung .rm-status.schlecht { color: #c62828; }
+
+/* ==================== HOMESCREEN-ANLEITUNG ====================
+   Begrüßung beim Öffnen und Anleitung aus den Einstellungen (trainer.js,
+   homescreenZeigen). Große Schrift und große Knöpfe für ältere Chormitglieder. */
+#homescreen { position: fixed; inset: 0; z-index: 2147483003; display: flex; align-items: center; justify-content: center;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    background: rgba(20, 20, 18, .55); overflow-y: auto;
+    font: 18px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; -webkit-text-size-adjust: 100%; }
+#homescreen .hs-karte { width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto; box-sizing: border-box;
+    padding: 16px 18px 14px; border-radius: 14px; background: #fbfaf7; color: #1f1f1e; box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
+#homescreen h2 { margin: 0 0 4px; font-size: 21px; line-height: 1.2; }
+/* Blickfang: Ausschnitt eines Home-Bildschirms, das Trainer-Symbol hervorgehoben */
+#homescreen .hs-bild { margin: 0 0 12px; border-radius: 12px; overflow: hidden; }
+#homescreen .hs-handy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 14px; justify-items: center;
+    padding: 0 18px 8px; background: linear-gradient(160deg, #5b6fae 0%, #8a6fb0 55%, #d08d7c 100%); }
+#homescreen .hs-handy i { width: 46px; height: 46px; border-radius: 11px; background: rgba(255, 255, 255, .28); margin-bottom: 17px; }
+/* obere Reihe nur angeschnitten */
+#homescreen .hs-handy i:nth-child(-n+4) { margin-top: -32px; }
+#homescreen .hs-app { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#homescreen .hs-app img { width: 46px; height: 46px; border-radius: 11px; box-shadow: 0 0 0 3px #ffd166, 0 0 16px 4px rgba(255, 209, 102, .8);
+    animation: hs-wippen 1.6s ease-in-out infinite; }
+#homescreen .hs-app em { font: 600 11px/1.2 -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-style: normal; color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .5); white-space: nowrap; }
+#homescreen .hs-leiste { display: flex; gap: 10px; align-items: center; padding: 10px 12px; background: #e7e5df; }
+#homescreen .hs-leiste i { width: 70px; height: 12px; border-radius: 6px; background: #cfccc4; }
+#homescreen .hs-lz { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 8px; background: #fff;
+    font-size: 15px; font-weight: 600; box-shadow: 0 0 0 3px #ffd166, 0 0 12px 2px rgba(255, 209, 102, .8); animation: hs-wippen 1.6s ease-in-out infinite; }
+#homescreen .hs-lz img { width: 16px; height: 16px; }
+@keyframes hs-wippen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { #homescreen .hs-app img, #homescreen .hs-lz { animation: none; } }
+#homescreen h3 { margin: 16px 0 6px; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; color: #8a6200; }
+#homescreen p { margin: 0 0 8px; }
+#homescreen ol { margin: 0 0 10px; padding-left: 1.4em; }
+#homescreen li { margin: 0 0 8px; padding-left: 2px; }
+#homescreen .hs-sym { display: inline-block; width: 1.15em; height: 1.15em; vertical-align: -0.2em; fill: none; stroke: #0a64d6; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; }
+#homescreen .hs-taste { display: inline-block; min-width: 1.3em; padding: 0 6px; border-radius: 6px; background: #e7e5df;
+    text-align: center; font-weight: 700; line-height: 1.4; }
+#homescreen .hs-klein { font-size: 16px; color: #57554f; }
+#homescreen .hs-knoepfe { display: flex; gap: 10px; margin: 12px 0 4px; flex-wrap: wrap; }
+#homescreen .hs-unten { margin-top: 8px; }
+#homescreen .hs-knoepfe button { flex: 1 1 140px; min-height: 54px; padding: 12px 16px; border-radius: 27px; cursor: pointer;
+    font: 600 19px/1.1 -apple-system, BlinkMacSystemFont, Arial, sans-serif; border: 1px solid rgba(0, 0, 0, .12);
+    background: #efede7; color: #1f1f1e; }
+#homescreen .hs-knoepfe .hs-ok { background: #1f1f1e; color: #fff; border-color: #1f1f1e; }
+.k svg .blass { opacity: .35; }

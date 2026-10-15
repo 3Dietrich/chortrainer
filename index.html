@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<!-- Chor-Trainer, Quelle: github.com/3Dietrich/chortrainer (lokal ~/Music/chortrainer).
+     Die Abschnitte zwischen den Marken <<KOPF>>, <<LIEDER>> und <<FUSS>> setzt jeder Ort
+     beim Ausliefern selbst ein (ausliefern.py); alles andere nur in der Quelle ändern. -->
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- viewport-fit=cover: Leisten reichen unter Notch und Home-Balken (safe-area in style.css) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1f1f1e">
+    <!-- <<KOPF>> -->
+    <title>Bereit · Chor-Trainer</title>
+    <meta name="description" content="Bereit (Text: Charlotte Pank, Musik: Dietrich Pank) zum Üben: Noten mitlesen, Stimme wählen, Tempo ändern.">
+    <!-- <</KOPF>> -->
+    <!-- Versionsnummer: setzt www_dazu/trainer/hochladen.sh beim Hochladen (Datum-Uhrzeit) -->
+    <meta name="trainer-version" content="2026.10.15-1537">
+
+    <!-- Icons: Tab-Symbol und Homescreen (iPhone: apple-touch-icon, Android: icon-192) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <!-- Name unter dem Homescreen-Symbol (statt des abgeschnittenen Titels) -->
+    <meta name="apple-mobile-web-app-title" content="Chor-Trainer">
+    <!-- Als Web-App: das Homescreen-Symbol öffnet ein eigenes Fenster statt des
+         Standardbrowsers (sonst z.B. Chrome auf dem iPhone) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+    <!-- AlphaTab Bibliothek (lokal) -->
+    <script src="alphaTab_v1_8_1.js?v=20261014c"></script>
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css?v=2026.10.15-1537">
+</head>
+
+<body>
+
+    <!-- ======================== KOPF + SPIELER ========================
+         Handy: Kopfzeile oben (Song, Vollbild, Einstellungen), Spieler unten am Daumen.
+         Breiter Bildschirm (ab 900px): alles in einer Leiste oben, Fortschritt darunter. -->
+    <header id="toolbar-root">
+
+        <div class="topbar">
+            <img class="brand" src="icon-192.png" alt="">
+            <!-- Songauswahl sieht aus wie ein Titel, ist aber ein normales Auswahlfeld -->
+            <div class="songwrap">
+                <!-- data-frei: ohne Anmeldung abspielbar (Freigabe zusätzlich in der .htaccess);
+                     die übrigen erscheinen ohne Zugang ausgegraut mit Schloss (trainer.js: zugangAnwenden).
+                     data-mp3: Beispielaufnahme zum Song (Knopf "Aufnahme anhören" oben links über den Noten) -->
+                <select id="songSelect" onchange="loadSelectedSong()" aria-label="Song">
+                    <!-- <<LIEDER>> -->
+                    <option value="Bereit.musicxml" data-mp3="bereit.mp3" data-frei selected>Bereit</option>
+                    <!-- <</LIEDER>> -->
+                </select>
+                <svg class="caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+            </div>
+            <div class="spacer"></div>
+            <button class="fs-btn" id="fsBtn" onclick="toggleVollbild()" title="Nur Noten (Vollbild)">
+                <svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" /></svg>
+                <span>Vollbild</span>
+            </button>
+            <!-- Hilfe: hebt alle Knöpfe nummeriert hervor und erklärt sie (trainer.js: hilfeZeigen) -->
+            <button class="icon-btn hilfe-btn" id="hilfeBtn" onclick="hilfeZeigen()" title="Hilfe: was macht welcher Knopf?" aria-label="Hilfe">?</button>
+            <button class="icon-btn" id="setBtn" onclick="toggleSheet()" title="Einstellungen">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
+            </button>
+        </div>
+
+        <div id="player">
+            <!-- Griff: nach oben ziehen oder antippen öffnet die Einstellungen (Handy) -->
+            <div class="player-grab" id="playerGrab" title="Einstellungen: nach oben ziehen"><i></i></div>
+            <!-- Stimmen: Alle / S / A / T / B (wird dynamisch gefüllt) -->
+            <div class="p-voices">
+                <div id="voiceControls" class="seg"></div>
+                <!-- Nur gewählte Stimmen zeigen (wie der Schalter in den Einstellungen); bei „Alle“ ausgegraut -->
+                <button class="nur-btn" id="nurBtn" type="button" onclick="toggleSoloView()" disabled
+                    title="Nur die gewählten Stimmen zeigen" aria-label="Nur die gewählten Stimmen zeigen" aria-pressed="false">
+                    <svg viewBox="0 0 24 24"><path class="blass" d="M4 5h16M4 15h16M4 20h16" /><path class="rot" d="M4 10h16" /></svg>
+                </button>
+                <!-- Andere Stimmen (wie in den Einstellungen) als Chor: rot die eigene Stimme, daneben
+                     die Mitsänger, von Punkten (stumm) bis gleich groß (alle gleich laut).
+                     Bedienung wie Metronom: tippen = stumm/zurück, ziehen = lauter/leiser -->
+                <div class="chor-regler swipe-box" id="chorRegler" tabindex="0" role="slider"
+                    aria-label="Lautstärke der anderen Stimmen" title="Andere Stimmen: tippen = stumm/zurück, ziehen = lauter/leiser">
+                    <svg viewBox="0 0 60 32">
+                        <g class="mit" data-x="10"><circle cx="10" cy="11" r="4.5" /><path d="M2 31Q2 18 10 18Q18 18 18 31Z" /></g>
+                        <g class="mit" data-x="50"><circle cx="50" cy="11" r="4.5" /><path d="M42 31Q42 18 50 18Q58 18 58 31Z" /></g>
+                        <g class="mit" data-x="20"><circle cx="20" cy="11" r="4.5" /><path d="M12 31Q12 18 20 18Q28 18 28 31Z" /></g>
+                        <g class="mit" data-x="40"><circle cx="40" cy="11" r="4.5" /><path d="M32 31Q32 18 40 18Q48 18 48 31Z" /></g>
+                        <g class="solo"><circle cx="30" cy="11" r="4.5" /><path d="M22 31Q22 18 30 18Q38 18 38 31Z" /></g>
+                    </svg>
+                    <b class="bf-wert" id="chorWert"></b>
+                </div>
+            </div>
+
+            <!-- Bedienung: Takt + Go (beliebig oft denselben Takt aufrufen), Play, Tempo -->
+            <!-- Bedienzeile: links Takt+Go und Metronom, Mitte Play, rechts Tempo -->
+            <div class="p-ctl">
+                <div class="ctl-side left">
+                    <!-- Takt-Nummer und Go als ein zusammenhängendes Teil -->
+                    <div class="takt-box" title="Takt eingeben, Go springt hin (beliebig oft)">
+                        <input type="text" id="taktNummer" value="1" inputmode="numeric" pattern="[0-9]*"
+                            aria-label="Takt" autocomplete="off" onkeydown="if(event.key==='Enter') { jumpTo(); this.blur(); }">
+                        <button class="go-btn" id="jumpBtn" onclick="jumpTo()">Go</button>
+                    </div>
+                    <button class="metro-btn" id="metronomeBtn" title="Metronom: tippen an/aus, halten und ziehen = Lautstärke">
+                        <svg viewBox="0 0 24 24"><path d="M8 21h8l-3-17h-2z" /><path d="M12 14l6-8" /><path d="M6 21h12" /></svg>
+                        <b class="bf-wert" id="metroWert"></b>
+                    </button>
+                </div>
+                <div class="play-wrap">
+                    <button id="playBtn" class="play" onclick="handlePlayClick()" title="Abspielen / Pause (Leertaste)">
+                        <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" /></svg>
+                        <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z" /></svg>
+                    </button>
+                    <!-- Loop für den markierten Bereich: nur sichtbar, wenn mehrere Takte markiert sind -->
+                    <button class="loop-btn blass" id="bereichLoopBtn" type="button" aria-disabled="true" onclick="toggleBereichLoop()"
+                        title="Bereich wiederholen an/aus (erst Takte markieren)" aria-label="Bereich wiederholen" aria-pressed="true">
+                        <svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4" /><path d="M3 11V9a3 3 0 0 1 3-3h15" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v2a3 3 0 0 1-3 3H3" /></svg>
+                    </button>
+                </div>
+                <div class="ctl-side right">
+                    <!-- Tempo: ‹ › tippen oder wischen (rechts/oben schneller, links/unten langsamer) -->
+                    <div class="tempo-box swipe-box" id="tempoBox" tabindex="0" role="slider" aria-label="Tempo in Prozent"
+                        title="Wischen: rechts/oben schneller, links/unten langsamer">
+                        <button class="chev" data-step="-1" aria-label="langsamer">‹</button>
+                        <div class="t-val"><small>Tempo</small><b id="tempoShort">100 %</b><span id="bpmDisplay">– BPM</span></div>
+                        <button class="chev" data-step="1" aria-label="schneller">›</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ======================== NOTENBEREICH ======================== -->
+    <!-- Beispielaufnahme: nur sichtbar, wenn der Song ein data-mp3 hat; klappt einen Player auf -->
+    <div id="hoerprobe" hidden>
+        <div class="hp-row">
+            <button class="hp-btn" id="hpBtn" onclick="toggleHoerprobe()">
+                <svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z" /></svg>
+                <span id="hpText">Aufnahme anhören</span>
+            </button>
+            <!-- MP3 speichern: href und Dateiname setzt trainer.js (updateHoerprobe) -->
+            <a class="hp-btn" id="hpDl" href="#" download title="Aufnahme als MP3 herunterladen">
+                <svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+                <span>MP3</span>
+            </a>
+        </div>
+        <audio id="hpAudio" controls preload="none"></audio>
+    </div>
+    <div id="alphaTab"></div>
+
+    <!-- Unter den Noten: Wechsel zur alten Oberfläche (nicht im Einstellungsblatt, dort verwirrt es) -->
+    <footer id="pageFoot"><!-- <<FUSS>> --><a href="/">pankd.de</a><!-- <</FUSS>> -->
+        <div class="version" data-version></div></footer>
+
+    <!-- Vollbild: nur Noten, zwei schwebende Knöpfe -->
+    <div class="fs-float">
+        <button class="play" id="fsPlay" onclick="handlePlayClick()" title="Abspielen / Pause">
+            <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" /></svg>
+            <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z" /></svg>
+        </button>
+        <button class="fs-exit" onclick="toggleVollbild()" title="Vollbild verlassen">
+            <svg viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" /></svg>
+        </button>
+    </div>
+
+    <!-- ======================== EINSTELLUNGEN ========================
+         Handy: Blatt von unten (höchstens halbe Höhe, ohne Abdunkeln, Noten darüber bleiben
+         sichtbar und bedienbar). Überall auf freier Fläche nach unten ziehen schließt es.
+         Breiter Bildschirm: Feld rechts unter der Leiste. -->
+        <section id="sheet" aria-label="Einstellungen">
+        <div class="grab" title="Nach unten ziehen zum Schließen"></div>
+        <div class="sheet-head">
+            <h2>Einstellungen</h2>
+            <!-- Play bleibt auch bei offenem Blatt erreichbar (unten ist der Spieler verdeckt) -->
+            <button class="play sheet-play" id="sheetPlay" onclick="handlePlayClick()" title="Abspielen / Pause">
+                <svg class="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" /></svg>
+                <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z" /></svg>
+            </button>
+            <button class="icon-btn light hilfe-btn" onclick="hilfeZeigen()" title="Hilfe zu den Einstellungen" aria-label="Hilfe">?</button>
+            <button class="icon-btn light" id="sheetClose" onclick="toggleSheet(false)" title="Schließen">
+                <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+        </div>
+
+        <!-- Ansicht zuerst: über dem Blatt bleiben die Noten sichtbar und ändern sich sofort mit.
+             Alle Werte gleich bedient: ‹ › antippen = ein Schritt, auf der ganzen Zelle wischen = mehrere. -->
+        <div class="two">
+            <div class="set swipe-box" id="zoomBox" tabindex="0" role="slider" aria-label="Notengröße"
+                title="Wischen oder ‹ › tippen">
+                <div class="lab"><b class="lab-t"><svg class="lab-i" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/></svg>Noten</b></div>
+                <div class="swipe-face"><button class="chev" data-step="-1" aria-label="weniger">‹</button><b id="zoomDisplay">80%</b><button class="chev" data-step="1" aria-label="mehr">›</button></div>
+            </div>
+            <div class="set swipe-box" id="textBox" tabindex="0" role="slider" aria-label="Liedtextgröße"
+                title="Wischen oder ‹ › tippen">
+                <div class="lab"><b class="lab-t"><svg class="lab-i" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/></svg>Liedtext</b></div>
+                <div class="swipe-face"><button class="chev" data-step="-1" aria-label="weniger">‹</button><b id="textSizeDisplay">16</b><button class="chev" data-step="1" aria-label="mehr">›</button></div>
+            </div>
+        </div>
+
+        <!-- Stimmen: links Lautstärke der anderen, rechts Anzeige nur der gewählten Stimme (ganze Fläche schaltet) -->
+        <div class="two">
+            <div class="set swipe-box" id="volBox" tabindex="0" role="slider" aria-label="Lautstärke der anderen Stimmen"
+                title="Wischen oder ‹ › tippen: lauter/leiser">
+                <div class="lab"><b class="lab-t"><svg class="lab-i" viewBox="0 0 24 24"><path class="voll" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>Andere Stimmen</b></div>
+                <div class="swipe-face"><button class="chev" data-step="-1" aria-label="weniger">‹</button><b id="volDisplay">10 %</b><button class="chev" data-step="1" aria-label="mehr">›</button></div>
+            </div>
+            <div class="set">
+                <div class="lab"><b class="lab-t"><svg class="lab-i nur-i" viewBox="0 0 24 24"><path class="blass" d="M4 5h16M4 15h16M4 20h16"/><path class="rot" d="M4 10h16"/></svg><span id="soloLabel">Nur gewählte</span><span class="lab-lang">&nbsp;zeigen</span></b></div>
+                <button class="sw-face" id="soloBtn" onclick="toggleSoloView()">
+                    <span class="sw-state"></span><i class="sw"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Ablauf: Loop (an/aus) und Einzählen (Aus / 1 Takt / 2 Viertel) als Halbzellen wie oben.
+             trainer.js setzt "active" auf #loopBtn und auf den gewählten Knopf in #countInSeg -->
+        <div class="two">
+            <div class="set" id="loopRow">
+                <div class="lab">Loop</div>
+                <button class="sw-face" id="loopBtn" onclick="toggleLoop()" aria-label="Loop: am Ende von vorn">
+                    <span class="sw-state"></span><i class="sw"></i>
+                </button>
+            </div>
+            <div class="set" id="countInRow">
+                <div class="lab">Einzählen</div>
+                <div class="einz-seg" id="countInSeg" role="radiogroup" aria-label="Einzählen">
+                    <button type="button" data-art="aus" onclick="setCountInArt('aus')">Aus</button>
+                    <button type="button" data-art="takt" onclick="setCountInArt('takt')">1 Takt</button>
+                    <button type="button" data-art="2v" onclick="setCountInArt('2v')">2 × ¼</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="set">
+            <div class="lab">Klang</div>
+            <!-- Auswahlfeld bleibt die Quelle für trainer.js, die Chips sind nur die Bedienung -->
+            <select id="soundSelect" hidden>
+                <option value="54" selected>Stimme</option>
+                <option value="53">Chor „Aah“</option>
+                <option value="4">E-Piano</option>
+                <option value="20">Orgel</option>
+                <option value="73">Flöte</option>
+                <option value="49">Streicher</option>
+                <option value="42">Cello</option>
+            </select>
+            <div class="chips" id="soundChips"></div>
+        </div>
+
+        <!-- Offline: zeigt, ob alle Lieder auf dem Gerät liegen; die ganze Zeile startet das Speichern.
+             trainer.js füllt #offlineInfo und den Knopftext (offlineStatusZeigen). -->
+        <div class="set switches">
+            <div class="switch-row offline-row" id="offlineRow" onclick="offlineJetztSpeichern()">
+                <span class="sw-text">Offline<small id="offlineInfo">Wird geprüft …</small></span>
+                <button class="chip" id="offlineBtn" type="button">Jetzt speichern</button>
+            </div>
+        </div>
+
+        <!-- Homescreen: Anleitung je Gerät (trainer.js: homescreenZeigen) -->
+        <div class="set switches">
+            <div class="switch-row offline-row" id="homescreenRow" onclick="homescreenZeigen(false)">
+                <img class="hs-zeile-icon" src="apple-touch-icon.png" alt="">
+                <span class="sw-text"><span id="homescreenTitel">Auf den Startbildschirm</span><small id="homescreenInfo">Chor-Trainer mit einem Tipp wiederfinden</small></span>
+                <button class="chip" type="button">Zeigen</button>
+            </div>
+        </div>
+
+        <!-- Rückmeldung: nur mit Chor-Login (body.zugang), öffnet den Editor (trainer.js: rueckmeldungStarten) -->
+        <div class="set switches nur-zugang">
+            <div class="switch-row offline-row" id="feedbackRow" onclick="rueckmeldungStarten()">
+                <span class="sw-text">Rückmeldung<small>Nachricht mit Bildschirmfoto an den Trainer-Betreuer</small></span>
+                <button class="chip" type="button">Schreiben</button>
+            </div>
+        </div>
+
+        <!-- Versionsnummer, unauffällig ganz unten (Text aus meta trainer-version) -->
+        <div class="version" data-version></div>
+
+    </section>
+
+    <!-- Hauptlogik -->
+    <script src="trainer.js?v=2026.10.15-1537"></script>
+</body>
+
+</html>
