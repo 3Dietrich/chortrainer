@@ -8,7 +8,7 @@ Startbildschirm.
 **Ausprobieren:** [pankd.de/noten](https://pankd.de/noten/) mit dem Lied „Bereit"
 (Text: Charlotte Pank, Musik: Dietrich Pank).
 
-Im Einsatz ist der Trainer beim Chor TotalVokal (Bad Kreuznach/Nahe) mit dessen
+Im Einsatz ist der Trainer beim Chor TotalVokal an der Nahe mit dessen
 Liedern hinter einem Chor-Login. Beide Fassungen kommen aus diesem Repo.
 
 ## Aufbau
