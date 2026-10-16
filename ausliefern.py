@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Chor-Trainer an seine beiden Orte ausliefern. Quelle ist immer dieses Repo.
 
+    ./ausliefern.py stand            Übersicht: beide Orte nebeneinander, live-Versionen,
+                                     ob der Motor dort dem Stand der Quelle entspricht
     ./ausliefern.py pankd            öffentliche Fassung (nur Bereit) nach pankd.de/noten/
     ./ausliefern.py tv [Lied.musicxml …]
                                      Motor in den Chor-Trainer des Vereins (totalvokal-nahe.de/trainer/)
@@ -27,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 QUELLE = Path(__file__).resolve().parent
@@ -89,18 +92,30 @@ def git_stand(ordner):
     return sauber, kopf
 
 
-def pankd(nur_zeigen):
-    abgleich = [str(PANKD / 'abgleich.py')]
-    if not nur_zeigen:
-        print('== Abgleich vorher (Serverstand holen)')
-        subprocess.run(abgleich, cwd=PANKD, check=True)
-    PANKD_ZIEL.mkdir(exist_ok=True)
+def pankd_vergleich():
+    """Dateien, in denen pankd.de/noten/ (lokal) von der Quelle abweicht."""
     alt_index = PANKD_ZIEL / 'index.html'
     alte_version = version_von(alt_index.read_text()) if alt_index.exists() else ''
     neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN}
     neu['index.html'] = index_bauen(version=alte_version or 'neu').encode()
-    geaendert = [f for f, d in neu.items()
-                 if not (PANKD_ZIEL / f).exists() or (PANKD_ZIEL / f).read_bytes() != d]
+
+    def gleich(f, d):
+        p = PANKD_ZIEL / f
+        if not p.exists():
+            return False
+        # Versionsmarken (?v=…) zählen nicht als Abweichung
+        return ohne_version(p.read_bytes()) == ohne_version(d) if f == 'index.html' else p.read_bytes() == d
+    return [f for f, d in neu.items() if not gleich(f, d)]
+
+
+def pankd(nur_zeigen):
+    abgleich = [str(PANKD / 'abgleich.py')]
+    if not nur_zeigen:
+        print('== Abgleich vorher (Serverstand holen)', flush=True)
+        subprocess.run(abgleich, cwd=PANKD, check=True)
+    PANKD_ZIEL.mkdir(exist_ok=True)
+    neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN}
+    geaendert = pankd_vergleich()
     if not geaendert:
         print('pankd.de/noten/ ist schon auf dem Stand der Quelle.')
         return
@@ -116,7 +131,7 @@ def pankd(nur_zeigen):
         ziel.parent.mkdir(parents=True, exist_ok=True)
         # Neue Änderungszeit (nicht die der Quelle): abgleich.py lässt die neuere Fassung gewinnen
         ziel.write_bytes(neu[f])
-    print('== Abgleich nachher (hochladen)')
+    print('== Abgleich nachher (hochladen)', flush=True)
     subprocess.run(abgleich, cwd=PANKD, check=True)
     print('Live: https://pankd.de/noten/')
 
@@ -188,13 +203,88 @@ def tv(lieder, nur_zeigen, pruefen, ueberschreiben):
     print('Live: https://totalvokal-nahe.de/trainer/')
 
 
+def live_version(url):
+    try:
+        with urllib.request.urlopen(url, timeout=10) as r:
+            return version_von(r.read().decode()) or '?'
+    except Exception as e:
+        return f'nicht erreichbar ({e.__class__.__name__})'
+
+
+def ort_merkmale(html):
+    """Was ein Ort in seiner index.html anders macht, in Kurzform."""
+    def text(s):
+        return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', s)).strip()
+    titel = re.search(r'<title>([^<]*)', html).group(1)
+    lieder = re.findall(r'<option value="[^"]*\.musicxml"([^>]*)>([^<]*)', html)
+    frei = [n for a, n in lieder if 'data-frei' in a]
+    gesperrt = [n for a, n in lieder if 'data-frei' not in a]
+    fuss = re.search(r'<!-- <<FUSS>> -->(.*?)<!-- <</FUSS>> -->', html, re.S)
+    return {
+        'Titel': titel,
+        'Lieder frei': ', '.join(frei) or '-',
+        'Lieder mit Login': ', '.join(gesperrt) or '- (kein Login)',
+        'Fußzeile': text(fuss.group(1)) if fuss else '?',
+    }
+
+
+def stand():
+    """Übersicht: Quelle, beide Orte, und worin sie sich unterscheiden."""
+    sauber, kopf = git_stand(QUELLE)
+    voraus = subprocess.run(['git', 'rev-list', '--count', '@{u}..HEAD'], cwd=QUELLE,
+                            capture_output=True, text=True).stdout.strip()
+    print(f'Quelle  ~/Music/chortrainer  {kopf}')
+    print('        ' + ('alles committet' if sauber else 'UNGESICHERTE Änderungen')
+          + (', auf GitHub' if voraus == '0' else f', {voraus or "?"} Commit(s) noch nicht auf GitHub'))
+    pk = pankd_vergleich()
+    tv_geaendert, tv_konflikte, _ = tv_vergleich()
+    pk_html = (PANKD_ZIEL / 'index.html').read_text()
+    tv_html = (TV_ZIEL / 'index.html').read_text()
+
+    def motor(geaendert, konflikte=()):
+        if konflikte:
+            return 'DIREKT GEÄNDERT: ' + ', '.join(konflikte)
+        return 'wie die Quelle' if not geaendert else 'veraltet: ' + ', '.join(geaendert)
+
+    pk_live = live_version('https://pankd.de/noten/')
+    tv_live = live_version('https://totalvokal-nahe.de/trainer/')
+    zeilen = [
+        ('', 'pankd.de/noten/', 'totalvokal-nahe.de/trainer/'),
+        ('Motor (lokal)', motor(pk), motor(tv_geaendert, tv_konflikte)),
+        ('Version lokal', version_von(pk_html), version_von(tv_html)),
+        ('Version live', pk_live, tv_live),
+    ]
+    pm, tm = ort_merkmale(pk_html), ort_merkmale(tv_html)
+    zeilen += [(k, pm[k], tm[k]) for k in pm]
+    zeilen += [('Symbol', 'Noten (werkzeug/symbol.py)', 'Vereinslogo'),
+               ('Nur dort', '-', 'Login, Rückmeldung, alte Ansicht, Begrüßung')]
+    b1 = max(len(z[0]) for z in zeilen)
+    b2 = max(len(z[1]) for z in zeilen)
+    print()
+    for a, b, c in zeilen:
+        print(f'{a:<{b1}}  {b:<{b2}}  {c}')
+    hinweise = []
+    if pk:
+        hinweise.append('pankd ausliefern: ./ausliefern.py pankd')
+    if tv_geaendert and not tv_konflikte:
+        hinweise.append('Verein ausliefern: ./ausliefern.py tv')
+    if version_von(pk_html) != pk_live:
+        hinweise.append('pankd: lokal und live verschieden, abgleich.py in ~/Documents/pankd.de laufen lassen')
+    if version_von(tv_html) != tv_live:
+        hinweise.append('Verein: lokal und live verschieden (nicht hochgeladen oder Notbremse?)')
+    if hinweise:
+        print('\nZu tun:', *hinweise, sep='\n  ')
+
+
 def main():
     args = sys.argv[1:]
     schalter = {a for a in args if a.startswith('-')}
     rest = [a for a in args if not a.startswith('-')]
-    if not rest or rest[0] not in ('pankd', 'tv'):
+    if not rest or rest[0] not in ('pankd', 'tv', 'stand'):
         sys.exit(__doc__)
-    if rest[0] == 'pankd':
+    if rest[0] == 'stand':
+        stand()
+    elif rest[0] == 'pankd':
         pankd('-n' in schalter)
     else:
         tv(rest[1:], '-n' in schalter, '--pruefen' in schalter, '--ueberschreiben' in schalter)

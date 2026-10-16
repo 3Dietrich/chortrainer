@@ -8,8 +8,23 @@ Startbildschirm.
 **Ausprobieren:** [pankd.de/noten](https://pankd.de/noten/) mit dem Lied „Bereit"
 (Text: Charlotte Pank, Musik: Dietrich Pank).
 
-Im Einsatz ist der Trainer beim Chor TotalVokal an der Nahe mit dessen
+Im Einsatz ist der Trainer beim Chor [TotalVokal](https://totalvokal-nahe.de) in Waldböckelheim mit dessen
 Liedern hinter einem Chor-Login. Beide Fassungen kommen aus diesem Repo.
+
+## Zwei Orte, ein Motor
+
+Programm und Oberfläche sind an beiden Orten gleich. Verschieden ist nur, was der Ort selbst
+mitbringt:
+
+| | pankd.de/noten/ | Chor |
+|---|---|---|
+| Lieder | nur „Bereit" | alle Lieder des Chors, „Bereit" frei, die übrigen mit Login |
+| Titel, Fußzeile | „Bereit · Chor-Trainer", Link zu pankd.de und hierher | „Chor-Trainer", Link zur alten Ansicht |
+| Symbol | Noten (`werkzeug/symbol.py`) | Logo des Chors |
+| Nur dort | | Login, Rückmeldung mit Bildschirmfoto, Begrüßung, alte Ansicht |
+
+`./ausliefern.py stand` zeigt diese Tabelle für den tatsächlichen Stand, dazu die live
+laufenden Versionen und ob ein Ort hinter der Quelle zurückliegt.
 
 ## Aufbau
 

@@ -7,6 +7,11 @@
 | pankd | `pankd.de/noten/` (lokal `~/Documents/pankd.de/webseite/noten/`) | nichts: Repo-Inhalt 1:1, nur „Bereit", ohne Login |
 | tv | `totalvokal-nahe.de/trainer/` (Repo `~/Documents/Cursor/projects/Waldböckelheim/TotalVokal`, Ordner `www.totalvokal.de/trainer/`) | Liedliste/Titel/Fußzeile in `www_dazu/trainer/ort/*.html`, Lieder, Vereinslogo, manifest, PHP (Login, Rückmeldung), alte Ansicht |
 
+- **Übersicht: `./ausliefern.py stand`** zeigt beide Orte nebeneinander (Motor auf Stand?, Version lokal/live,
+  Titel, Lieder, Fußzeile) und was zu tun ist. Bei jeder Frage „wo steht was" zuerst das laufen lassen.  
+- **Den Verein (tv) nur auf ausdrücklichen Wunsch von @dpa beliefern** (@dpa 2026-10-16: bei TotalVokal soll
+  alles bleiben, wie es ist). `stand` darf „Verein ausliefern" vorschlagen, ausführen nicht ungefragt.  
+- Nie in `~/Documents/pankd.de/webseite/noten/` korrigieren: dort überschreibt die nächste Auslieferung alles.  
 - Ausliefern: `./ausliefern.py pankd` bzw. `./ausliefern.py tv [Lied.musicxml …]`, `-n` = nur zeigen.
   Vorher hier committen (tv verlangt das; der Commit steht in der Vereins-Commit-Message).  
 - `ausliefern.py tv` lädt über das `hochladen.sh` des Vereins hoch (Lied-Prüfung, Versionsnummer),
