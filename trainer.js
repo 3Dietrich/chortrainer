@@ -437,8 +437,30 @@ function createSoloAudioTracks(xmlDoc, soundId) {
    5. UI-STEUERUNG
    ============================== */
 
+/**
+ * Kopfzeile unter dem Titel: „Text: …“ links, „Musik: …“ rechts, in einer Zeile.
+ * alphaTab legt den Komponisten aus MusicXML unter „artist“ ab (zentriert) und
+ * beschriftet Text/Musik englisch. Die Vorsätze aus den MuseScore-Credits
+ * („Text:“, „Musik:“) fallen weg, die Vorlage setzt sie wieder.
+ */
+function kopfzeileSetzen(score) {
+    const ohneVorsatz = (s, v) => (s || '').replace(new RegExp('^\\s*' + v + '\\s*:\\s*', 'i'), '');
+    score.words = ohneVorsatz(score.words, 'Text');
+    if (score.artist && !score.music) {
+        score.music = ohneVorsatz(score.artist, 'Musik');
+        score.artist = '';
+    }
+    const M = alphaTab.model;
+    if (!score.style) score.style = new M.ScoreStyle();
+    // ScoreSubElement: Words 4, Music 5, WordsAndMusic 6 · TextAlign: Left 0, Right 2
+    score.style.headerAndFooter.set(4, new M.HeaderFooterStyle('Text: %WORDS%', undefined, 0));
+    score.style.headerAndFooter.set(5, new M.HeaderFooterStyle('Musik: %MUSIC%', undefined, 2));
+    score.style.headerAndFooter.set(6, new M.HeaderFooterStyle('Text und Musik: %MUSIC%', undefined, 2));
+}
+
 /* --- Score geladen: Buttons erzeugen, Tracks konfigurieren --- */
 api.scoreLoaded.on(score => {
+    kopfzeileSetzen(score);
     baseTempo = score.tempo || 120;
     // Tempowechsel: der %-Regler wirkt als Faktor auf jedes notierte Tempo, die
     // BPM-Anzeige zeigt das Tempo des Takts, in dem die Wiedergabe gerade steht

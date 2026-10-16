@@ -5,10 +5,11 @@
     <work-title>bereit</work-title>
     </work>
   <identification>
-    <creator type="composer">Text: Charlotte Pank</creator>
+    <creator type="composer">Dietrich Pank</creator>
+    <creator type="lyricist">Charlotte Pank</creator>
     <encoding>
       <software>MuseScore Studio 4.7.5</software>
-      <encoding-date>2026-10-14</encoding-date>
+      <encoding-date>2026-10-16</encoding-date>
       <supports element="accidental" type="yes"/>
       <supports element="beam" type="yes"/>
       <supports element="print" attribute="new-page" type="no"/>
@@ -74,6 +75,10 @@
   <credit page="1">
     <credit-type>title</credit-type>
     <credit-words default-x="600.17" default-y="1611.01" justify="center" valign="top" font-size="22">Bereit</credit-words>
+    </credit>
+  <credit page="1">
+    <credit-type>lyricist</credit-type>
+    <credit-words default-x="85.7143" default-y="1521.25" justify="left" valign="bottom">Text: Charlotte Pank</credit-words>
     </credit>
   <credit page="1">
     <credit-type>composer</credit-type>
@@ -4173,16 +4178,15 @@
           <text>les</text>
           </lyric>
         </note>
-      <note default-x="104.49" default-y="-242.99">
+      <note default-x="104.49" default-y="-247.99">
         <pitch>
-          <step>G</step>
-          <alter>1</alter>
+          <step>F</step>
           <octave>4</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
         <type>quarter</type>
-        <accidental>sharp</accidental>
+        <accidental>natural</accidental>
         <stem>down</stem>
         <lyric number="1" default-y="-40" relative-y="-30">
           <syllabic>single</syllabic>
