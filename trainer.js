@@ -2005,55 +2005,79 @@ function bereichSetzen(von, bis) {
     taktWahl = null;
     const neu = !bereich;
     bereich = { start: taktStart(von), ende: taktStart(bis) + api.score.masterBars[bis].calculateDuration() };
+    const takt = aktuellerTakt();
     bereichAnwenden();
     if (neu) bereichLoop = BEREICH_LOOP_START;
     loopAnwenden();
-    const takt = aktuellerTakt();
-    if (api.playerState !== 1) api.tickPosition = bereich.start;
-    else if (takt < bereich.von || takt > bereich.bis) sprungPlanen(bereich.start);
+    // Neuer Bereich vor der Spielstelle: am nächsten Taktstrich hin (dahinter regelt bereichAnSpieler)
+    if (api.playerState === 1 && takt < bereich.von) sprungPlanen(bereich.start);
 }
 
-/* Bereich { start, ende } in Ticks an alphaTab geben und daraus ableiten, was das
-   Zeichnen braucht: erster und letzter Takt (von, bis) und die Stellen darin
-   (vonAb, bisBis in Ticks ab Taktanfang). Nach dem Verschieben liegen Anfang und Ende
-   auch mitten im Takt. */
-function bereichAnwenden() {
+/* Bereich { start, ende } in Ticks zeigen und (ohne nurZeigen) an alphaTab geben.
+   Abgeleitet wird, was das Zeichnen braucht: erster und letzter Takt (von, bis) und die
+   Stellen darin (vonAb, bisBis in Ticks ab Taktanfang). Nach dem Verschieben liegen
+   Anfang und Ende auch mitten im Takt. Beim Ziehen nur zeigen, erst das Loslassen gilt. */
+function bereichAnwenden(nurZeigen = false) {
     const lkBei = t => api.tickCache.masterBars.find(m => m.start <= t && t < m.end);
     const a = lkBei(bereich.start), e = lkBei(bereich.ende - 1);
     bereich.von = a.masterBar.index;
     bereich.vonAb = bereich.start - a.start;
     bereich.bis = e.masterBar.index;
     bereich.bisBis = bereich.ende - e.start;
-    const range = new alphaTab.synth.PlaybackRange();
-    range.startTick = bereich.start;
-    range.endTick = bereich.ende - 50;
-    api.playbackRange = range;
     el.classList.add('mit-bereich');
     // Takt-Feld (Go) zeigt den Takt, in dem der Bereich anfängt
     const feld = document.getElementById('taktNummer');
     if (feld && feld.value !== String(bereich.von + 1 + taktOffset)) taktFeldSetzen(bereich.von);
     taktWahlZeigen();
+    if (!nurZeigen) bereichAnSpieler();
 }
 
+/* Bereich an alphaTab geben. Steht das Lied, steht der Strich danach am Anfang. Läuft
+   es, geht es ohne Bruch weiter (alphaTab-Anpassung: kein Sprung beim Setzen): liegt
+   die Spielstelle im Bereich oder davor, spielt es einfach hinein. Liegt sie dahinter,
+   gilt das Ende vorläufig erst am Ende des laufenden Takts: dort geht es am
+   Bereichsanfang weiter, danach gilt das richtige Ende (playerFinished meldet den
+   Rücksprung). */
+let bereichEndeVorlaeufig = false;
+// vorlaeufigErlaubt = false: gleich das richtige Ende (nach dem Rücksprung ist die
+// gemeldete Spielstelle noch die alte und taugt nicht zur Prüfung)
+function bereichAnSpieler(vorlaeufigErlaubt = true) {
+    const range = new alphaTab.synth.PlaybackRange();
+    range.startTick = bereich.start;
+    range.endTick = bereich.ende - 50;
+    bereichEndeVorlaeufig = false;
+    if (vorlaeufigErlaubt && api.playerState === 1 && !einzaehlPhase) {
+        const t = api.tickPosition;
+        const lk = api.tickCache.masterBars.find(m => m.start <= t && t < m.end);
+        if (t >= range.endTick && lk) {
+            range.endTick = lk.end - 50;
+            bereichEndeVorlaeufig = true;
+        }
+    }
+    api.playbackRange = range;
+    if (api.playerState !== 1) api.tickPosition = bereich.start;
+}
+api.playerFinished.on(() => {
+    if (bereich && bereichEndeVorlaeufig) bereichAnSpieler(false);
+});
+
 /* Bereich verschieben, die Länge bleibt: in Vierteln (Ziehen im Rahmen, Pfeiltasten
-   ← →). So rückt z.B. ein Auftakt mit hinein. Steht das Lied, steht der Strich danach
-   am neuen Anfang; läuft es, gilt der neue Bereich ab dem nächsten Durchgang (oder
-   sofort, wenn das Ende schon vorbei ist). */
+   ← →). So rückt z.B. ein Auftakt mit hinein. Übergang bei laufendem Lied: siehe
+   bereichAnSpieler. */
 const BEREICH_SCHRITT = 960;   // Ticks: ein Viertel
 function bereichVerschieben(schritte) {
     if (bereich && api.tickCache) bereichAuf(bereich.start + schritte * BEREICH_SCHRITT);
 }
 
 // Bereich mit gleicher Länge auf diesen Anfang (Ticks) legen, innerhalb des Lieds
-function bereichAuf(start) {
+function bereichAuf(start, nurZeigen = false) {
     const takte = api.tickCache.masterBars;
     const laenge = bereich.ende - bereich.start;
     start = Math.max(0, Math.min(takte[takte.length - 1].end - laenge, start));
     if (start === bereich.start) return;
     bereich.start = start;
     bereich.ende = start + laenge;
-    bereichAnwenden();
-    if (api.playerState !== 1) api.tickPosition = bereich.start;
+    bereichAnwenden(nurZeigen);
 }
 
 function bereichAufheben() {
@@ -2252,7 +2276,7 @@ function bereichGriff(cx, cy) {
 }
 
 // Bereich auf start..ende (Ticks) setzen, innerhalb des Lieds, mindestens ein Viertel
-function bereichGrenzen(start, ende) {
+function bereichGrenzen(start, ende, nurZeigen = false) {
     const takte = api.tickCache.masterBars;
     start = Math.max(0, start);
     ende = Math.min(takte[takte.length - 1].end, ende);
@@ -2260,8 +2284,7 @@ function bereichGrenzen(start, ende) {
     if (start === bereich.start && ende === bereich.ende) return;
     bereich.start = start;
     bereich.ende = ende;
-    bereichAnwenden();
-    if (api.playerState !== 1) api.tickPosition = bereich.start;
+    bereichAnwenden(nurZeigen);
 }
 
 el.addEventListener('pointerdown', e => {
@@ -2295,15 +2318,18 @@ window.addEventListener('pointermove', e => {
     const ort = tickAmOrt(e.clientX - f.getBoundingClientRect().left, zug.y);
     if (!ort) return;
     const d = Math.round((ort.tick - zug.tick0) / BEREICH_SCHRITT) * BEREICH_SCHRITT;
-    if (zug.griff === 'ganz') bereichAuf(zug.start0 + d);
-    else if (zug.griff === 'anfang') bereichGrenzen(zug.start0 + d, zug.ende0);
-    else bereichGrenzen(zug.start0, zug.ende0 + d);
+    // Beim Ziehen wandert nur der Rahmen; die Wiedergabe merkt erst das Loslassen
+    if (zug.griff === 'ganz') bereichAuf(zug.start0 + d, true);
+    else if (zug.griff === 'anfang') bereichGrenzen(zug.start0 + d, zug.ende0, true);
+    else bereichGrenzen(zug.start0, zug.ende0 + d, true);
 }, true);
 
 function zugEnde() {
     if (zug && zug.aktiv) {
         zugEndeZeit = Date.now();
         document.body.classList.remove('bereich-zieht', 'bereich-zieht-rand');
+        // Losgelassen: jetzt gilt der neue Bereich auch für die Wiedergabe
+        if (bereich && (bereich.start !== zug.start0 || bereich.ende !== zug.ende0)) bereichAnSpieler();
     }
     zug = null;
 }
@@ -2609,7 +2635,7 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen auf freier Fläche ziehen verschiebt ihn, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen auf freier Fläche ziehen verschiebt ihn, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',

@@ -36376,7 +36376,9 @@
         }
         set playbackRange(value) {
             this.sequencer.mainPlaybackRange = value;
-            if (value) {
+            // TotalVokal-Anpassung: läuft das Lied, nicht an den Bereichsanfang springen.
+            // Den Übergang regelt trainer.js (hineinspielen, Sprung am Taktstrich).
+            if (value && this.state !== PlayerState.Playing) {
                 this.tickPosition = value.startTick;
             }
             this.playbackRangeChanged.trigger(new PlaybackRangeChangedEventArgs(value));
