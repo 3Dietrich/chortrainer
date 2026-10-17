@@ -272,6 +272,14 @@ svg { display: block; }
 .wdh-zeichen::before { content: ""; position: absolute; inset: -6px -14px; }
 .wdh-zeichen svg { display: block; fill: var(--red); opacity: 0.3; }
 .wdh-zeichen.an svg { opacity: 1; }
+/* Pfeile ‹ › über dem Bereichsanfang: Bereich um ein Achtel verschieben.
+   Sitzen über dem Rahmen, Trefferfläche größer als die Knöpfe */
+.bereich-schieben { position: absolute; z-index: 6; display: flex; gap: 6px; transform: translateY(calc(-100% - 3px)); }
+.bereich-schieben button { position: relative; width: 44px; height: 30px; padding: 0; border: none; border-radius: 6px;
+    background: var(--red); color: #fff; font: 700 26px/30px Arial, sans-serif; cursor: pointer; touch-action: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+.bereich-schieben button::before { content: ""; position: absolute; inset: -10px -3px -6px; }
+.bereich-schieben button:active { filter: brightness(.85); }
 .seg .v-btn.active { background: var(--red); color: #fff; }
 
 /* Kurz-/Langtext der Stimmen: Handy S A T B, breit Sopran Alt … */

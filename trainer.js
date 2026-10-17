@@ -40,7 +40,7 @@ let scrollTopAfterRender = false;  // nach dem Laden eines Songs einmal nach obe
 let lastLoadedFile = null;     // zuletzt geladene MusicXML (gleicher Song = nur Klang gewechselt)
 let pendingResume = null;      // {tick, play}: nach dem Neuladen hier weitermachen
 let taktWahl = null;           // gewählter Takt (Tipp in die Noten, roter Rahmen), null = keiner
-let bereich = null;            // Abspielbereich { von, bis } (Taktindizes), null = keiner
+let bereich = null;            // Abspielbereich { start, ende } in Ticks (dazu von, bis, vonAb, bisBis), null = keiner
 let bereichVorschau = null;    // Bereich beim Ziehen, noch nicht gesetzt
 const BEREICH_LOOP_START = true;   // neuer Bereich: Loop-Knopf neben Play zuerst an?
 let bereichLoop = BEREICH_LOOP_START;
@@ -1686,13 +1686,17 @@ function audioBereit() {
     }
 }
 
-function handlePlayClick() {
+// abHier: an der gesetzten Stelle starten (Doppeltipp auf eine Note), nicht am Taktanfang
+function handlePlayClick(abHier = false) {
     // Jeder Start beginnt am Taktanfang: mitten im Takt angehalten, geht es von der Eins
     // dieses Takts los (mit Einzählen auf den ersten Einsatz, wenn eingestellt)
     if (api.playerState !== 1 && api.tickCache) {
         const t = api.tickPosition;
         const lk = api.tickCache.masterBars.find(m => m.start <= t && t < m.end);
-        if (lk && t > lk.start) api.tickPosition = lk.start;
+        if (abHier !== true && lk && t > lk.start) api.tickPosition = lk.start;
+        // Mit Bereich nie davor oder dahinter: ein verschobener Bereich beginnt mitten im Takt
+        if (bereich && (api.tickPosition < bereich.start || api.tickPosition >= bereich.ende))
+            api.tickPosition = bereich.start;
     }
     if (api.score) updateTrackVolumes();
     document.getElementById('hpAudio').pause();
@@ -1727,8 +1731,8 @@ api.playerStateChanged.on(args => {
      nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter.
    - Tipp auf eine Note bei stehendem Lied: nur die Note erklingt (auch aus einer
      stummen Stimme), Takt und Strich bleiben, wo sie sind.
-   - Doppeltipp: ab Anfang dieses Takts abspielen, mit Einzählen nach Einstellung, auch
-     wenn das Lied schon läuft. Die Nummer kommt außerdem ins Takt-Feld (für „Go“).
+   - Doppeltipp: ab Anfang dieses Takts abspielen, auf eine Note ab dieser Note, mit
+     Einzählen nach Einstellung, auch wenn das Lied schon läuft. Die Nummer kommt außerdem ins Takt-Feld (für „Go“).
    - Bereich: Takt antippen, dann Shift-Klick auf einen anderen Takt, oder mit der Maus
      von einem Takt zum anderen ziehen. Diese Takte werden der Abspielbereich (Rahmen),
      neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp hebt den Bereich auf. */
@@ -1780,7 +1784,7 @@ api.beatMouseUp.on(beat => {
     if (bereich) bereichAufheben();
     if (doppelt) {
         taktFeldSetzen(a);
-        abTaktSpielen(a);
+        abTaktSpielen(a, tippOrt && noteAmOrt(a, ...tippOrt));
     } else {
         taktWaehlen(a, tippOrt && noteAmOrt(a, ...tippOrt));
     }
@@ -1835,15 +1839,15 @@ function taktWaehlen(idx, note) {
     api.tickPosition = ziel;
 }
 
-// Doppeltipp: ab Taktanfang spielen, Einzählen nach Einstellung
-function abTaktSpielen(idx) {
-    const ziel = taktStart(idx);
+// Doppeltipp: ab Taktanfang spielen, auf eine Note ab dieser Note; Einzählen nach Einstellung
+function abTaktSpielen(idx, note = null) {
+    const ziel = taktStart(idx) + (note ? note.beat.playbackStart : 0);
     sprungAbbrechen();
     taktWahl = null;
     taktWahlZeigen();
     if (api.playerState !== 1) {
         api.tickPosition = ziel;
-        handlePlayClick();
+        handlePlayClick(!!note);
     } else if (isCountIn) {
         neuStarten(ziel);
     } else {
@@ -1988,17 +1992,48 @@ function bereichSetzen(von, bis) {
     sprungAbbrechen();
     taktWahl = null;
     const neu = !bereich;
-    bereich = { von, bis };
-    const range = new alphaTab.synth.PlaybackRange();
-    range.startTick = taktStart(von);
-    range.endTick = taktStart(bis) + api.score.masterBars[bis].calculateDuration() - 50;
-    api.playbackRange = range;
+    bereich = { start: taktStart(von), ende: taktStart(bis) + api.score.masterBars[bis].calculateDuration() };
+    bereichAnwenden();
     if (neu) bereichLoop = BEREICH_LOOP_START;
     loopAnwenden();
-    taktWahlZeigen();
     const takt = aktuellerTakt();
-    if (api.playerState !== 1) api.tickPosition = range.startTick;
-    else if (takt < von || takt > bis) sprungPlanen(range.startTick);
+    if (api.playerState !== 1) api.tickPosition = bereich.start;
+    else if (takt < bereich.von || takt > bereich.bis) sprungPlanen(bereich.start);
+}
+
+/* Bereich { start, ende } in Ticks an alphaTab geben und daraus ableiten, was das
+   Zeichnen braucht: erster und letzter Takt (von, bis) und die Stellen darin
+   (vonAb, bisBis in Ticks ab Taktanfang). Nach dem Verschieben liegen Anfang und Ende
+   auch mitten im Takt. */
+function bereichAnwenden() {
+    const lkBei = t => api.tickCache.masterBars.find(m => m.start <= t && t < m.end);
+    const a = lkBei(bereich.start), e = lkBei(bereich.ende - 1);
+    bereich.von = a.masterBar.index;
+    bereich.vonAb = bereich.start - a.start;
+    bereich.bis = e.masterBar.index;
+    bereich.bisBis = bereich.ende - e.start;
+    const range = new alphaTab.synth.PlaybackRange();
+    range.startTick = bereich.start;
+    range.endTick = bereich.ende - 50;
+    api.playbackRange = range;
+    taktWahlZeigen();
+}
+
+/* Bereich verschieben, die Länge bleibt: Schritt ein Achtel (Pfeiltasten ← →, die
+   Pfeile am Rahmen). So rückt z.B. ein Auftakt („Hab ich mich“ auf 3 und) mit hinein.
+   Steht das Lied, steht der Strich danach am neuen Anfang; läuft es, gilt der neue
+   Bereich ab dem nächsten Durchgang (oder sofort, wenn das Ende schon vorbei ist). */
+const BEREICH_SCHRITT = 480;   // Ticks: ein Achtel (Viertel = 960)
+function bereichVerschieben(schritte) {
+    if (!bereich || !api.tickCache) return;
+    const takte = api.tickCache.masterBars;
+    const liedEnde = takte[takte.length - 1].end;
+    const d = Math.max(-bereich.start, Math.min(liedEnde - bereich.ende, schritte * BEREICH_SCHRITT));
+    if (!d) return;
+    bereich.start += d;
+    bereich.ende += d;
+    bereichAnwenden();
+    if (api.playerState !== 1) api.tickPosition = bereich.start;
 }
 
 function bereichAufheben() {
@@ -2037,13 +2072,18 @@ function toggleBereichLoop() {
 /* Rotes Wiederholungszeichen im Notenstil als Overlay: Anfang ‖: am Bereichsanfang,
    Ende :‖ am Bereichsende. Dicker und dünner Strich über alle Notenzeilen, je Notenzeile
    zwei Punkte in den mittleren Zwischenräumen. Antippen schaltet den Loop um. */
+// Breite des Zeichens bei Linienabstand sp (Maße wie in wdhZeichen)
+function wdhBreite(sp) {
+    return sp * 0.55 + sp * 0.35 + Math.max(1.2, sp * 0.16) + sp * 0.35 + 2 * sp * 0.27 + 2;
+}
+
 function wdhZeichen(box, dx, dy, sys, x, ende) {
     const zeilen = sys.bars[0].bars.map(bb => bb.realBounds);   // Notenzeilen (5 Linien)
     if (!zeilen.length) return;
     const sp = zeilen[0].h / 4;                                  // Linienabstand
     const oben = zeilen[0].y, unten = zeilen[zeilen.length - 1].y + zeilen[zeilen.length - 1].h;
     const dick = sp * 0.55, luft = sp * 0.35, duenn = Math.max(1.2, sp * 0.16), r = sp * 0.27;
-    const breite = dick + luft + duenn + luft + 2 * r + 2;
+    const breite = wdhBreite(sp);
     // Ende: Zeichen endet am Taktstrich; Anfang: beginnt dort
     const links = ende ? x - breite : x;
     const teile = [];
@@ -2069,34 +2109,89 @@ function wdhZeichen(box, dx, dy, sys, x, ende) {
 // ein Rahmen); nach jedem Zeichnen neu setzen
 function taktWahlZeigen() {
     const box = document.getElementById('alphaTab');
-    box.querySelectorAll('.takt-wahl, .wdh-zeichen').forEach(e => e.remove());
+    box.querySelectorAll('.takt-wahl, .wdh-zeichen, .bereich-schieben').forEach(e => e.remove());
     const lookup = api.renderer && api.renderer.boundsLookup;
     const flaeche = box.querySelector('.at-surface');
     const b = bereichVorschau || bereich || (taktWahl !== null ? { von: taktWahl, bis: taktWahl } : null);
     if (!b || !lookup || !flaeche) return;
     const ab = box.getBoundingClientRect(), fb = flaeche.getBoundingClientRect();
+    const dx = fb.left - ab.left, dy = fb.top - ab.top;
     for (const sys of lookup.staffSystems) {
         const takte = sys.bars.filter(mb => mb.index >= b.von && mb.index <= b.bis);
         if (!takte.length) continue;
-        const r0 = takte[0].realBounds, r1 = takte[takte.length - 1].realBounds;
+        const erst = takte[0], letzt = takte[takte.length - 1];
+        const r0 = erst.realBounds, r1 = letzt.realBounds;
+        const sp = erst.bars[0].realBounds.h / 4;
+        // Verschobener Bereich: Anfang und Ende mitten im Takt, vor der jeweiligen Note,
+        // am Anfang mit Platz für das Wiederholungszeichen
+        let x0 = r0.x, x1 = r1.x + r1.w;
+        if (b === bereich && erst.index === b.von && b.vonAb > 0)
+            x0 = xImTakt(erst, b.vonAb) - wdhBreite(sp) - 3;
+        if (b === bereich && letzt.index === b.bis && b.bisBis < api.score.masterBars[b.bis].calculateDuration())
+            x1 = xImTakt(letzt, b.bisBis) - 3;
         const d = document.createElement('div');
         d.className = 'takt-wahl' + (b === bereich || b === bereichVorschau ? ' bereich' : '');
-        d.style.cssText = `left:${fb.left - ab.left + r0.x}px;top:${fb.top - ab.top + r0.y}px;` +
-            `width:${r1.x + r1.w - r0.x}px;height:${r0.h}px`;
+        d.style.cssText = `left:${dx + x0}px;top:${dy + r0.y}px;width:${x1 - x0}px;height:${r0.h}px`;
         box.appendChild(d);
         // Wiederholungszeichen am gesetzten Bereich (nicht beim Ziehen)
         if (b !== bereich) continue;
-        if (takte[0].index === b.von) {
+        if (erst.index === b.von) {
             // Am Zeilenanfang hinter Schlüssel und Vorzeichen, sonst am Taktstrich
-            const erster = takte[0] === sys.bars[0] && takte[0].bars[0].beats[0];
-            const sp = takte[0].bars[0].realBounds.h / 4;
-            const x = erster ? Math.max(r0.x, erster.realBounds.x - sp * 3) : r0.x;
-            wdhZeichen(box, fb.left - ab.left, fb.top - ab.top, sys, x, false);
+            const erster = !b.vonAb && erst === sys.bars[0] && erst.bars[0].beats[0];
+            const x = erster ? Math.max(r0.x, erster.realBounds.x - sp * 3) : x0;
+            wdhZeichen(box, dx, dy, sys, x, false);
+            schiebePfeile(box, dx + x0, dy + r0.y);
         }
-        if (takte[takte.length - 1].index === b.bis)
-            wdhZeichen(box, fb.left - ab.left, fb.top - ab.top, sys, r1.x + r1.w, true);
+        if (letzt.index === b.bis)
+            wdhZeichen(box, dx, dy, sys, x1, true);
     }
 }
+
+/* x einer Stelle im Takt (Ticks ab Taktanfang) auf der Notenfläche: der linke Rand
+   des Schlags, der dort beginnt (über alle Stimmen der früheste); zwischen zwei
+   Schlägen anteilig. */
+function xImTakt(mb, ab) {
+    const pkt = [];
+    for (const bb of mb.bars) for (const be of bb.beats) pkt.push([be.beat.playbackStart, be.realBounds.x]);
+    pkt.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    pkt.push([api.score.masterBars[mb.index].calculateDuration(), mb.realBounds.x + mb.realBounds.w]);
+    let vor = [0, mb.realBounds.x];
+    for (const p of pkt) {
+        if (p[0] >= ab) {
+            if (p[0] === ab || p[0] === vor[0]) return p[1];
+            return vor[1] + (p[1] - vor[1]) * (ab - vor[0]) / (p[0] - vor[0]);
+        }
+        vor = p;
+    }
+    return mb.realBounds.x + mb.realBounds.w;
+}
+
+/* Pfeile ‹ › über dem Bereichsanfang: verschieben den Bereich um ein Achtel.
+   Gedrückt halten wiederholt. Ein Tipp darauf ist kein Tipp in die Noten. */
+let schiebeZeit = null;
+function schiebePfeile(box, x, y) {
+    const d = document.createElement('div');
+    d.className = 'bereich-schieben';
+    d.style.cssText = `left:${x}px;top:${y}px`;
+    d.innerHTML = '<button type="button" data-s="-1" title="Bereich ein Achtel früher (Taste ←)" aria-label="Bereich früher">‹</button>' +
+        '<button type="button" data-s="1" title="Bereich ein Achtel später (Taste →)" aria-label="Bereich später">›</button>';
+    ['mousedown', 'mouseup', 'touchstart', 'touchend', 'click']
+        .forEach(t => d.addEventListener(t, e => e.stopPropagation()));
+    d.addEventListener('pointerup', e => { e.stopPropagation(); clearTimeout(schiebeZeit); });
+    d.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        const k = e.target.closest('button');
+        if (!k) return;
+        const s = +k.dataset.s;
+        clearTimeout(schiebeZeit);
+        bereichVerschieben(s);
+        const weiter = () => { bereichVerschieben(s); schiebeZeit = setTimeout(weiter, 110); };
+        schiebeZeit = setTimeout(weiter, 450);
+    });
+    box.appendChild(d);
+}
+['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, () => clearTimeout(schiebeZeit)));
 
 // Sprung erledigt und Rahmen weg, sobald die Wiedergabe im gewählten Takt angekommen ist
 api.playerPositionChanged.on(e => {
@@ -2155,6 +2250,12 @@ window.addEventListener('keydown', (e) => {
         if (activeEl && ['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) return;
         e.preventDefault();
         handlePlayClick();
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && bereich && !e.defaultPrevented) {
+        // Pfeiltasten verschieben den Bereich um ein Achtel (außer in Feldern und Reglern)
+        const activeEl = document.activeElement;
+        if (activeEl && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) || activeEl.getAttribute('role') === 'slider')) return;
+        e.preventDefault();
+        bereichVerschieben(e.key === 'ArrowLeft' ? -1 : 1);
     } else if (e.key === 'Escape') {
         toggleSheet(false);
         if (document.body.classList.contains('vollbild')) toggleVollbild(false);
@@ -2380,13 +2481,13 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Die Pfeile ‹ › über dem Rahmen (oder die Pfeiltasten) verschieben den Bereich um ein Achtel, die Länge bleibt; gedrückt halten wiederholt. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
         'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Gedrückt halten, bis die Zahl erscheint, dann hoch- oder runterziehen: lauter oder leiser. Dabei ist es zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
-        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, der Takt bleibt dabei, wie er ist. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, mit Einzählen, wenn es eingestellt ist, und trägt seine Nummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
+        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, der Takt bleibt dabei, wie er ist. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
         'Vollbild: nur noch die Noten, groß und ohne Knöpfe. Zurück geht es mit dem kleinen Knopf unten rechts.'],
     ['', '.fs-exit', '', 'Vollbild verlassen: die Knöpfe kommen wieder.'],
@@ -2409,7 +2510,7 @@ const HILFE = [
     ['Einstellungen (Zahnrad)', '#loopRow', '<span class="k hell">Loop <i class="k-sw aus"></i></span>',
         'Loop: am Ende fängt das Lied von selbst wieder von vorn an.'],
     ['Einstellungen (Zahnrad)', '#countInRow', '<span class="k hell">Aus</span><span class="k">1 Takt</span><span class="k hell">2 × ¼</span>',
-        'Einzählen: vor dem Start klickt es, dann setzen alle gemeinsam ein. „1 Takt“ zählt einen ganzen Takt ein, „2 × ¼“ nur zwei Viertel, „Aus“ startet sofort. Beginnt der Takt mit Pausen, wird auf den ersten Einsatz hin gezählt. Beim Einzählen steht der Strich still, eine Zahl zählt mit (z.B. 3, 4, ►). Gilt für Abspielen und für das zweimalige Tippen auf einen Takt.'],
+        'Einzählen: vor dem Start klickt es, dann setzen alle gemeinsam ein. „1 Takt“ zählt einen ganzen Takt ein, „2 × ¼“ nur zwei Viertel, „Aus“ startet sofort. Beginnt der Takt mit Pausen, wird auf den ersten Einsatz hin gezählt. Beim Einzählen steht der Strich still, eine Zahl zählt mit (z.B. 3, 4, ►). Gilt für Abspielen und für das zweimalige Tippen auf einen Takt oder eine Note.'],
     ['Einstellungen (Zahnrad)', '#soundChips', '<span class="k">Stimme</span><span class="k hell">Orgel</span>',
         'Klang: womit die Noten gespielt werden, zum Beispiel Stimme, Chor oder Orgel.'],
     ['Einstellungen (Zahnrad)', '#offlineRow', '<span class="k hell">Offline</span>',
