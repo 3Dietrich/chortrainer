@@ -275,8 +275,10 @@ svg { display: block; }
 /* Bereich ziehen: Hand über dem Rahmen; mit Bereich scrollt Wischen nur senkrecht,
    waagrecht verschiebt es den Bereich */
 #alphaTab.mit-bereich { touch-action: pan-y pinch-zoom; }
-#alphaTab.bereich-greifbar, #alphaTab.bereich-greifbar .wdh-zeichen { cursor: grab; }
+#alphaTab.bereich-greifbar { cursor: grab; }
+#alphaTab.bereich-rand, #alphaTab.bereich-rand .wdh-zeichen { cursor: ew-resize; }
 body.bereich-zieht, body.bereich-zieht * { cursor: grabbing !important; user-select: none; }
+body.bereich-zieht-rand, body.bereich-zieht-rand * { cursor: ew-resize !important; user-select: none; }
 .seg .v-btn.active { background: var(--red); color: #fff; }
 
 /* Kurz-/Langtext der Stimmen: Handy S A T B, breit Sopran Alt … */

@@ -1603,6 +1603,18 @@ function jumpTo() {
     const jetzt = Date.now();
     const doppelt = jetzt - goZeit < 450;
     goZeit = doppelt ? 0 : jetzt;
+    if (bereich && idx === bereich.von) {
+        // Go auf den Bereichsanfang (steht im Feld): der Bereich bleibt, es geht an seinem
+        // Anfang los. Steht das Lied, zweimal Go spielt; läuft es, startet es dort neu.
+        if (api.playerState === 1) {
+            if (isCountIn) neuStarten(bereich.start); else api.tickPosition = bereich.start;
+        } else {
+            api.tickPosition = bereich.start;
+            if (doppelt) handlePlayClick(true);
+        }
+        toggleSheet(false);
+        return;
+    }
     anker = idx;
     if (bereich) bereichAufheben();
     if (doppelt) abTaktSpielen(idx);
@@ -2017,6 +2029,9 @@ function bereichAnwenden() {
     range.endTick = bereich.ende - 50;
     api.playbackRange = range;
     el.classList.add('mit-bereich');
+    // Takt-Feld (Go) zeigt den Takt, in dem der Bereich anfängt
+    const feld = document.getElementById('taktNummer');
+    if (feld && feld.value !== String(bereich.von + 1 + taktOffset)) taktFeldSetzen(bereich.von);
     taktWahlZeigen();
 }
 
@@ -2043,7 +2058,7 @@ function bereichAuf(start) {
 
 function bereichAufheben() {
     bereich = null;
-    el.classList.remove('mit-bereich', 'bereich-greifbar');
+    el.classList.remove('mit-bereich', 'bereich-greifbar', 'bereich-rand');
     api.playbackRange = null;
     loopAnwenden();
     taktWahlZeigen();
@@ -2207,35 +2222,62 @@ function tickAmOrt(x, y) {
 }
 
 /* --- Bereich ziehen ---
-   Im Rahmen auf freier Fläche (nicht auf einer Note) oder an seinen Rändern waagrecht
-   ziehen verschiebt den Bereich; er rastet pro Viertel ein, die Länge bleibt. Nur die
-   waagrechte Bewegung zählt. Erst ab 6 px wird gezogen, vorher bleibt es ein normaler
-   Tipp (Takt wählen, Doppeltipp). Auf dem Handy scrollt senkrechtes Wischen weiter die
-   Seite (touch-action pan-y, solange ein Bereich besteht). */
-let zug = null;        // { x0, y, tick0, start0, aktiv, id }
+   Zwei Griffe, waagrecht gezogen, Raster ein Viertel:
+   - Rand (Wiederholungszeichen, dicht am linken bzw. rechten Rahmenende): nur dieser Rand
+     wandert, der Bereich wird länger oder kürzer (mindestens ein Viertel). Maus: ↔
+   - Innen auf freier Fläche (nicht auf einer Note): der ganze Bereich wandert, die
+     Länge bleibt. Maus: Hand
+   Außerhalb des Rahmens ziehen wählt wie immer einen neuen Bereich (ganze Takte).
+   Nur die waagrechte Bewegung zählt. Erst ab 6 px wird gezogen, vorher bleibt es ein
+   normaler Tipp (Takt wählen, Doppeltipp, Loop am Zeichen umschalten). Auf dem Handy
+   scrollt senkrechtes Wischen weiter die Seite (touch-action pan-y, solange ein
+   Bereich besteht). */
+let zug = null;        // { griff, x0, y, tick0, start0, ende0, aktiv, id }
 let zugEndeZeit = 0;   // Ende des letzten Ziehens: der Klick danach zählt nicht
+const RAND_AUSSEN = 14, RAND_INNEN = 24;   // Greifbreite der Ränder in px
 
-// Liegt der Punkt (Bildschirm) im Bereichsrahmen oder dicht an seinen Rändern?
-function imBereichRahmen(cx, cy) {
-    for (const r of document.querySelectorAll('.takt-wahl.bereich')) {
-        const b = r.getBoundingClientRect();
-        if (cx >= b.left - 14 && cx <= b.right + 14 && cy >= b.top && cy <= b.bottom) return true;
+// Griff am Punkt (Bildschirm): 'anfang' / 'ende' (Rand), 'ganz' (innen) oder null
+function bereichGriff(cx, cy) {
+    const rahmen = [...document.querySelectorAll('.takt-wahl.bereich')];
+    if (!rahmen.length) return null;
+    const drin = (b, l, rr) => cx >= l && cx <= rr && cy >= b.top && cy <= b.bottom;
+    const b0 = rahmen[0].getBoundingClientRect(), b1 = rahmen[rahmen.length - 1].getBoundingClientRect();
+    if (drin(b0, b0.left - RAND_AUSSEN, b0.left + RAND_INNEN)) return 'anfang';
+    if (drin(b1, b1.right - RAND_INNEN, b1.right + RAND_AUSSEN)) return 'ende';
+    for (const rr of rahmen) {
+        const b = rr.getBoundingClientRect();
+        if (drin(b, b.left, b.right)) return 'ganz';
     }
-    return false;
+    return null;
+}
+
+// Bereich auf start..ende (Ticks) setzen, innerhalb des Lieds, mindestens ein Viertel
+function bereichGrenzen(start, ende) {
+    const takte = api.tickCache.masterBars;
+    start = Math.max(0, start);
+    ende = Math.min(takte[takte.length - 1].end, ende);
+    if (ende - start < BEREICH_SCHRITT) return;
+    if (start === bereich.start && ende === bereich.ende) return;
+    bereich.start = start;
+    bereich.ende = ende;
+    bereichAnwenden();
+    if (api.playerState !== 1) api.tickPosition = bereich.start;
 }
 
 el.addEventListener('pointerdown', e => {
     zug = null;
-    if (!bereich || e.button > 0 || !e.isPrimary || !imBereichRahmen(e.clientX, e.clientY)) return;
+    if (!bereich || e.button > 0 || !e.isPrimary) return;
+    const griff = bereichGriff(e.clientX, e.clientY);
+    if (!griff) return;
     const f = el.querySelector('.at-surface');
     if (!f) return;
     const r = f.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const ort = tickAmOrt(x, y);
     if (!ort) return;
-    // Auf einer Note bleibt es beim Anspielen
-    if (!e.target.closest('.wdh-zeichen') && noteAmOrt(ort.idx, x, y)) return;
-    zug = { x0: e.clientX, y, tick0: ort.tick, start0: bereich.start, aktiv: false, id: e.pointerId };
+    // Innen auf einer Note bleibt es beim Anspielen
+    if (griff === 'ganz' && noteAmOrt(ort.idx, x, y)) return;
+    zug = { griff, x0: e.clientX, y, tick0: ort.tick, start0: bereich.start, ende0: bereich.ende, aktiv: false, id: e.pointerId };
 }, true);
 
 window.addEventListener('pointermove', e => {
@@ -2246,19 +2288,22 @@ window.addEventListener('pointermove', e => {
         // kein Takt-Tipp und keine Bereichsauswahl aus dieser Bewegung
         tippBeat = null;
         bereichVorschau = null;
-        document.body.classList.add('bereich-zieht');
+        document.body.classList.add(zug.griff === 'ganz' ? 'bereich-zieht' : 'bereich-zieht-rand');
     }
     const f = el.querySelector('.at-surface');
     if (!f) return;
     const ort = tickAmOrt(e.clientX - f.getBoundingClientRect().left, zug.y);
     if (!ort) return;
-    bereichAuf(zug.start0 + Math.round((ort.tick - zug.tick0) / BEREICH_SCHRITT) * BEREICH_SCHRITT);
+    const d = Math.round((ort.tick - zug.tick0) / BEREICH_SCHRITT) * BEREICH_SCHRITT;
+    if (zug.griff === 'ganz') bereichAuf(zug.start0 + d);
+    else if (zug.griff === 'anfang') bereichGrenzen(zug.start0 + d, zug.ende0);
+    else bereichGrenzen(zug.start0, zug.ende0 + d);
 }, true);
 
 function zugEnde() {
     if (zug && zug.aktiv) {
         zugEndeZeit = Date.now();
-        document.body.classList.remove('bereich-zieht');
+        document.body.classList.remove('bereich-zieht', 'bereich-zieht-rand');
     }
     zug = null;
 }
@@ -2268,10 +2313,12 @@ window.addEventListener('pointercancel', zugEnde, true);
 el.addEventListener('click', e => {
     if (Date.now() - zugEndeZeit < 300) { e.stopPropagation(); e.preventDefault(); }
 }, true);
-// Maus über dem Bereich: Hand zeigt, dass man ihn ziehen kann
+// Maus über dem Bereich: ↔ am Rand (Länge), Hand innen (verschieben)
 el.addEventListener('mousemove', e => {
     if (zug) return;
-    el.classList.toggle('bereich-greifbar', !!bereich && imBereichRahmen(e.clientX, e.clientY));
+    const griff = bereich ? bereichGriff(e.clientX, e.clientY) : null;
+    el.classList.toggle('bereich-greifbar', griff === 'ganz');
+    el.classList.toggle('bereich-rand', griff === 'anfang' || griff === 'ende');
 });
 
 // Sprung erledigt und Rahmen weg, sobald die Wiedergabe im gewählten Takt angekommen ist
@@ -2558,11 +2605,11 @@ const HILFE = [
     ['Lied hören', '#hpDl', '<span class="k">{svg:#hpDl} MP3</span>',
         'MP3: speichert die Aufnahme auf dem Gerät, zum Anhören auch ohne Trainer.'],
     ['Üben', '.takt-box', '<span class="k hell">12</span><span class="k rot">Go</span>',
-        'Takt: Nummer eintippen und „Go“ drücken, das wirkt wie ein Tipp auf diesen Takt in den Noten. Steht das Lied, geht es beim Abspielen dort los; läuft es, geht es am nächsten Taktstrich dort weiter. Zweimal schnell „Go“ spielt ab diesem Takt, mit Einzählen, wenn es eingestellt ist.'],
+        'Takt: Nummer eintippen und „Go“ drücken, das wirkt wie ein Tipp auf diesen Takt in den Noten. Steht das Lied, geht es beim Abspielen dort los; läuft es, geht es am nächsten Taktstrich dort weiter. Zweimal schnell „Go“ spielt ab diesem Takt, mit Einzählen, wenn es eingestellt ist. Mit markiertem Bereich steht dessen Anfang im Feld; „Go“ darauf behält den Bereich und geht an seinem Anfang los.'],
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Im Rahmen (nicht auf einer Note) oder an seinem Rand waagrecht ziehen verschiebt den Bereich, er rastet pro Viertel ein, die Länge bleibt. Ebenso die Pfeiltasten. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen auf freier Fläche ziehen verschiebt ihn, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
