@@ -1761,7 +1761,7 @@ el.addEventListener('mousedown', e => {
 api.beatMouseDown.on(beat => { tippBeat = beat; });
 // Beim Ziehen den Bereich schon zeigen
 api.beatMouseMove.on(beat => {
-    if (!tippBeat || !beat) return;
+    if (!tippBeat || !beat || (zug && zug.aktiv)) return;
     const a = tippBeat.voice.bar.index, b = beat.voice.bar.index;
     bereichVorschau = a === b ? null : { von: Math.min(a, b), bis: Math.max(a, b) };
     taktWahlZeigen();
@@ -2016,28 +2016,34 @@ function bereichAnwenden() {
     range.startTick = bereich.start;
     range.endTick = bereich.ende - 50;
     api.playbackRange = range;
+    el.classList.add('mit-bereich');
     taktWahlZeigen();
 }
 
-/* Bereich verschieben, die Länge bleibt: Schritt ein Achtel (Pfeiltasten ← →, die
-   Pfeile am Rahmen). So rückt z.B. ein Auftakt („Hab ich mich“ auf 3 und) mit hinein.
-   Steht das Lied, steht der Strich danach am neuen Anfang; läuft es, gilt der neue
-   Bereich ab dem nächsten Durchgang (oder sofort, wenn das Ende schon vorbei ist). */
-const BEREICH_SCHRITT = 480;   // Ticks: ein Achtel (Viertel = 960)
+/* Bereich verschieben, die Länge bleibt: in Vierteln (Ziehen im Rahmen, Pfeiltasten
+   ← →). So rückt z.B. ein Auftakt mit hinein. Steht das Lied, steht der Strich danach
+   am neuen Anfang; läuft es, gilt der neue Bereich ab dem nächsten Durchgang (oder
+   sofort, wenn das Ende schon vorbei ist). */
+const BEREICH_SCHRITT = 960;   // Ticks: ein Viertel
 function bereichVerschieben(schritte) {
-    if (!bereich || !api.tickCache) return;
+    if (bereich && api.tickCache) bereichAuf(bereich.start + schritte * BEREICH_SCHRITT);
+}
+
+// Bereich mit gleicher Länge auf diesen Anfang (Ticks) legen, innerhalb des Lieds
+function bereichAuf(start) {
     const takte = api.tickCache.masterBars;
-    const liedEnde = takte[takte.length - 1].end;
-    const d = Math.max(-bereich.start, Math.min(liedEnde - bereich.ende, schritte * BEREICH_SCHRITT));
-    if (!d) return;
-    bereich.start += d;
-    bereich.ende += d;
+    const laenge = bereich.ende - bereich.start;
+    start = Math.max(0, Math.min(takte[takte.length - 1].end - laenge, start));
+    if (start === bereich.start) return;
+    bereich.start = start;
+    bereich.ende = start + laenge;
     bereichAnwenden();
     if (api.playerState !== 1) api.tickPosition = bereich.start;
 }
 
 function bereichAufheben() {
     bereich = null;
+    el.classList.remove('mit-bereich', 'bereich-greifbar');
     api.playbackRange = null;
     loopAnwenden();
     taktWahlZeigen();
@@ -2109,7 +2115,7 @@ function wdhZeichen(box, dx, dy, sys, x, ende) {
 // ein Rahmen); nach jedem Zeichnen neu setzen
 function taktWahlZeigen() {
     const box = document.getElementById('alphaTab');
-    box.querySelectorAll('.takt-wahl, .wdh-zeichen, .bereich-schieben').forEach(e => e.remove());
+    box.querySelectorAll('.takt-wahl, .wdh-zeichen').forEach(e => e.remove());
     const lookup = api.renderer && api.renderer.boundsLookup;
     const flaeche = box.querySelector('.at-surface');
     const b = bereichVorschau || bereich || (taktWahl !== null ? { von: taktWahl, bis: taktWahl } : null);
@@ -2140,58 +2146,133 @@ function taktWahlZeigen() {
             const erster = !b.vonAb && erst === sys.bars[0] && erst.bars[0].beats[0];
             const x = erster ? Math.max(r0.x, erster.realBounds.x - sp * 3) : x0;
             wdhZeichen(box, dx, dy, sys, x, false);
-            schiebePfeile(box, dx + x0, dy + r0.y);
         }
         if (letzt.index === b.bis)
             wdhZeichen(box, dx, dy, sys, x1, true);
     }
 }
 
-/* x einer Stelle im Takt (Ticks ab Taktanfang) auf der Notenfläche: der linke Rand
-   des Schlags, der dort beginnt (über alle Stimmen der früheste); zwischen zwei
-   Schlägen anteilig. */
-function xImTakt(mb, ab) {
+/* Stützpunkte eines Takts auf der Notenfläche: [Ticks ab Taktanfang, x], je Schlag der
+   linke Rand (über alle Stimmen der früheste), dazu Taktanfang und Taktende */
+function taktPunkte(mb) {
     const pkt = [];
     for (const bb of mb.bars) for (const be of bb.beats) pkt.push([be.beat.playbackStart, be.realBounds.x]);
     pkt.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    pkt.unshift([0, mb.realBounds.x]);
     pkt.push([api.score.masterBars[mb.index].calculateDuration(), mb.realBounds.x + mb.realBounds.w]);
-    let vor = [0, mb.realBounds.x];
-    for (const p of pkt) {
-        if (p[0] >= ab) {
-            if (p[0] === ab || p[0] === vor[0]) return p[1];
-            return vor[1] + (p[1] - vor[1]) * (ab - vor[0]) / (p[0] - vor[0]);
-        }
-        vor = p;
+    return pkt;
+}
+
+// x einer Stelle im Takt (Ticks ab Taktanfang); zwischen zwei Schlägen anteilig
+function xImTakt(mb, ab) {
+    const pkt = taktPunkte(mb);
+    for (let i = 1; i < pkt.length; i++) {
+        const [t0, x0] = pkt[i - 1], [t1, x1] = pkt[i];
+        if (t1 < ab) continue;
+        if (t1 === ab || t1 === t0) return x1;
+        return x0 + (x1 - x0) * (ab - t0) / (t1 - t0);
     }
     return mb.realBounds.x + mb.realBounds.w;
 }
 
-/* Pfeile ‹ › über dem Bereichsanfang: verschieben den Bereich um ein Achtel.
-   Gedrückt halten wiederholt. Ein Tipp darauf ist kein Tipp in die Noten. */
-let schiebeZeit = null;
-function schiebePfeile(box, x, y) {
-    const d = document.createElement('div');
-    d.className = 'bereich-schieben';
-    d.style.cssText = `left:${x}px;top:${y}px`;
-    d.innerHTML = '<button type="button" data-s="-1" title="Bereich ein Achtel früher (Taste ←)" aria-label="Bereich früher">‹</button>' +
-        '<button type="button" data-s="1" title="Bereich ein Achtel später (Taste →)" aria-label="Bereich später">›</button>';
-    ['mousedown', 'mouseup', 'touchstart', 'touchend', 'click']
-        .forEach(t => d.addEventListener(t, e => e.stopPropagation()));
-    d.addEventListener('pointerup', e => { e.stopPropagation(); clearTimeout(schiebeZeit); });
-    d.addEventListener('pointerdown', e => {
-        e.stopPropagation();
-        e.preventDefault();
-        const k = e.target.closest('button');
-        if (!k) return;
-        const s = +k.dataset.s;
-        clearTimeout(schiebeZeit);
-        bereichVerschieben(s);
-        const weiter = () => { bereichVerschieben(s); schiebeZeit = setTimeout(weiter, 110); };
-        schiebeZeit = setTimeout(weiter, 450);
-    });
-    box.appendChild(d);
+// umgekehrt: Ticks ab Taktanfang an der Stelle x
+function tickImTakt(mb, x) {
+    const pkt = taktPunkte(mb);
+    for (let i = 1; i < pkt.length; i++) {
+        const [t0, x0] = pkt[i - 1], [t1, x1] = pkt[i];
+        if (x > x1) continue;
+        if (x1 <= x0 || t1 === t0) return t1;
+        return t0 + (t1 - t0) * Math.max(0, x - x0) / (x1 - x0);
+    }
+    return pkt[pkt.length - 1][0];
 }
-['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, () => clearTimeout(schiebeZeit)));
+
+/* Stelle im Lied (Ticks, erster Durchgang) am Ort x, y der Notenfläche. y wählt die
+   Notenzeile; links oder rechts außerhalb geht es im Maß des Randtakts weiter, damit
+   man über das Zeilenende hinaus ziehen kann. */
+function tickAmOrt(x, y) {
+    const lookup = api.renderer && api.renderer.boundsLookup;
+    if (!lookup || !api.tickCache) return null;
+    const sys = lookup.staffSystems.find(s => y >= s.realBounds.y && y < s.realBounds.y + s.realBounds.h);
+    if (!sys || !sys.bars.length) return null;
+    const erst = sys.bars[0], letzt = sys.bars[sys.bars.length - 1];
+    const proPx = mb => api.score.masterBars[mb.index].calculateDuration() / mb.realBounds.w;
+    if (x < erst.realBounds.x)
+        return { idx: erst.index, tick: taktStart(erst.index) - (erst.realBounds.x - x) * proPx(erst) };
+    const rechts = letzt.realBounds.x + letzt.realBounds.w;
+    if (x >= rechts)
+        return { idx: letzt.index, tick: taktStart(letzt.index) + api.score.masterBars[letzt.index].calculateDuration() + (x - rechts) * proPx(letzt) };
+    const mb = sys.bars.find(b => x < b.realBounds.x + b.realBounds.w);
+    return { idx: mb.index, tick: taktStart(mb.index) + tickImTakt(mb, x) };
+}
+
+/* --- Bereich ziehen ---
+   Im Rahmen auf freier Fläche (nicht auf einer Note) oder an seinen Rändern waagrecht
+   ziehen verschiebt den Bereich; er rastet pro Viertel ein, die Länge bleibt. Nur die
+   waagrechte Bewegung zählt. Erst ab 6 px wird gezogen, vorher bleibt es ein normaler
+   Tipp (Takt wählen, Doppeltipp). Auf dem Handy scrollt senkrechtes Wischen weiter die
+   Seite (touch-action pan-y, solange ein Bereich besteht). */
+let zug = null;        // { x0, y, tick0, start0, aktiv, id }
+let zugEndeZeit = 0;   // Ende des letzten Ziehens: der Klick danach zählt nicht
+
+// Liegt der Punkt (Bildschirm) im Bereichsrahmen oder dicht an seinen Rändern?
+function imBereichRahmen(cx, cy) {
+    for (const r of document.querySelectorAll('.takt-wahl.bereich')) {
+        const b = r.getBoundingClientRect();
+        if (cx >= b.left - 14 && cx <= b.right + 14 && cy >= b.top && cy <= b.bottom) return true;
+    }
+    return false;
+}
+
+el.addEventListener('pointerdown', e => {
+    zug = null;
+    if (!bereich || e.button > 0 || !e.isPrimary || !imBereichRahmen(e.clientX, e.clientY)) return;
+    const f = el.querySelector('.at-surface');
+    if (!f) return;
+    const r = f.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const ort = tickAmOrt(x, y);
+    if (!ort) return;
+    // Auf einer Note bleibt es beim Anspielen
+    if (!e.target.closest('.wdh-zeichen') && noteAmOrt(ort.idx, x, y)) return;
+    zug = { x0: e.clientX, y, tick0: ort.tick, start0: bereich.start, aktiv: false, id: e.pointerId };
+}, true);
+
+window.addEventListener('pointermove', e => {
+    if (!zug || e.pointerId !== zug.id) return;
+    if (!zug.aktiv) {
+        if (Math.abs(e.clientX - zug.x0) < 6) return;
+        zug.aktiv = true;
+        // kein Takt-Tipp und keine Bereichsauswahl aus dieser Bewegung
+        tippBeat = null;
+        bereichVorschau = null;
+        document.body.classList.add('bereich-zieht');
+    }
+    const f = el.querySelector('.at-surface');
+    if (!f) return;
+    const ort = tickAmOrt(e.clientX - f.getBoundingClientRect().left, zug.y);
+    if (!ort) return;
+    bereichAuf(zug.start0 + Math.round((ort.tick - zug.tick0) / BEREICH_SCHRITT) * BEREICH_SCHRITT);
+}, true);
+
+function zugEnde() {
+    if (zug && zug.aktiv) {
+        zugEndeZeit = Date.now();
+        document.body.classList.remove('bereich-zieht');
+    }
+    zug = null;
+}
+window.addEventListener('pointerup', zugEnde, true);
+window.addEventListener('pointercancel', zugEnde, true);
+// Nach dem Ziehen kein Klick (das Wiederholungszeichen schaltete sonst den Loop um)
+el.addEventListener('click', e => {
+    if (Date.now() - zugEndeZeit < 300) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+// Maus über dem Bereich: Hand zeigt, dass man ihn ziehen kann
+el.addEventListener('mousemove', e => {
+    if (zug) return;
+    el.classList.toggle('bereich-greifbar', !!bereich && imBereichRahmen(e.clientX, e.clientY));
+});
 
 // Sprung erledigt und Rahmen weg, sobald die Wiedergabe im gewählten Takt angekommen ist
 api.playerPositionChanged.on(e => {
@@ -2251,7 +2332,7 @@ window.addEventListener('keydown', (e) => {
         e.preventDefault();
         handlePlayClick();
     } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && bereich && !e.defaultPrevented) {
-        // Pfeiltasten verschieben den Bereich um ein Achtel (außer in Feldern und Reglern)
+        // Pfeiltasten verschieben den Bereich um ein Viertel (außer in Feldern und Reglern)
         const activeEl = document.activeElement;
         if (activeEl && (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) || activeEl.getAttribute('role') === 'slider')) return;
         e.preventDefault();
@@ -2481,7 +2562,7 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Die Pfeile ‹ › über dem Rahmen (oder die Pfeiltasten) verschieben den Bereich um ein Achtel, die Länge bleibt; gedrückt halten wiederholt. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Im Rahmen (nicht auf einer Note) oder an seinem Rand waagrecht ziehen verschiebt den Bereich, er rastet pro Viertel ein, die Länge bleibt. Ebenso die Pfeiltasten. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
