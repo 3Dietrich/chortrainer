@@ -28940,6 +28940,24 @@
      * @target web
      * @internal
      */
+    /* TotalVokal-Anpassung: Ausgang beim Anhalten kurz ausblenden statt hart zu trennen.
+       Sonst bricht ein klingender Ton (z.B. eine angetippte Note, gleich danach Play)
+       mitten in der Schwingung ab, und es knackt laut. knoten läuft mit seinem Rest
+       weiter, bis der Pegel unten ist, dann wird er abgehängt. */
+    function tvAusblenden(ctx, knoten, gain) {
+        if (!gain || !ctx) {
+            knoten.disconnect();
+            return;
+        }
+        const t = ctx.currentTime;
+        gain.gain.cancelScheduledValues(t);
+        gain.gain.setValueAtTime(gain.gain.value, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.03);
+        setTimeout(() => {
+            knoten.disconnect();
+            gain.disconnect();
+        }, 80);
+    }
     class AlphaSynthWebAudioOutputBase {
         static BufferSize = 4096;
         static PreferredSampleRate = 44100;
@@ -29189,6 +29207,7 @@
      */
     class AlphaSynthAudioWorkletOutput extends AlphaSynthWebAudioOutputBase {
         _worklet = null;
+        _tvGain = null;
         _bufferTimeInMilliseconds = 0;
         _settings;
         constructor(settings) {
@@ -29215,7 +29234,10 @@
                 this._worklet.port.onmessage = this._handleMessage.bind(this);
                 this.source.connect(this._worklet);
                 this.source.start(0);
-                this._worklet.connect(ctx.destination);
+                // TotalVokal-Anpassung: Gain dazwischen, zum Ausblenden beim Anhalten (tvAusblenden)
+                this._tvGain = ctx.createGain();
+                this._worklet.connect(this._tvGain);
+                this._tvGain.connect(ctx.destination);
             }, reason => {
                 Logger.error('WebAudio', `Audio Worklet creation failed: reason=${reason}`);
             });
@@ -29239,9 +29261,11 @@
                     cmd: AlphaSynthWorkerSynthOutput.CmdOutputStop
                 });
                 this._worklet.port.onmessage = null;
-                this._worklet.disconnect();
+                // TotalVokal-Anpassung: der Rest im Puffer läuft ausgeblendet aus
+                tvAusblenden(this.context, this._worklet, this._tvGain);
             }
             this._worklet = null;
+            this._tvGain = null;
         }
         addSamples(f) {
             this._worklet?.port.postMessage({
@@ -36777,6 +36801,8 @@
         }
         _stopOneTimeMidi() {
             this.output.pause();
+            // TotalVokal-Anpassung: wie in pause(): die verworfenen Samples zählen nicht mehr
+            this._notPlayedSamples = 0;
             this.synthesizer.noteOffAll(true);
             this.sequencer.resetOneTimeMidi();
             this.timePosition = this.sequencer.currentTime;
@@ -55455,6 +55481,7 @@
      */
     class AlphaSynthScriptProcessorOutput extends AlphaSynthWebAudioOutputBase {
         _audioNode = null;
+        _tvGain = null;
         _circularBuffer;
         _bufferCount = 0;
         _requestedBufferCount = 0;
@@ -55477,14 +55504,24 @@
             this.source.loop = true;
             this.source.connect(this._audioNode, 0, 0);
             this.source.start(0);
-            this._audioNode.connect(ctx.destination, 0, 0);
+            // TotalVokal-Anpassung: Gain dazwischen, zum Ausblenden beim Anhalten (tvAusblenden)
+            this._tvGain = ctx.createGain();
+            this._audioNode.connect(this._tvGain, 0, 0);
+            this._tvGain.connect(ctx.destination);
         }
         pause() {
             super.pause();
             if (this._audioNode) {
-                this._audioNode.disconnect(0);
+                // TotalVokal-Anpassung: die schon erzeugten Blöcke laufen ausgeblendet aus,
+                // danach Stille. Der Ringpuffer gehört ab jetzt dem nächsten Start.
+                this._audioNode.onaudioprocess = e => {
+                    e.outputBuffer.getChannelData(0).fill(0);
+                    e.outputBuffer.getChannelData(1).fill(0);
+                };
+                tvAusblenden(this.context, this._audioNode, this._tvGain);
             }
             this._audioNode = null;
+            this._tvGain = null;
         }
         addSamples(f) {
             this._circularBuffer.write(f, 0, f.length);
