@@ -3090,6 +3090,7 @@ function geraetErkennen() {
 }
 
 const HS_TEILEN = '<svg viewBox="0 0 24 24" class="hs-sym"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5v10h14V11h-1"/></svg>';
+const HS_TEILEN_ANDROID = '<svg viewBox="0 0 24 24" class="hs-sym"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8 15.8 6.2M8.2 13.2l7.6 4.6"/></svg>';
 const HS_ANLEITUNG = {
     iphone: ['Auf den Home-Bildschirm legen', [
         `In Safari unten auf das Teilen-Symbol ${HS_TEILEN} tippen. Bei neuerem iOS erst auf „•••“ unten rechts, dann auf „Teilen“.`,
@@ -3100,8 +3101,8 @@ const HS_ANLEITUNG = {
         '„Zum Home-Bildschirm“ wählen. Falls nicht zu sehen: etwas nach oben wischen.',
         'Oben rechts auf „Hinzufügen“ tippen.']],
     android: ['Auf den Startbildschirm legen', [
-        'Oben rechts auf die drei Punkte <b class="hs-taste">⋮</b> tippen.',
-        '„App installieren“ oder „Zum Startbildschirm hinzufügen“ wählen.',
+        `Auf „Teilen“ ${HS_TEILEN_ANDROID} tippen (in der Adressleiste oder im Menü).`,
+        '„Zum Startbildschirm“ oder „App installieren“ wählen. Falls nicht zu sehen: in der Liste weiterwischen.',
         'Auf „Hinzufügen“ tippen (manchmal zweimal).']],
     samsung: ['Auf den Startbildschirm legen', [
         'Unten rechts auf das Menü <b class="hs-taste">≡</b> tippen.',
@@ -3114,6 +3115,40 @@ const HS_ANLEITUNG = {
         'Die Tasten <b class="hs-taste">Strg</b> und <b class="hs-taste">D</b> zusammen drücken.',
         'Auf „Fertig“ oder „Hinzufügen“ klicken.']]
 };
+
+/* Chrome, Edge und Samsung-Browser bieten das Hinzufügen selbst an (beforeinstallprompt).
+   Das Ereignis wird aufgehoben; die Anleitung zeigt dann oben einen Knopf, der den
+   Dialog des Browsers öffnet. Ohne Ereignis (iPhone, Firefox, schon installiert)
+   bleibt es bei der Anleitung. */
+let hsInstallEreignis = null;
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    hsInstallEreignis = e;
+    const el = document.getElementById('homescreen');
+    if (el) hsInstallKnopf(el);
+});
+window.addEventListener('appinstalled', () => {
+    hsInstallEreignis = null;
+    const el = document.getElementById('homescreen');
+    if (el) el.querySelector('.hs-ok').click();
+});
+
+/** Knopf „Jetzt hinzufügen“ in die offene Anleitung setzen, falls der Browser es anbietet. */
+function hsInstallKnopf(el) {
+    const platz = el.querySelector('.hs-install');
+    if (!platz || !hsInstallEreignis || platz.firstChild) return;
+    platz.innerHTML = '<button type="button">Jetzt hinzufügen</button>'
+        + '<p class="hs-klein">Klappt das nicht, hilft die Anleitung unten.</p>';
+    platz.querySelector('button').onclick = async () => {
+        const ereignis = hsInstallEreignis;
+        if (!ereignis) return;
+        hsInstallEreignis = null;   // der Browser erlaubt prompt() nur einmal
+        ereignis.prompt();
+        const wahl = await ereignis.userChoice.catch(() => null);
+        if (wahl && wahl.outcome === 'accepted') el.querySelector('.hs-ok').click();
+        else platz.innerHTML = '';
+    };
+}
 
 function hsStand() {
     try { return JSON.parse(localStorage.getItem(HS_KEY) || '{}'); } catch (e) { return {}; }
@@ -3153,6 +3188,7 @@ function homescreenZeigen(begruessung) {
             ? `Chor‑Trainer auf den ${apple ? 'Home-Bildschirm' : 'Startbildschirm'} legen`
             : 'Chor‑Trainer als Lesezeichen speichern'}</h2>
         <p class="hs-wichtig">Damit man ihn mit einem ${handy ? 'Tipp' : 'Klick'} wiederfindet.</p>
+        <div class="hs-install"></div>
         ${begruessung
             ? `<p class="hs-klein">Die Anleitung steht auch in den Einstellungen (Zahnrad) unter „${hsZeilenName(geraet)}“.</p>
                <div class="hs-knoepfe">${mitAus ? knopfAus : ''}${knopfOk}</div>
@@ -3168,6 +3204,7 @@ function homescreenZeigen(begruessung) {
     if (aus) aus.onclick = () => { hsMerken({ ...hsStand(), aus: true }); zu(); };
     if (begruessung) hsMerken({ ...stand, gezeigt: (stand.gezeigt || 0) + 1 });
     document.documentElement.appendChild(el);
+    hsInstallKnopf(el);
 }
 
 /** Name der Einstellungs-Zeile: das Wort, das auch im Menü des Geräts steht. */
