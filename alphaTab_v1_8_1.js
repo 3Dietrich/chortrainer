@@ -30016,6 +30016,9 @@
         _mainState;
         _oneTimeState = null;
         _countInState = null;
+        // TotalVokal-Anpassung: Sprung, der kam, während eine angespielte Note oder das
+        // Einzählen lief (siehe mainSeek); wird beim Wechsel zurück ins Lied nachgeholt
+        _tvSprungOffen = null;
         get isPlayingMain() {
             return this._currentState === this._mainState;
         }
@@ -30070,6 +30073,16 @@
          */
         playbackSpeed = 1;
         mainSeek(timePosition) {
+            // TotalVokal-Anpassung: Läuft gerade nicht das Lied (angespielte Note, Einzählen),
+            // spult _mainSilentProcess nur die Uhr vor, nicht die Ereignisse. Beim Wechsel ins
+            // Lied kamen dann alle übersprungenen Töne im selben Puffer: lauter Knall beim
+            // Einsatz (Note antippen, gleich danach Doppeltipp). Den Sprung daher merken und
+            // im Lied nachholen (_tvSprungNachholen).
+            if (!this.isPlayingMain) {
+                this._tvSprungOffen = timePosition;
+                return;
+            }
+            this._tvSprungOffen = null;
             // map to speed=1
             timePosition *= this.playbackSpeed;
             // ensure playback range
@@ -30132,6 +30145,7 @@
             this.percussionKeys.clear();
             this._mainState = this.createStateFromFile(midiFile);
             this._currentState = this._mainState;
+            this._tvSprungOffen = null;
         }
         createStateFromFile(midiFile) {
             const state = new MidiSequencerState();
@@ -30476,12 +30490,29 @@
         resetOneTimeMidi() {
             this._oneTimeState = null;
             this._currentState = this._mainState;
+            this._tvSprungNachholen();
         }
         resetCountIn() {
             this._countInState = null;
             this._currentState = this._mainState;
+            this._tvSprungNachholen();
+        }
+        // TotalVokal-Anpassung: gemerkten Sprung ausführen, sobald wieder das Lied dran ist
+        _tvSprungNachholen() {
+            if (this._tvSprungOffen === null || !this.isPlayingMain) {
+                return;
+            }
+            const ziel = this._tvSprungOffen;
+            this._tvSprungOffen = null;
+            this.mainSeek(ziel);
         }
         startCountIn() {
+            // TotalVokal-Anpassung: offenen Sprung vor dem Einzählen ausführen, damit Tempo
+            // und Taktart des Einzählens schon vom Zieltakt kommen
+            if (this._tvSprungOffen !== null) {
+                this._currentState = this._mainState;
+                this._tvSprungNachholen();
+            }
             this.generateCountInMidi();
             this._currentState = this._countInState;
             this.stop();
