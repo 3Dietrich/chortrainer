@@ -1929,7 +1929,8 @@ function noteSpielen(note) {
 /* Handy/Tablet: Bereich aufziehen. Lange (0,45 s) auf einen Takt drücken, bis der
    Rahmen erscheint, dann mit dem Finger zum letzten Takt ziehen und loslassen. Nur
    lange drücken und loslassen ergibt einen Ein-Takt-Bereich. Bewegt sich der Finger
-   vorher, scrollt die Seite wie gewohnt. */
+   vorher, scrollt die Seite wie gewohnt. Im bestehenden Rahmen gilt das nicht, dort
+   verschiebt Ziehen den Bereich. */
 (() => {
     let lp = null;
     const taktAm = (cx, cy) => {
@@ -1945,6 +1946,8 @@ function noteSpielen(note) {
         lp = null;
         if (e.touches.length !== 1 || !api.score || !api.tickCache) return;
         const t = e.touches[0];
+        // Im Rahmen gehört der Finger dem Verschieben (bzw. dem Rand), kein neuer Bereich
+        if (bereich && bereichGriff(t.clientX, t.clientY)) return;
         lp = { x: t.clientX, y: t.clientY, aktiv: false };
         lp.zeit = setTimeout(() => {
             const idx = taktAm(lp.x, lp.y);
@@ -2249,11 +2252,10 @@ function tickAmOrt(x, y) {
    Zwei Griffe, waagrecht gezogen, Raster ein Viertel:
    - Rand (Wiederholungszeichen, dicht am linken bzw. rechten Rahmenende): nur dieser Rand
      wandert, der Bereich wird länger oder kürzer (mindestens ein Viertel). Maus: ↔
-   - Innen auf freier Fläche (nicht auf einer Note): der ganze Bereich wandert, die
-     Länge bleibt. Maus: Hand
+   - Innen, auch auf einer Note: der ganze Bereich wandert, die Länge bleibt. Maus: Hand
    Außerhalb des Rahmens ziehen wählt wie immer einen neuen Bereich (ganze Takte).
    Nur die waagrechte Bewegung zählt. Erst ab 6 px wird gezogen, vorher bleibt es ein
-   normaler Tipp (Takt wählen, Doppeltipp, Loop am Zeichen umschalten). Auf dem Handy
+   normaler Tipp (Takt wählen, Note anspielen, Doppeltipp, Loop am Zeichen umschalten). Auf dem Handy
    scrollt senkrechtes Wischen weiter die Seite (touch-action pan-y, solange ein
    Bereich besteht). */
 let zug = null;        // { griff, x0, y, tick0, start0, ende0, aktiv, id }
@@ -2298,8 +2300,6 @@ el.addEventListener('pointerdown', e => {
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const ort = tickAmOrt(x, y);
     if (!ort) return;
-    // Innen auf einer Note bleibt es beim Anspielen
-    if (griff === 'ganz' && noteAmOrt(ort.idx, x, y)) return;
     zug = { griff, x0: e.clientX, y, tick0: ort.tick, start0: bereich.start, ende0: bereich.ende, aktiv: false, id: e.pointerId };
 }, true);
 
@@ -2635,7 +2635,7 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen auf freier Fläche ziehen verschiebt ihn, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
