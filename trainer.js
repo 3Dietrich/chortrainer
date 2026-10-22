@@ -1999,8 +1999,6 @@ function noteSpielen(note) {
         bereichSetzen(b.von, b.bis);
     };
     el.addEventListener('touchend', ende, { passive: false });
-    // Android: langes Drücken öffnet sonst unter Umständen ein Kontextmenü
-    el.addEventListener('contextmenu', e => { if (lp) e.preventDefault(); });
     el.addEventListener('touchcancel', () => {
         if (lp) clearTimeout(lp.zeit);
         lp = null;
