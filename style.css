@@ -265,6 +265,8 @@ svg { display: block; }
 /* Gewählter Takt (Tipp in die Noten): Rahmen, bis die Wiedergabe dort ist */
 .takt-wahl { position: absolute; z-index: 4; pointer-events: none; border: 2px solid var(--red); border-radius: 4px; background: rgba(248, 84, 84, .05); }
 .takt-wahl.bereich { background: rgba(248, 84, 84, .09); }
+/* Beim Aufziehen: gestrichelt und kräftiger, bis losgelassen wird */
+.takt-wahl.vorschau { border-style: dashed; border-width: 3px; background: rgba(248, 84, 84, .18); }
 /* alphaTabs eigene Bereichsmarkierung: ersetzt durch .takt-wahl.bereich */
 .at-selection { display: none; }
 /* Wiederholungszeichen am Bereich (Overlay), Trefferfläche seitlich größer */

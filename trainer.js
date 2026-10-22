@@ -1773,11 +1773,13 @@ el.addEventListener('pointerdown', e => {
 el.addEventListener('mousedown', e => {
     if (e.button === 0 && e.target.closest('.at-surface')) e.preventDefault();
 }, true);
-api.beatMouseDown.on(beat => { tippBeat = beat; });
-// Beim Ziehen den Bereich schon zeigen
+let tippAufgezogen = false; // beim Ziehen schon einmal über den Takt hinaus
+api.beatMouseDown.on(beat => { tippBeat = beat; tippAufgezogen = false; });
+// Beim Ziehen den Bereich schon zeigen (gestrichelt, bis losgelassen wird)
 api.beatMouseMove.on(beat => {
     if (!tippBeat || !beat || (zug && zug.aktiv)) return;
     const a = tippBeat.voice.bar.index, b = beat.voice.bar.index;
+    if (a !== b) tippAufgezogen = true;
     bereichVorschau = a === b ? null : { von: Math.min(a, b), bis: Math.max(a, b) };
     taktWahlZeigen();
 });
@@ -1788,6 +1790,8 @@ api.beatMouseUp.on(beat => {
     if (!start || !beat || !api.score || !api.tickCache) { taktWahlZeigen(); return; }
     const a = start.voice.bar.index, b = beat.voice.bar.index;
     if (a !== b) { anker = a; bereichSetzen(Math.min(a, b), Math.max(a, b)); return; }
+    // Aufgezogen und im Anfangstakt losgelassen: doch kein Bereich, sonst bleibt alles
+    if (tippAufgezogen) { taktWahlZeigen(); return; }
     if (tippShift) {
         const von = anker !== null ? anker : aktuellerTakt();
         if (von !== a) { bereichSetzen(Math.min(von, a), Math.max(von, a)); return; }
@@ -1933,8 +1937,8 @@ function noteSpielen(note) {
 }
 
 /* Handy/Tablet: Bereich aufziehen. Lange (0,45 s) auf einen Takt drücken, bis der
-   Rahmen erscheint, dann mit dem Finger zum letzten Takt ziehen und loslassen. Nur
-   lange drücken und loslassen ergibt einen Ein-Takt-Bereich. Bewegt sich der Finger
+   Rahmen (gestrichelt) erscheint, dann mit dem Finger zum letzten Takt ziehen und
+   loslassen. Loslassen im Anfangstakt: doch kein Bereich. Bewegt sich der Finger
    vorher, scrollt die Seite wie gewohnt. Im bestehenden Rahmen gilt das nicht, dort
    verschiebt Ziehen den Bereich. */
 (() => {
@@ -1960,6 +1964,7 @@ function noteSpielen(note) {
             if (idx === null) { lp = null; return; }
             lp.aktiv = true;
             lp.von = idx;
+            tippBeat = null;   // alphaTabs Tipp beim Loslassen zählt nicht
             bereichVorschau = { von: idx, bis: idx };
             taktWahlZeigen();
             try { navigator.vibrate && navigator.vibrate(15); } catch (err) { }
@@ -1981,13 +1986,15 @@ function noteSpielen(note) {
     const ende = e => {
         if (!lp) return;
         clearTimeout(lp.zeit);
-        const war = lp.aktiv && bereichVorschau;
+        const aktiv = lp.aktiv;
         const b = bereichVorschau;
         lp = null;
-        if (!war) return;
+        if (!aktiv) return;
         // Kein Tipp hinterher: sonst hebt alphaTabs Klick den Bereich gleich wieder auf
         if (e.cancelable) e.preventDefault();
         bereichVorschau = null;
+        // Im Anfangstakt losgelassen: doch kein Bereich, sonst bleibt alles
+        if (!b || b.von === b.bis) { taktWahlZeigen(); return; }
         anker = b.von;
         bereichSetzen(b.von, b.bis);
     };
@@ -2184,7 +2191,7 @@ function taktWahlZeigen() {
         if (b === bereich && letzt.index === b.bis && b.bisBis < api.score.masterBars[b.bis].calculateDuration())
             x1 = xImTakt(letzt, b.bisBis) - 3;
         const d = document.createElement('div');
-        d.className = 'takt-wahl' + (b === bereich || b === bereichVorschau ? ' bereich' : '');
+        d.className = 'takt-wahl' + (b === bereich ? ' bereich' : b === bereichVorschau ? ' bereich vorschau' : '');
         d.style.cssText = `left:${dx + x0}px;top:${dy + r0.y}px;width:${x1 - x0}px;height:${r0.h}px`;
         box.appendChild(d);
         // Wiederholungszeichen am gesetzten Bereich (nicht beim Ziehen)
@@ -2641,13 +2648,13 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der Rahmen erscheint, dann zum letzten Takt ziehen. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der gestrichelte Rahmen erscheint, dann zum letzten Takt ziehen. Wer doch keinen Bereich will, lässt im Anfangstakt los. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
         'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Gedrückt halten, bis die Zahl erscheint, dann hoch- oder runterziehen: lauter oder leiser. Dabei ist es zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
-        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
+        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
         'Vollbild: nur noch die Noten, groß und ohne Knöpfe. Zurück geht es mit dem kleinen Knopf unten rechts.'],
     ['', '.fs-exit', '', 'Vollbild verlassen: die Knöpfe kommen wieder.'],
