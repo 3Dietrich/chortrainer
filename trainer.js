@@ -1594,7 +1594,8 @@ function adjustZoom(delta) {
 /* --- Takt-Sprung --- */
 /* „Go“ wirkt wie ein Tipp auf den Takt in den Noten: einmal = Takt wählen (läuft das
    Lied, geht es am nächsten Taktstrich dort weiter), zweimal schnell = ab dort spielen,
-   mit Einzählen nach Einstellung. Enter im Feld zählt wie ein einfacher Klick. */
+   mit Einzählen nach Einstellung. Enter im Feld zählt wie ein einfacher Klick.
+   Mit Bereich und einem Takt darin: Go spielt den Bereich ab seinem Anfang. */
 let goZeit = 0;
 function jumpTo() {
     // Eingabe ist die angezeigte Taktnummer, Index = Nummer - Versatz - 1
@@ -1603,15 +1604,17 @@ function jumpTo() {
     const jetzt = Date.now();
     const doppelt = jetzt - goZeit < 450;
     goZeit = doppelt ? 0 : jetzt;
-    if (bereich && idx === bereich.von) {
-        // Go auf den Bereichsanfang (steht im Feld): der Bereich bleibt, es geht an seinem
-        // Anfang los. Steht das Lied, zweimal Go spielt; läuft es, startet es dort neu.
+    if (bereich && idx >= bereich.von && idx <= bereich.bis) {
+        // Go auf einen Takt im Bereich (der Anfang steht im Feld): der Bereich bleibt, es
+        // spielt ab seinem Anfang, mit Einzählen nach Einstellung; läuft es, startet es dort neu.
+        sprungAbbrechen();
         if (api.playerState === 1) {
             if (isCountIn) neuStarten(bereich.start); else api.tickPosition = bereich.start;
         } else {
             api.tickPosition = bereich.start;
-            if (doppelt) handlePlayClick(true);
+            handlePlayClick(true);
         }
+        goZeit = 0;
         toggleSheet(false);
         return;
     }
@@ -1793,12 +1796,15 @@ api.beatMouseUp.on(beat => {
     const jetzt = Date.now();
     const doppelt = letzterTipp && jetzt - letzterTipp.t < 450 && letzterTipp.idx === a;
     letzterTipp = doppelt ? null : { t: jetzt, idx: a };
+    const note = tippOrt && noteAmOrt(a, ...tippOrt);
+    // Steht das Lied, erklingt eine angetippte Note nur; ein Bereich bleibt dabei stehen
+    if (!doppelt && note && api.playerState !== 1) { noteSpielen(note); return; }
     if (bereich) bereichAufheben();
     if (doppelt) {
         taktFeldSetzen(a);
-        abTaktSpielen(a, tippOrt && noteAmOrt(a, ...tippOrt));
+        abTaktSpielen(a, note);
     } else {
-        taktWaehlen(a, tippOrt && noteAmOrt(a, ...tippOrt));
+        taktWaehlen(a, note);
     }
 });
 
@@ -2254,7 +2260,7 @@ function tickAmOrt(x, y) {
      wandert, der Bereich wird länger oder kürzer (mindestens ein Viertel). Maus: ↔
    - Innen, auch auf einer Note: der ganze Bereich wandert, die Länge bleibt. Maus: Hand
    Außerhalb des Rahmens ziehen wählt wie immer einen neuen Bereich (ganze Takte).
-   Nur die waagrechte Bewegung zählt. Erst ab 6 px wird gezogen, vorher bleibt es ein
+   Nur die waagrechte Bewegung zählt. Erst ab 6 px (Finger 12 px) wird gezogen, vorher bleibt es ein
    normaler Tipp (Takt wählen, Note anspielen, Doppeltipp, Loop am Zeichen umschalten). Auf dem Handy
    scrollt senkrechtes Wischen weiter die Seite (touch-action pan-y, solange ein
    Bereich besteht). */
@@ -2306,7 +2312,7 @@ el.addEventListener('pointerdown', e => {
 window.addEventListener('pointermove', e => {
     if (!zug || e.pointerId !== zug.id) return;
     if (!zug.aktiv) {
-        if (Math.abs(e.clientX - zug.x0) < 6) return;
+        if (Math.abs(e.clientX - zug.x0) < (e.pointerType === 'touch' ? 12 : 6)) return;
         zug.aktiv = true;
         // kein Takt-Tipp und keine Bereichsauswahl aus dieser Bewegung
         tippBeat = null;
@@ -2631,7 +2637,7 @@ const HILFE = [
     ['Lied hören', '#hpDl', '<span class="k">{svg:#hpDl} MP3</span>',
         'MP3: speichert die Aufnahme auf dem Gerät, zum Anhören auch ohne Trainer.'],
     ['Üben', '.takt-box', '<span class="k hell">12</span><span class="k rot">Go</span>',
-        'Takt: Nummer eintippen und „Go“ drücken, das wirkt wie ein Tipp auf diesen Takt in den Noten. Steht das Lied, geht es beim Abspielen dort los; läuft es, geht es am nächsten Taktstrich dort weiter. Zweimal schnell „Go“ spielt ab diesem Takt, mit Einzählen, wenn es eingestellt ist. Mit markiertem Bereich steht dessen Anfang im Feld; „Go“ darauf behält den Bereich und geht an seinem Anfang los.'],
+        'Takt: Nummer eintippen und „Go“ drücken, das wirkt wie ein Tipp auf diesen Takt in den Noten. Steht das Lied, geht es beim Abspielen dort los; läuft es, geht es am nächsten Taktstrich dort weiter. Zweimal schnell „Go“ spielt ab diesem Takt, mit Einzählen, wenn es eingestellt ist. Mit markiertem Bereich steht dessen Anfang im Feld; „Go“ auf einen Takt im Bereich behält ihn und spielt ab seinem Anfang.'],
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
@@ -2641,7 +2647,7 @@ const HILFE = [
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
         'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Gedrückt halten, bis die Zahl erscheint, dann hoch- oder runterziehen: lauter oder leiser. Dabei ist es zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
-        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, der Takt bleibt dabei, wie er ist. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
+        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
         'Vollbild: nur noch die Noten, groß und ohne Knöpfe. Zurück geht es mit dem kleinen Knopf unten rechts.'],
     ['', '.fs-exit', '', 'Vollbild verlassen: die Knöpfe kommen wieder.'],
