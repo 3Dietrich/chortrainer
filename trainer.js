@@ -2471,28 +2471,24 @@ function bereichAufheben() {
     stelleMerken();
 }
 
-// Loop: mit Bereich gilt der Knopf neben Play, sonst der Schalter in den Einstellungen
-// Der Knopf neben Play bleibt immer da: ohne Bereich blass und ohne Wirkung, mit
-// Bereich deutlich (aus: hell, an: rot). Die Wiederholungszeichen folgen dem Zustand.
+// Loop: mit Bereich gilt der Knopf neben Play für den Bereich, ohne Bereich schaltet
+// derselbe Knopf das ganze Lied (wie der Schalter in den Einstellungen). Aus: hell,
+// an: rot. Die Wiederholungszeichen folgen dem Bereichs-Loop.
 function loopAnwenden() {
-    api.isLooping = bereich ? bereichLoop : isLooping;
+    const an = bereich ? bereichLoop : isLooping;
+    api.isLooping = an;
     const knopf = document.getElementById('bereichLoopBtn');
     if (knopf) {
-        knopf.classList.toggle('blass', !bereich);
-        knopf.setAttribute('aria-disabled', !bereich);
-        knopf.classList.toggle('active', !!bereich && bereichLoop);
-        knopf.setAttribute('aria-pressed', !!bereich && bereichLoop);
+        knopf.classList.toggle('active', an);
+        knopf.setAttribute('aria-pressed', an);
+        knopf.title = bereich ? 'Bereich wiederholen an/aus' : 'Ganzes Lied wiederholen an/aus';
+        knopf.setAttribute('aria-label', bereich ? 'Bereich wiederholen' : 'Ganzes Lied wiederholen');
     }
     document.querySelectorAll('.wdh-zeichen').forEach(e => e.classList.toggle('an', bereichLoop));
 }
 
 function toggleBereichLoop() {
-    if (!bereich) {
-        // Handy: der blasse Knopf liegt halb auf Play, dort zählt er als Play
-        const knopf = document.getElementById('bereichLoopBtn');
-        if (knopf && getComputedStyle(knopf).position === 'absolute') handlePlayClick();
-        return;
-    }
+    if (!bereich) { toggleLoop(); return; }
     bereichLoop = !bereichLoop;
     loopAnwenden();
     // Loop aus: läuft es, geht es am Bereichsende weiter statt anzuhalten
@@ -3058,13 +3054,13 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop für den markierten Bereich: an (rot) springt es am Ende des Bereichs wieder an seinen Anfang, aus hört es dort auf. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Ohne markierten Bereich ist der Knopf blass. Auf dem Handy: lange auf einen Takt drücken, bis der gestrichelte Rahmen erscheint, dann zum letzten Takt ziehen. Wer doch keinen Bereich will, lässt im Anfangstakt los. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop: ohne markierten Bereich für das ganze Lied, an (rot) fängt es am Ende wieder von vorn an (wie der Schalter Loop in den Einstellungen). Mit markiertem Bereich gilt der Knopf für den Bereich: an springt es am Ende des Bereichs wieder an seinen Anfang, aus spielt es dort einfach weiter. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Auf dem Handy: lange auf einen Takt drücken, bis der gestrichelte Rahmen erscheint, dann zum letzten Takt ziehen. Wer doch keinen Bereich will, lässt im Anfangstakt los. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
         'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Gedrückt halten, bis die Zahl erscheint, dann hoch- oder runterziehen: lauter oder leiser. Dabei ist es zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
-        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt nur dieser Bereich, und neben Play erscheint ein Loop-Knopf. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
+        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt dieser Bereich, und der Loop-Knopf neben Play gilt für ihn. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
         'Vollbild: nur noch die Noten, groß und ohne Knöpfe. Zurück geht es mit dem kleinen Knopf unten rechts.'],
     ['', '.fs-exit', '', 'Vollbild verlassen: die Knöpfe kommen wieder.'],
@@ -3085,7 +3081,7 @@ const HILFE = [
     ['Einstellungen (Zahnrad)', '#soloBtn', '<span class="k hell">an <i class="k-sw"></i></span>',
         'Nur gewählte zeigen: blendet die Noten der anderen Stimmen aus. Dann steht nur die eigene Stimme da.'],
     ['Einstellungen (Zahnrad)', '#loopRow', '<span class="k hell">Loop <i class="k-sw aus"></i></span>',
-        'Loop: am Ende fängt das Lied von selbst wieder von vorn an.'],
+        'Loop: am Ende fängt das Lied von selbst wieder von vorn an. Derselbe Schalter ist der Loop-Knopf neben Play, solange kein Bereich markiert ist.'],
     ['Einstellungen (Zahnrad)', '#countInRow', '<span class="k hell">Aus</span><span class="k">1 Takt</span><span class="k hell">2 × ¼</span>',
         'Einzählen: vor dem Start klickt es, dann setzen alle gemeinsam ein. „1 Takt“ zählt einen ganzen Takt ein, „2 × ¼“ nur zwei Viertel, „Aus“ startet sofort. Beginnt der Takt mit Pausen, wird auf den ersten Einsatz hin gezählt. Beim Einzählen steht der Strich still, eine Zahl zählt mit (z.B. 3, 4, ►). Gilt für Abspielen und für das zweimalige Tippen auf einen Takt oder eine Note.'],
     ['Einstellungen (Zahnrad)', '#soundChips', '<span class="k">Gesang</span><span class="k hell">Duu</span>',
@@ -3708,7 +3704,7 @@ api.playbackSpeed = currentTempoFactor;
 api.settings.display.scale = currentScale;
 api.metronomeVolume = document.getElementById('metronomeBtn').classList.contains('active') ? metronomLaut : 0;
 metroWertZeigen();
-api.isLooping = isLooping;  // native AlphaTab-Loop aktivieren
+loopAnwenden();  // native AlphaTab-Loop aktivieren, Knopf neben Play zeigt den Zustand
 countInAnwenden();
 applyTextFont();
 api.updateSettings();
