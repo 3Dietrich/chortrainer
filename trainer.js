@@ -702,10 +702,15 @@ function gesangFolgen(zeitMs) {
         if (a.paused || Math.abs(abw) > 0.2) {
             a.currentTime = ziel;
             a.playbackRate = tempo;
+            a.abw = 0;
             if (a.paused) a.play().catch(() => { });
-        } else {
-            a.playbackRate = tempo * (1 - Math.max(-0.05, Math.min(0.05, abw)));
+            return;
         }
+        // Die Player-Position kommt in Puffer-Schritten: Abweichung glätten und nur
+        // behutsam nachregeln, jedes Umstellen der Geschwindigkeit kann knacken
+        a.abw = 0.85 * (a.abw || 0) + 0.15 * abw;
+        const rate = Math.abs(a.abw) < 0.025 ? tempo : tempo * (1 - Math.max(-0.02, Math.min(0.02, a.abw * 0.4)));
+        if (Math.abs(rate - a.playbackRate) > 0.004 || (rate === tempo && a.playbackRate !== tempo)) a.playbackRate = rate;
     });
 }
 
