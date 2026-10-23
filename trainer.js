@@ -237,6 +237,10 @@ async function loadSelectedSong() {
         location.href = 'login.php';
         return;
     }
+    // "Gesang" gibt es nur bei Liedern mit gerenderten Stimmen
+    const klang = document.getElementById('soundSelect');
+    if (klang.value === 'gesang' && !gesangOrdner()) klang.value = '54';
+    buildSoundChips();
 
     // Gespeicherte Stimmen für diesen Song laden
     const data = localStorage.getItem(STORAGE_KEY);
@@ -414,7 +418,8 @@ function createSoloAudioTracks(xmlDoc, soundId) {
         const midiChan = xmlDoc.createElement('midi-channel');
         midiInstr.appendChild(midiChan);
         const midiProg = xmlDoc.createElement('midi-program');
-        midiProg.textContent = soundId;
+        // Gesang: die Synth-Spur bleibt stumm, für angetippte Noten klingt "Stimme"
+        midiProg.textContent = soundId === 'gesang' ? '54' : soundId;
         midiInstr.appendChild(midiProg);
         sp.appendChild(midiInstr);
 
@@ -482,6 +487,7 @@ api.scoreLoaded.on(score => {
     generateVoiceButtons(score);
     varianteLaden(score);
     updateTrackButtons();
+    gesangLaden();
     updateTrackVolumes();
     updateView();
 
@@ -631,12 +637,74 @@ function updateTrackVolumes() {
             api.changeTrackVolume([t], 0);
             return;
         }
-        if (allActive) {
-            api.changeTrackVolume([t], 1.0);
-        } else if (activeTracks.has(i)) {
-            api.changeTrackVolume([t], 1.0);     // Vordergrund
+        // Vordergrund 100 %, Hintergrund bgAmp
+        const laut = (allActive || activeTracks.has(i)) ? 1.0 : bgAmp;
+        const stimme = gesang[t.name];
+        if (stimme) {
+            stimme.volume = laut;
+            api.changeTrackVolume([t], 0);   // gesungen wird aus der Aufnahme
         } else {
-            api.changeTrackVolume([t], bgAmp);   // Hintergrund
+            api.changeTrackVolume([t], laut);
+        }
+    });
+}
+
+/* --- Gesang: vorab gerenderte Stimmen (data-gesang am Lied, je Stimme <Trackname>.mp3) ---
+   alphaTab bleibt der Taktgeber: Strich, Einzählen, Metronom, Bereich, Sprünge und Tempo
+   laufen wie beim Synth. Jede Aufnahme folgt der Position des Players; kleine Abweichungen
+   gleicht sie über die Geschwindigkeit aus, große per Sprung. */
+let gesang = {};   // Trackname -> <audio>
+
+function gesangOrdner() {
+    const opt = document.getElementById('songSelect').selectedOptions[0];
+    return opt ? opt.dataset.gesang : undefined;
+}
+
+function gesangLaden() {
+    Object.values(gesang).forEach(a => {
+        a.pause();
+        if (a.src) URL.revokeObjectURL(a.src);
+        a.removeAttribute('src');
+    });
+    gesang = {};
+    const ordner = gesangOrdner();
+    if (!ordner || document.getElementById('soundSelect').value !== 'gesang') return;
+    api.score.tracks.forEach(t => {
+        if (!t.name || t.staves.length === 0 || gesang[t.name]) return;
+        const a = new Audio();
+        a.preservesPitch = true;
+        gesang[t.name] = a;
+        // Ganz laden und als Blob abspielen: so klappt Springen auch ohne Range-Anfragen
+        fetch(ordner + '/' + encodeURIComponent(t.name) + '.mp3')
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+            .then(b => { if (gesang[t.name] === a) a.src = URL.createObjectURL(b); })
+            .catch(() => {
+                // Keine Aufnahme für diese Stimme: sie spielt wieder der Synth
+                if (gesang[t.name] === a) { delete gesang[t.name]; updateTrackVolumes(); }
+            });
+    });
+}
+
+/** Aufnahmen an die Player-Position (ms Wiedergabezeit) anlegen. */
+function gesangFolgen(zeitMs) {
+    const spuren = Object.values(gesang);
+    if (!spuren.length) return;
+    const tempo = api.playbackSpeed || 1;
+    const laeuft = api.playerState === 1 && !einzaehlPhase;
+    // alphaTab meldet die Zeit beim eingestellten Tempo, die Aufnahme ist im Originaltempo
+    const ziel = (zeitMs ?? api.timePosition) * tempo / 1000;
+    spuren.forEach(a => {
+        if (!laeuft) {
+            if (!a.paused) a.pause();
+            return;
+        }
+        const abw = a.currentTime - ziel;
+        if (a.paused || Math.abs(abw) > 0.2) {
+            a.currentTime = ziel;
+            a.playbackRate = tempo;
+            if (a.paused) a.play().catch(() => { });
+        } else {
+            a.playbackRate = tempo * (1 - Math.max(-0.05, Math.min(0.05, abw)));
         }
     });
 }
@@ -1070,6 +1138,10 @@ api.playerPositionChanged.on(() => {
     setTimeout(() => { if (!einzaehlPhase) einzaehlZahl('', true); }, viertelMs());
 });
 
+// Gesang folgt dem Player (nach den Einzähl-Handlern oben, damit einzaehlPhase stimmt)
+api.playerPositionChanged.on(e => gesangFolgen(e.currentTime));
+api.playerStateChanged.on(() => gesangFolgen());
+
 /* --- Vollbild: nur Noten, Leisten weg --- */
 function toggleVollbild(an) {
     const on = document.body.classList.toggle('vollbild', an);
@@ -1255,6 +1327,7 @@ function buildSoundChips() {
     const box = document.getElementById('soundChips');
     box.innerHTML = '';
     Array.from(select.options).forEach(o => {
+        if (o.value === 'gesang' && !gesangOrdner()) return;
         const chip = document.createElement('button');
         chip.className = 'chip' + (o.value === select.value ? ' active' : '');
         chip.innerText = o.text;
