@@ -283,6 +283,7 @@ async function loadSelectedSong() {
         // Gesperrtes Lied ohne gültiges Cookie: zur Anmeldung
         if (response.status === 401) { location.href = 'login.php'; return; }
         const xmlText = await response.text();
+        gesangPartitur = xmlText;
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
 
@@ -662,6 +663,19 @@ let gesangLauf = null;    // { quellen, ctxStart, pos, tempo, abw } während des
 let gesangTempo = null;   // Tempo der Puffer in gesangPuffer
 let gesangPuffer = {};    // Trackname -> AudioBuffer (gedehnt auf gesangTempo)
 let gesangRechnet = false;
+let gesangPartitur = '';  // MusicXML-Text des geladenen Lieds (Abgleich mit stand.txt)
+
+/** Passen die Spuren noch zur Partitur? stand.txt = SHA-256 der MusicXML beim Rendern. */
+async function gesangPasst(ordner) {
+    try {
+        const r = await fetch(ordner + '/stand.txt', { cache: 'no-cache' });
+        if (!r.ok) return false;
+        const soll = (await r.text()).trim();
+        if (!crypto.subtle) return true;   // ohne https kein Abgleich möglich
+        const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(gesangPartitur));
+        return soll === Array.from(new Uint8Array(h), b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) { return false; }
+}
 
 function gesangOrdner() {
     const opt = document.getElementById('songSelect').selectedOptions[0];
@@ -684,6 +698,17 @@ function gesangLaden() {
     const ordner = gesangOrdner();
     if (!ordner || document.getElementById('soundSelect').value !== 'gesang') return;
     const ctx = gesangKontext();
+    const score = api.score;
+    gesangPasst(ordner).then(ok => {
+        if (api.score !== score) return;   // inzwischen anderes Lied
+        if (!ok) {
+            // Noten geändert, Spuren veraltet: lieber Synth als falscher Gesang
+            console.warn('Gesang passt nicht mehr zur Partitur:', ordner);
+            gesangStopp();
+            gesang = {};
+            updateTrackVolumes();
+        }
+    });
     api.score.tracks.forEach(t => {
         if (!t.name || t.staves.length === 0 || gesang[t.name]) return;
         const g = { roh: null, gain: ctx.createGain() };
