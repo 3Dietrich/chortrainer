@@ -36,7 +36,7 @@ let currentTextSize = 16;    // Text-/Lyricsgröße in px
 let taktOffset = 0;          // Taktnummer des ersten Takts minus 1 (aus der MusicXML)
 
 let isSoloView = true;         // Nur gewählte Stimme zeigen (Standard an; ohne Auswahl alle)
-let scrollTopAfterRender = false;  // nach dem Laden eines Songs einmal nach oben
+let scrollNachRender = null;   // nach dem Laden eines Songs einmal dorthin scrollen (gemerkte Stelle, sonst oben)
 let lastLoadedFile = null;     // zuletzt geladene MusicXML (gleicher Song = nur Klang gewechselt)
 let pendingResume = null;      // {tick, play}: nach dem Neuladen hier weitermachen
 let taktWahl = null;           // gewählter Takt (Tipp in die Noten, roter Rahmen), null = keiner
@@ -144,6 +144,39 @@ function loadSavedSettingsForSong() {
     } catch (e) { console.error("Load song settings failed", e); }
 }
 
+/* Stelle je Lied: Spielstelle (Tick), Scrollstelle, Bereich und dessen Loop. Übersteht
+   Neuladen, Klangwechsel und das Beenden der App (Handy räumt sie im Hintergrund weg).
+   Gemerkt wird unter dem Lied, das gerade zu sehen ist (lastLoadedFile), und erst,
+   wenn es nach dem Laden wieder an seiner Stelle steht (stelleBereit). */
+const STELLE_KEY = 'chorTrainerStelle';
+let stelleBereit = false;
+
+function stelleHolen(lied) {
+    try { return JSON.parse(localStorage.getItem(STELLE_KEY) || '{}')[lied] || null; }
+    catch (e) { return null; }
+}
+
+function stelleMerken() {
+    if (!stelleBereit || !lastLoadedFile || !api.score) return;
+    try {
+        const alle = JSON.parse(localStorage.getItem(STELLE_KEY) || '{}');
+        alle[lastLoadedFile] = {
+            tick: api.tickPosition,
+            scroll: Math.round(window.scrollY),
+            bereich: bereich ? [bereich.start, bereich.ende] : null,
+            loop: bereichLoop
+        };
+        localStorage.setItem(STELLE_KEY, JSON.stringify(alle));
+    } catch (e) { }
+}
+
+// Beim Scrollen kurz warten, beim Spielen höchstens einmal je Sekunde (Ereignisse: Abschnitt 5)
+let stelleZeit = null;
+function stelleBald(ms) {
+    if (stelleZeit) return;
+    stelleZeit = setTimeout(() => { stelleZeit = null; stelleMerken(); }, ms);
+}
+
 
 /* ==============================
    3. ALPHATAB API
@@ -235,6 +268,9 @@ function adjustContentPadding() {
  * und an AlphaTab übergeben.
  */
 async function loadSelectedSong() {
+    // Stelle des alten Lieds (bzw. vor dem Klangwechsel) sichern, bis zum Wiederherstellen ruhen
+    stelleMerken();
+    stelleBereit = false;
     // Bereich und Taktwahl gehören zum alten Lied
     anker = null;
     taktWahl = null;
@@ -301,7 +337,9 @@ async function loadSelectedSong() {
         taktOffset = Number.isNaN(ersterTakt) ? 0 : ersterTakt - 1;
         globalThis.tvTaktOffset = taktOffset;
         document.getElementById('taktNummer').value = 1 + taktOffset;
-        scrollTopAfterRender = !pendingResume;
+        // Klangwechsel: die Noten bleiben, wo sie sind
+        scrollNachRender = pendingResume ? null : (stelleHolen(file)?.scroll || 0);
+        if (scrollNachRender) api.customScrollHandler = KEIN_ROLLEN;
 
         // Voice-Splitting: Jede Stimme/Staff-Kombination → eigener Track
         createSoloAudioTracks(xmlDoc, soundId);
@@ -501,21 +539,35 @@ api.scoreLoaded.on(score => {
     updateView();
 
     setTimeout(adjustContentPadding, 100);
-    if (pendingResume) setTimeout(resumeWhenReady, 400);
+    const lied = lastLoadedFile;
+    setTimeout(() => resumeWhenReady(lied), 400);
 });
 
-/** Nach dem Neuladen (Klangwechsel) Position wiederherstellen und ggf. weiterspielen. */
-function resumeWhenReady(versuch = 0) {
-    if (!pendingResume) return;
-    if (!api.isReadyForPlayback) {
-        if (versuch < 50) setTimeout(() => resumeWhenReady(versuch + 1), 100);
-        else pendingResume = null;
+/** Nach dem Laden die gemerkte Stelle wiederherstellen (Bereich, Loop, Spielstelle), beim
+    Klangwechsel die Spielstelle von eben und ggf. weiterspielen. */
+function resumeWhenReady(lied, versuch = 0) {
+    if (lied !== lastLoadedFile) return;   // inzwischen anderes Lied
+    if (!api.isReadyForPlayback || !api.tickCache) {
+        if (versuch < 50) setTimeout(() => resumeWhenReady(lied, versuch + 1), 100);
+        else { pendingResume = null; stelleBereit = true; }
         return;
     }
     const r = pendingResume;
     pendingResume = null;
-    api.tickPosition = r.tick;
-    if (r.play) api.play();
+    const s = stelleHolen(lied);
+    const takte = api.tickCache.masterBars;
+    const liedEnde = takte.length ? takte[takte.length - 1].end : 0;
+    const b = s && s.bereich;
+    if (b && b[0] >= 0 && b[1] <= liedEnde && b[1] - b[0] >= BEREICH_SCHRITT) {
+        bereich = { start: b[0], ende: b[1] };
+        bereichLoop = s.loop !== false;
+        bereichAnwenden();
+        loopAnwenden();
+    }
+    const tick = r ? r.tick : s && s.tick;
+    if (tick > 0 && tick < liedEnde) api.tickPosition = tick;
+    stelleBereit = true;
+    if (r && r.play) api.play();
 }
 
 /** Stimmen-Buttons (Alle, Sopran, Alt, Tenor, Bass …) dynamisch erzeugen. */
@@ -2016,8 +2068,9 @@ function handlePlayClick(abHier = false) {
         const t = api.tickPosition;
         const lk = api.tickCache.masterBars.find(m => m.start <= t && t < m.end);
         if (abHier !== true && lk && t > lk.start) api.tickPosition = lk.start;
-        // Mit Bereich nie davor oder dahinter: ein verschobener Bereich beginnt mitten im Takt
-        if (bereich && (api.tickPosition < bereich.start || api.tickPosition >= bereich.ende))
+        // Mit Bereich nie davor oder dahinter: ein verschobener Bereich beginnt mitten im Takt.
+        // Ohne Loop ist hinter dem Bereich erlaubt (dort lief es weiter)
+        if (bereich && (api.tickPosition < bereich.start || (bereichLoop && api.tickPosition >= bereich.ende)))
             api.tickPosition = bereich.start;
     }
     if (api.score) updateTrackVolumes();
@@ -2331,8 +2384,8 @@ function bereichSetzen(von, bis) {
     const neu = !bereich;
     bereich = { start: taktStart(von), ende: taktStart(bis) + api.score.masterBars[bis].calculateDuration() };
     const takt = aktuellerTakt();
-    bereichAnwenden();
     if (neu) bereichLoop = BEREICH_LOOP_START;
+    bereichAnwenden();
     loopAnwenden();
     // Neuer Bereich vor der Spielstelle: am nächsten Taktstrich hin (dahinter regelt bereichAnSpieler)
     if (api.playerState === 1 && takt < bereich.von) sprungPlanen(bereich.start);
@@ -2362,14 +2415,17 @@ function bereichAnwenden(nurZeigen = false) {
    die Spielstelle im Bereich oder davor, spielt es einfach hinein. Liegt sie dahinter,
    gilt das Ende vorläufig erst am Ende des laufenden Takts: dort geht es am
    Bereichsanfang weiter, danach gilt das richtige Ende (playerFinished meldet den
-   Rücksprung). */
+   Rücksprung). Ohne Loop gilt das Liedende: am Bereichsende spielt es einfach weiter,
+   der Bereich bleibt Startstelle. */
 let bereichEndeVorlaeufig = false;
 // vorlaeufigErlaubt = false: gleich das richtige Ende (nach dem Rücksprung ist die
 // gemeldete Spielstelle noch die alte und taugt nicht zur Prüfung)
-function bereichAnSpieler(vorlaeufigErlaubt = true) {
+// strichHin = false: steht das Lied, bleibt der Strich, wo er ist (Loop umgeschaltet)
+function bereichAnSpieler(vorlaeufigErlaubt = true, strichHin = true) {
     const range = new alphaTab.synth.PlaybackRange();
+    const takte = api.tickCache.masterBars;
     range.startTick = bereich.start;
-    range.endTick = bereich.ende - 50;
+    range.endTick = (bereichLoop ? bereich.ende : takte[takte.length - 1].end) - 50;
     bereichEndeVorlaeufig = false;
     if (vorlaeufigErlaubt && api.playerState === 1 && !einzaehlPhase) {
         const t = api.tickPosition;
@@ -2380,7 +2436,8 @@ function bereichAnSpieler(vorlaeufigErlaubt = true) {
         }
     }
     api.playbackRange = range;
-    if (api.playerState !== 1) api.tickPosition = bereich.start;
+    if (api.playerState !== 1 && strichHin) api.tickPosition = bereich.start;
+    stelleMerken();
 }
 api.playerFinished.on(() => {
     if (bereich && bereichEndeVorlaeufig) bereichAnSpieler(false);
@@ -2411,6 +2468,7 @@ function bereichAufheben() {
     api.playbackRange = null;
     loopAnwenden();
     taktWahlZeigen();
+    stelleMerken();
 }
 
 // Loop: mit Bereich gilt der Knopf neben Play, sonst der Schalter in den Einstellungen
@@ -2437,6 +2495,8 @@ function toggleBereichLoop() {
     }
     bereichLoop = !bereichLoop;
     loopAnwenden();
+    // Loop aus: läuft es, geht es am Bereichsende weiter statt anzuhalten
+    bereichAnSpieler(true, false);
 }
 
 /* Rotes Wiederholungszeichen im Notenstil als Overlay: Anfang ‖: am Bereichsanfang,
@@ -2706,13 +2766,38 @@ api.playerStateChanged.on(args => {
     noten.addEventListener('pointercancel', () => { start = null; });
 })();
 
-/* --- Nach dem Laden eines Songs oben beginnen (Titel sichtbar) --- */
-api.renderFinished.on(() => {
-    neuTakteMarkieren();
-    if (!scrollTopAfterRender) return;
-    scrollTopAfterRender = false;
-    window.scrollTo(0, 0);
+/* --- Nach dem Laden eines Songs an der gemerkten Stelle beginnen, sonst oben (Titel sichtbar) --- */
+api.renderFinished.on(() => neuTakteMarkieren());
+// Erst nach postRenderFinished: dort rollt alphaTab sonst noch sanft zum Strich zurück
+api.postRenderFinished.on(() => {
+    if (scrollNachRender === null) return;
+    const y = scrollNachRender;
+    scrollNachRender = null;
+    scrollAuf(y);
 });
+
+/* Gemerkte Ansicht: alphaTab rollt nach dem Laden von selbst zum Strich (nach dem Zeichnen
+   und beim Bereitmelden des Spielers). Bis zur ersten Eingabe oder zum Start rollt es
+   deshalb gar nicht, danach wieder wie gewohnt. */
+const KEIN_ROLLEN = { forceScrollTo() { }, onBeatCursorUpdating() { }, [Symbol.dispose]() { } };
+function rollenFrei() {
+    if (api.customScrollHandler === KEIN_ROLLEN) api.customScrollHandler = undefined;
+}
+['pointerdown', 'keydown'].forEach(t => window.addEventListener(t, rollenFrei, true));
+api.playerStateChanged.on(args => { if (args.state === 1) rollenFrei(); });
+
+// Die Noten bekommen ihre Höhe erst kurz nach renderFinished: so lange nachfassen (bis 3 s)
+function scrollAuf(y, versuch = 0) {
+    window.scrollTo(0, y);
+    if (Math.abs(window.scrollY - y) > 2 && versuch < 30) setTimeout(() => scrollAuf(y, versuch + 1), 100);
+}
+
+/* --- Stelle mitschreiben (stelleMerken, Abschnitt 2) --- */
+window.addEventListener('scroll', () => stelleBald(400), { passive: true });
+api.playerPositionChanged.on(() => stelleBald(1000));
+api.playerStateChanged.on(args => { if (args.state !== 1) stelleMerken(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) stelleMerken(); });
+window.addEventListener('pagehide', stelleMerken);
 
 
 /* ==============================
