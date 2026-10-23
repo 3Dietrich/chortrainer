@@ -100,8 +100,8 @@ function loadSavedSettings() {
         // Dropdowns wiederherstellen
         if (s.song) document.getElementById('songSelect').value = s.song;
         if (s.sound) document.getElementById('soundSelect').value = s.sound;
-        // Klang aus der alten, längeren Liste → Standard "Duu"
-        if (!document.getElementById('soundSelect').value) document.getElementById('soundSelect').value = '54';
+        // Klang aus der alten, längeren Liste → Standard "Gesang" (ohne Spuren klingt "Duu")
+        if (!document.getElementById('soundSelect').value) document.getElementById('soundSelect').value = 'gesang';
 
         // Globale Variablen wiederherstellen
         if (s.volume !== undefined) currentDb = s.volume;
