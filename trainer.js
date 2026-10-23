@@ -641,7 +641,7 @@ function updateTrackVolumes() {
         const laut = (allActive || activeTracks.has(i)) ? 1.0 : bgAmp;
         const stimme = gesang[t.name];
         if (stimme) {
-            stimme.volume = laut;
+            stimme.gain.gain.setTargetAtTime(laut, gesangKontext().currentTime, 0.02);
             api.changeTrackVolume([t], 0);   // gesungen wird aus der Aufnahme
         } else {
             api.changeTrackVolume([t], laut);
@@ -651,67 +651,184 @@ function updateTrackVolumes() {
 
 /* --- Gesang: vorab gerenderte Stimmen (data-gesang am Lied, je Stimme <Trackname>.mp3) ---
    alphaTab bleibt der Taktgeber: Strich, Einzählen, Metronom, Bereich, Sprünge und Tempo
-   laufen wie beim Synth. Jede Aufnahme folgt der Position des Players; kleine Abweichungen
-   gleicht sie über die Geschwindigkeit aus, große per Sprung. */
-let gesang = {};   // Trackname -> <audio>
+   laufen wie beim Synth, dessen Spur der Stimme ist dann stumm. Die Aufnahmen laufen über
+   Web Audio: einmal zur Player-Position eingeplant, danach nur bei echter Abweichung neu
+   angesetzt (kein laufendes Nachregeln, das knackt). Für ein anderes Tempo wird jede
+   Aufnahme einmal tonhöhenecht gedehnt (WSOLA) und zwischengespeichert. */
+const GESANG_SR = 22050;
+let gesang = {};          // Trackname -> { roh: Float32Array, gain: GainNode }
+let gesangCtx = null;
+let gesangLauf = null;    // { quellen, ctxStart, pos, tempo, abw } während des Abspielens
+let gesangTempo = null;   // Tempo der Puffer in gesangPuffer
+let gesangPuffer = {};    // Trackname -> AudioBuffer (gedehnt auf gesangTempo)
+let gesangRechnet = false;
 
 function gesangOrdner() {
     const opt = document.getElementById('songSelect').selectedOptions[0];
     return opt ? opt.dataset.gesang : undefined;
 }
 
+function gesangKontext() {
+    if (!gesangCtx) {
+        try { gesangCtx = new AudioContext({ sampleRate: GESANG_SR }); }
+        catch (e) { gesangCtx = new AudioContext(); }
+    }
+    return gesangCtx;
+}
+
 function gesangLaden() {
-    Object.values(gesang).forEach(a => {
-        a.pause();
-        if (a.src) URL.revokeObjectURL(a.src);
-        a.removeAttribute('src');
-    });
+    gesangStopp();
     gesang = {};
+    gesangPuffer = {};
+    gesangTempo = null;
     const ordner = gesangOrdner();
     if (!ordner || document.getElementById('soundSelect').value !== 'gesang') return;
+    const ctx = gesangKontext();
     api.score.tracks.forEach(t => {
         if (!t.name || t.staves.length === 0 || gesang[t.name]) return;
-        const a = new Audio();
-        a.preservesPitch = true;
-        gesang[t.name] = a;
-        // Ganz laden und als Blob abspielen: so klappt Springen auch ohne Range-Anfragen
+        const g = { roh: null, gain: ctx.createGain() };
+        g.gain.connect(ctx.destination);
+        gesang[t.name] = g;
         fetch(ordner + '/' + encodeURIComponent(t.name) + '.mp3')
-            .then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
-            .then(b => { if (gesang[t.name] === a) a.src = URL.createObjectURL(b); })
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+            .then(d => ctx.decodeAudioData(d))
+            .then(b => {
+                if (gesang[t.name] !== g) return;
+                g.roh = b.getChannelData(0);
+                if (Object.values(gesang).every(x => x.roh)) gesangVorbereiten(api.playbackSpeed || 1);
+            })
             .catch(() => {
                 // Keine Aufnahme für diese Stimme: sie spielt wieder der Synth
-                if (gesang[t.name] === a) { delete gesang[t.name]; updateTrackVolumes(); }
+                if (gesang[t.name] === g) { delete gesang[t.name]; updateTrackVolumes(); }
             });
     });
 }
 
+/** Tonhöhenecht dehnen (WSOLA): tempo > 1 = schneller. */
+function gesangDehnen(x, tempo) {
+    if (tempo === 1) return x;
+    const N = 1024, H = 512, TOL = 256;
+    const n = Math.floor(x.length / tempo);
+    const y = new Float32Array(n + N);
+    const w = new Float32Array(N);
+    for (let i = 0; i < N; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N);
+    let vorher = 0;
+    for (let o = 0; o < n; o += H) {
+        let p = Math.round(o * tempo);
+        if (o > 0) {
+            // Stelle suchen, die am besten an das vorige Stück anschließt
+            const nat = vorher + H, ideal = p;
+            let best = -Infinity;
+            for (let d = -TOL; d <= TOL; d += 4) {
+                const q = ideal + d;
+                if (q < 0 || q + N > x.length || nat + N > x.length) continue;
+                let c = 0;
+                for (let i = 0; i < N; i += 8) c += x[q + i] * x[nat + i];
+                if (c > best) { best = c; p = q; }
+            }
+        }
+        if (p + N > x.length) break;
+        for (let i = 0; i < N; i++) y[o + i] += x[p + i] * w[i];
+        vorher = p;
+    }
+    return y.subarray(0, n);
+}
+
+/** Puffer für das Tempo vorbereiten. Gedehnt wird in einem Worker, damit Seite und
+    Player nicht stocken; ein neuerer Auftrag (Tempo weitergeschoben) verwirft ältere. */
+let gesangWorker = null, gesangAuftrag = 0;
+function gesangVorbereiten(tempo) {
+    const ctx = gesangKontext(), nr = ++gesangAuftrag;
+    const namen = Object.keys(gesang).filter(n => gesang[n].roh);
+    if (tempo === 1) {
+        // Originaltempo: nichts zu rechnen
+        gesangPuffer = {};
+        namen.forEach(n => {
+            const b = ctx.createBuffer(1, gesang[n].roh.length, ctx.sampleRate);
+            b.copyToChannel(gesang[n].roh, 0);
+            gesangPuffer[n] = b;
+        });
+        gesangTempo = 1;
+        gesangRechnet = false;
+        return Promise.resolve();
+    }
+    gesangRechnet = true;
+    if (!gesangWorker) {
+        const code = gesangDehnen.toString() + '\nonmessage = e => { const y = gesangDehnen(e.data.x, e.data.tempo); postMessage({ nr: e.data.nr, name: e.data.name, y }, [y.buffer]); };';
+        gesangWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+    }
+    return new Promise(fertig => {
+        const puffer = {};
+        let offen = namen.length;
+        gesangWorker.onmessage = e => {
+            if (e.data.nr !== gesangAuftrag) return;
+            const b = ctx.createBuffer(1, e.data.y.length, ctx.sampleRate);
+            b.copyToChannel(e.data.y, 0);
+            puffer[e.data.name] = b;
+            if (--offen > 0) return;
+            gesangPuffer = puffer;
+            gesangTempo = tempo;
+            gesangRechnet = false;
+            fertig();
+        };
+        // Kopie schicken, das Original bleibt für das nächste Tempo
+        namen.forEach(n => gesangWorker.postMessage({ nr, name: n, tempo, x: gesang[n].roh.slice() }));
+    });
+}
+
+/** Nach Tempo-Änderung: kurz abwarten (Regler wird noch geschoben), dann vorbereiten. */
+let gesangTempoZeit = null;
+function gesangTempoGeaendert() {
+    if (!Object.keys(gesang).length) return;
+    clearTimeout(gesangTempoZeit);
+    gesangTempoZeit = setTimeout(() => {
+        if (gesangTempo !== (api.playbackSpeed || 1)) gesangVorbereiten(api.playbackSpeed || 1);
+    }, 400);
+}
+
+function gesangStopp() {
+    if (!gesangLauf) return;
+    gesangLauf.quellen.forEach(q => { try { q.stop(); } catch (e) { } });
+    gesangLauf = null;
+}
+
 /** Aufnahmen an die Player-Position (ms Wiedergabezeit) anlegen. */
 function gesangFolgen(zeitMs) {
-    const spuren = Object.values(gesang);
-    if (!spuren.length) return;
-    const tempo = api.playbackSpeed || 1;
+    const namen = Object.keys(gesang);
+    if (!namen.length) return;
     const laeuft = api.playerState === 1 && !einzaehlPhase;
-    // alphaTab meldet die Zeit beim eingestellten Tempo, die Aufnahme ist im Originaltempo
+    if (!laeuft) { gesangStopp(); return; }
+    const tempo = api.playbackSpeed || 1;
+    if (gesangTempo !== tempo || namen.some(n => gesang[n].roh && !gesangPuffer[n])) {
+        gesangStopp();
+        if (!gesangRechnet && namen.every(n => gesang[n].roh)) gesangVorbereiten(tempo);
+        return;
+    }
+    const ctx = gesangKontext();
+    if (ctx.state === 'suspended') ctx.resume();
+    // alphaTab meldet die Zeit beim eingestellten Tempo; Liedzeit = Originaltempo
     const ziel = (zeitMs ?? api.timePosition) * tempo / 1000;
-    spuren.forEach(a => {
-        if (!laeuft) {
-            if (!a.paused) a.pause();
-            return;
-        }
-        const abw = a.currentTime - ziel;
-        if (a.paused || Math.abs(abw) > 0.2) {
-            a.currentTime = ziel;
-            a.playbackRate = tempo;
-            a.abw = 0;
-            if (a.paused) a.play().catch(() => { });
-            return;
-        }
-        // Die Player-Position kommt in Puffer-Schritten: Abweichung glätten und nur
-        // behutsam nachregeln, jedes Umstellen der Geschwindigkeit kann knacken
-        a.abw = 0.85 * (a.abw || 0) + 0.15 * abw;
-        const rate = Math.abs(a.abw) < 0.025 ? tempo : tempo * (1 - Math.max(-0.02, Math.min(0.02, a.abw * 0.4)));
-        if (Math.abs(rate - a.playbackRate) > 0.004 || (rate === tempo && a.playbackRate !== tempo)) a.playbackRate = rate;
-    });
+    if (gesangLauf) {
+        const l = gesangLauf;
+        const jetzt = l.pos + (ctx.currentTime - l.ctxStart) * tempo;
+        // Die Player-Position kommt in Puffer-Schritten: Abweichung glätten,
+        // neu ansetzen nur bei echtem Versatz (Sprung, Bereich, Hänger)
+        l.abw = 0.8 * l.abw + 0.2 * (jetzt - ziel);
+        if (Math.abs(jetzt - ziel) < 0.4 && Math.abs(l.abw) < 0.12) return;
+        gesangStopp();
+    }
+    const vorlauf = 0.03;
+    const l = { quellen: [], ctxStart: ctx.currentTime + vorlauf, pos: ziel + vorlauf * tempo, abw: 0 };
+    for (const n of namen) {
+        const b = gesangPuffer[n];
+        if (!b) continue;
+        const q = ctx.createBufferSource();
+        q.buffer = b;
+        q.connect(gesang[n].gain);
+        if (l.pos / tempo < b.duration) q.start(l.ctxStart, Math.max(0, l.pos / tempo));
+        l.quellen.push(q);
+    }
+    gesangLauf = l;
 }
 
 /** Ansicht aktualisieren (alle Stimmen oder nur die ausgewählten). */
@@ -1442,6 +1559,7 @@ function setTempoFactor(f) {
     const minFactor = Math.max(MIN_FACTOR, Math.min(0.5, MIN_BPM / baseTempo));
     currentTempoFactor = Math.round(Math.max(minFactor, Math.min(MAX_FACTOR, f)) * 100) / 100;
     api.playbackSpeed = currentTempoFactor;
+    gesangTempoGeaendert();
     updateBpmDisplay();
     saveSettings();
 }
@@ -1777,6 +1895,8 @@ function audioBereit() {
     } else if (api.player && api.player.main) {
         api.player.main.ensureContext();
     }
+    // Gesang: eigener Audio-Kontext, braucht ebenfalls den Tipp zum Starten
+    if (gesangCtx && gesangCtx.state === 'suspended') gesangCtx.resume();
 }
 
 // abHier: an der gesetzten Stelle starten (Doppeltipp auf eine Note), nicht am Taktanfang
