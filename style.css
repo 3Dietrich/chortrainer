@@ -933,6 +933,8 @@ body.sheet-open #sheet { transform: none; }
 }
 
 .chip.active { background: var(--ink); color: #fff; }
+/* Gesang gewählt, aber für dieses Lied keine Aufnahme: blass, klingt „Stimme“ */
+.chip.blass { opacity: 0.45; }
 
 #sheet input[type=range] { --track: #d6d3cb; --thumb: #fff; }
 #sheet input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
@@ -1108,12 +1110,12 @@ body.sheet-open #sheet { transform: none; }
     .grab { display: none; }
 }
 
-/* Ab 1400px ist Platz für alles in einer Zeile: Stimmen zwischen Tempo und Vollbild */
-@media (min-width: 1400px) {
-    #toolbar-root { flex-wrap: nowrap; }
-    .p-voices { order: 4; flex-basis: auto; padding-bottom: 0; margin-right: auto; }
-    .p-ctl { margin-right: 0; }
-}
+/* Alles in einer Zeile (Stimmen zwischen Tempo und Vollbild), wenn es passt: trainer.js
+   setzt die Klasse ab 1400px und nimmt sie wieder weg, wenn die Leiste überläuft
+   (z.B. sechs Stimmknöpfe), sonst rutscht das Zahnrad rechts aus dem Bild */
+body.leiste-einzeilig #toolbar-root { flex-wrap: nowrap; }
+body.leiste-einzeilig .p-voices { order: 4; flex-basis: auto; padding-bottom: 0; margin-right: auto; }
+body.leiste-einzeilig .p-ctl { margin-right: 0; }
 
 /* ==================== HILFE (?) ====================
    Tipp-Modus: durchsichtige Fangfläche über allem, gestrichelte Rahmen um die

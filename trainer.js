@@ -195,6 +195,14 @@ const api = new alphaTab.AlphaTabApi(el, {
  * Der Scroll-Versatz sorgt dafür, dass alphaTab den aktuellen Takt beim
  * Mitscrollen nicht unter die Kopfzeile schiebt.
  */
+/** Leiste einzeilig nur, wenn alles hineinpasst (ab 1400px, je nach Zahl der Stimmen). */
+function leisteEinzeiligPruefen() {
+    const leiste = document.getElementById('toolbar-root');
+    document.body.classList.add('leiste-einzeilig');
+    if (window.innerWidth < 1400 || leiste.scrollWidth > leiste.clientWidth + 1)
+        document.body.classList.remove('leiste-einzeilig');
+}
+
 function adjustContentPadding() {
     if (document.body.classList.contains('vollbild')) {
         el.style.paddingTop = '';
@@ -204,6 +212,7 @@ function adjustContentPadding() {
         neuTakteMarkieren();   // Abstand oben geändert: „neu“ mitrücken
         return;
     }
+    leisteEinzeiligPruefen();
     const headerHeight = document.getElementById('toolbar-root').offsetHeight;
     // Einstellungsfeld (breiter Bildschirm) hängt unter der Leiste, egal ob ein- oder zweizeilig
     document.documentElement.style.setProperty('--bar-h', headerHeight + 'px');
@@ -237,9 +246,7 @@ async function loadSelectedSong() {
         location.href = 'login.php';
         return;
     }
-    // "Gesang" gibt es nur bei Liedern mit gerenderten Stimmen
-    const klang = document.getElementById('soundSelect');
-    if (klang.value === 'gesang' && !gesangOrdner()) klang.value = '54';
+    // Chip "Gesang" zeigt, ob es für dieses Lied Gesang gibt (sonst klingt "Stimme")
     buildSoundChips();
 
     // Gespeicherte Stimmen für diesen Song laden
@@ -1474,9 +1481,13 @@ function buildSoundChips() {
     const box = document.getElementById('soundChips');
     box.innerHTML = '';
     Array.from(select.options).forEach(o => {
-        if (o.value === 'gesang' && !gesangOrdner()) return;
         const chip = document.createElement('button');
         chip.className = 'chip' + (o.value === select.value ? ' active' : '');
+        // Gesang bleibt gewählt, auch bei Liedern ohne Aufnahme: dort klingt "Stimme"
+        if (o.value === 'gesang' && !gesangOrdner()) {
+            chip.classList.add('blass');
+            chip.title = 'Für dieses Lied gibt es noch keinen Gesang, es klingt „Stimme“';
+        }
         chip.innerText = o.text;
         chip.onclick = () => {
             if (select.value === o.value) return;
