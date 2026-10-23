@@ -935,6 +935,8 @@ body.sheet-open #sheet { transform: none; }
 .chip.active { background: var(--ink); color: #fff; }
 /* Gesang gewählt, aber für dieses Lied keine Aufnahme: blass, klingt „Stimme“ */
 .chip.blass { opacity: 0.45; }
+/* Gesang ist neu: nicht gewählt fällt der Chip auf (roter Rahmen, rote Schrift) */
+.chip.chip-neu:not(.active) { border: 2px solid var(--red); color: var(--red); font-weight: 700; background: #fff; padding: 7px 12px; }
 .klang-hinweis { display: block; margin-top: 8px; font-size: 14px; line-height: 1.35; opacity: 0.75; }
 
 #sheet input[type=range] { --track: #d6d3cb; --thumb: #fff; }

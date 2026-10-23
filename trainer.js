@@ -1530,6 +1530,7 @@ function buildSoundChips() {
     Array.from(select.options).forEach(o => {
         const chip = document.createElement('button');
         chip.className = 'chip' + (o.value === select.value ? ' active' : '');
+        if (o.value === 'gesang') chip.classList.add('chip-neu');
         // Gesang bleibt gewählt, auch bei Liedern ohne Aufnahme: dort klingt "Duu"
         if (o.value === 'gesang' && !gesangOrdner()) {
             chip.classList.add('blass');
