@@ -43,4 +43,6 @@ laufenden Versionen und ob ein Ort hinter der Quelle zurückliegt.
 
 Lokal starten: `python3 -m http.server` in diesem Ordner, dann im Browser öffnen.
 
-Das Lied „Bereit" (Noten, Text, Aufnahme) steht nicht unter einer freien Lizenz.
+Code: MIT (siehe `LICENSE`).  
+Das Lied „Bereit" (Musik: Dietrich Pank, Text: Charlotte Pank; Noten, Text, Aufnahme) steht unter
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.de).
