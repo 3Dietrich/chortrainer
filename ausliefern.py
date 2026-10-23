@@ -177,7 +177,15 @@ def tv_gesang_hochladen(staemme):
         dateien.sort(key=lambda f: f == 'stand.txt')
         quelle = GESANG_ORT['tv'] / stamm
         subprocess.run(['ssh', host, f"mkdir -p '{ordner}/gesang/{stamm}' && rm -f '{ordner}/gesang/{stamm}/stand.txt'"], check=True)
-        subprocess.run(['scp', '-q', *[str(quelle / f) for f in dateien], f'{host}:{ordner}/gesang/{stamm}/'], check=True)
+        # Der Server trennt bei vielen Dateien am Stück manchmal die Verbindung: nochmal versuchen
+        for versuch in range(3):
+            r = subprocess.run(['scp', '-q', *[str(quelle / f) for f in dateien], f'{host}:{ordner}/gesang/{stamm}/'])
+            if r.returncode == 0:
+                break
+            print(f'  Verbindung abgebrochen ({stamm}), Versuch {versuch + 2} …', flush=True)
+            time.sleep(5)
+        else:
+            sys.exit(f'Gesang {stamm}: Hochladen fehlgeschlagen. Nochmal ausliefern, Fertiges wird übersprungen.')
         print(f'Gesang hochgeladen: {stamm} ({len(dateien)} Dateien)')
 
 

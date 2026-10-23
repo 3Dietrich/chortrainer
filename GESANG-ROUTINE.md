@@ -14,6 +14,10 @@ sie nur ab.
    `./ausliefern.py tv` bzw. `./ausliefern.py pankd`  
    rendert den Gesang (nur geänderte Lieder) und lädt ihn **vor** `index.html` hoch.  
 
+Neues **freies** Lied beim Verein (ohne Login): außer `data-frei` und der Datei in der `.htaccess`
+des Trainers auch `gesang/<Lied>/` freigeben (Muster dort: Bereit).  
+Bricht das Hochladen ab: einfach nochmal ausliefern, schon Hochgeladenes wird übersprungen.  
+
 Erst nur schauen: `./ausliefern.py tv -n`  
 Nur rendern, nichts hochladen: `./ausliefern.py gesang` (oder `./ausliefern.py gesang Ruhe.musicxml`)  
 
