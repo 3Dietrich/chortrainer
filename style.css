@@ -935,6 +935,7 @@ body.sheet-open #sheet { transform: none; }
 .chip.active { background: var(--ink); color: #fff; }
 /* Gesang gewählt, aber für dieses Lied keine Aufnahme: blass, klingt „Stimme“ */
 .chip.blass { opacity: 0.45; }
+.klang-hinweis { display: block; margin-top: 8px; font-size: 14px; line-height: 1.35; opacity: 0.75; }
 
 #sheet input[type=range] { --track: #d6d3cb; --thumb: #fff; }
 #sheet input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }

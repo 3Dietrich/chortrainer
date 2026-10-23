@@ -240,7 +240,7 @@
             <div class="lab">Klang</div>
             <!-- Auswahlfeld bleibt die Quelle für trainer.js, die Chips sind nur die Bedienung -->
             <select id="soundSelect" hidden>
-                <option value="54" selected>Stimme</option>
+                <option value="54" selected>Duu</option>
                 <!-- nur bei Liedern mit data-gesang (vorab gerenderte Stimmen) -->
                 <option value="gesang">Gesang 🌟neu🌟</option>
                 <option value="53">Chor „Aah“</option>
@@ -251,6 +251,8 @@
                 <option value="42">Cello</option>
             </select>
             <div class="chips" id="soundChips"></div>
+            <!-- Gesang fehlt oder nur teilweise da: Hinweis (trainer.js gesangHinweisZeigen) -->
+            <small class="klang-hinweis" id="gesangHinweis" hidden></small>
         </div>
 
         <!-- Offline: zeigt, ob alle Lieder auf dem Gerät liegen; die ganze Zeile startet das Speichern.

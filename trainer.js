@@ -100,7 +100,7 @@ function loadSavedSettings() {
         // Dropdowns wiederherstellen
         if (s.song) document.getElementById('songSelect').value = s.song;
         if (s.sound) document.getElementById('soundSelect').value = s.sound;
-        // Klang aus der alten, längeren Liste → Standard "Stimme"
+        // Klang aus der alten, längeren Liste → Standard "Duu"
         if (!document.getElementById('soundSelect').value) document.getElementById('soundSelect').value = '54';
 
         // Globale Variablen wiederherstellen
@@ -246,7 +246,7 @@ async function loadSelectedSong() {
         location.href = 'login.php';
         return;
     }
-    // Chip "Gesang" zeigt, ob es für dieses Lied Gesang gibt (sonst klingt "Stimme")
+    // Chip "Gesang" zeigt, ob es für dieses Lied Gesang gibt (sonst klingt "Duu")
     buildSoundChips();
 
     // Gespeicherte Stimmen für diesen Song laden
@@ -426,7 +426,7 @@ function createSoloAudioTracks(xmlDoc, soundId) {
         const midiChan = xmlDoc.createElement('midi-channel');
         midiInstr.appendChild(midiChan);
         const midiProg = xmlDoc.createElement('midi-program');
-        // Gesang: die Synth-Spur bleibt stumm, für angetippte Noten klingt "Stimme"
+        // Gesang: die Synth-Spur bleibt stumm, für angetippte Noten klingt "Duu"
         midiProg.textContent = soundId === 'gesang' ? '54' : soundId;
         midiInstr.appendChild(midiProg);
         sp.appendChild(midiInstr);
@@ -496,6 +496,7 @@ api.scoreLoaded.on(score => {
     varianteLaden(score);
     updateTrackButtons();
     gesangLaden();
+    gesangHinweisZeigen();
     updateTrackVolumes();
     updateView();
 
@@ -664,6 +665,7 @@ function updateTrackVolumes() {
    angesetzt (kein laufendes Nachregeln, das knackt). Für ein anderes Tempo wird jede
    Aufnahme einmal tonhöhenecht gedehnt (WSOLA) und zwischengespeichert. */
 const GESANG_SR = 22050;
+const GESANG_PEGEL = 1.6;   // Gesamtlautstärke Gesang (Spuren liegen bei -24 dBFS je Stimme)
 let gesang = {};          // Trackname -> { roh: Float32Array, gain: GainNode }
 let gesangCtx = null;
 let gesangLauf = null;    // { quellen, ctxStart, pos, tempo, abw } während des Abspielens
@@ -689,10 +691,22 @@ function gesangOrdner() {
     return opt ? opt.dataset.gesang : undefined;
 }
 
+let gesangSumme = null;   // alle Stimmen -> Begrenzer -> Ausgang
 function gesangKontext() {
     if (!gesangCtx) {
         try { gesangCtx = new AudioContext({ sampleRate: GESANG_SR }); }
         catch (e) { gesangCtx = new AudioContext(); }
+        // Begrenzer: mehrere Stimmen zusammen dürfen nie übersteuern (das knackt)
+        const grenze = gesangCtx.createDynamicsCompressor();
+        grenze.threshold.value = -6;
+        grenze.knee.value = 6;
+        grenze.ratio.value = 12;
+        grenze.attack.value = 0.003;
+        grenze.release.value = 0.15;
+        grenze.connect(gesangCtx.destination);
+        gesangSumme = gesangCtx.createGain();
+        gesangSumme.gain.value = GESANG_PEGEL;
+        gesangSumme.connect(grenze);
     }
     return gesangCtx;
 }
@@ -719,7 +733,7 @@ function gesangLaden() {
     api.score.tracks.forEach(t => {
         if (!t.name || t.staves.length === 0 || gesang[t.name]) return;
         const g = { roh: null, gain: ctx.createGain() };
-        g.gain.connect(ctx.destination);
+        g.gain.connect(gesangSumme);
         gesang[t.name] = g;
         fetch(ordner + '/' + encodeURIComponent(t.name) + '.mp3')
             .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
@@ -734,6 +748,39 @@ function gesangLaden() {
                 if (gesang[t.name] === g) { delete gesang[t.name]; updateTrackVolumes(); }
             });
     });
+}
+
+/** Hinweis unter der Klangwahl: Gesang fehlt, ist veraltet oder nur teilweise da. */
+async function gesangHinweisZeigen() {
+    const el = document.getElementById('gesangHinweis');
+    if (!el || !api.score) return;
+    const score = api.score;
+    const ordner = gesangOrdner();
+    const namen = score.tracks.filter(t => t.name && t.staves.length > 0).map(t => t.name);
+    const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' und ' + l[l.length - 1] : l[0];
+    let text = '';
+    if (!ordner) {
+        text = 'Gesang: für dieses Lied noch nicht da, es klingt „Duu“.';
+    } else {
+        let info = {};
+        try {
+            const r = await fetch(ordner + '/stimmen.json', { cache: 'no-cache' });
+            if (r.ok) info = await r.json();
+        } catch (e) { }
+        if (!(await gesangPasst(ordner))) {
+            text = 'Gesang: Die Noten wurden geändert, der Gesang wird noch angepasst. Bis dahin klingt „Duu“.';
+        } else {
+            const fehlt = namen.filter(n => !info[n]);
+            const du = namen.filter(n => info[n] === 'vokalise');
+            const teile = [];
+            if (fehlt.length) teile.push(liste(fehlt) + ' noch ohne Gesang (klingt „Duu“)');
+            if (du.length) teile.push(liste(du) + ' ohne Text, singt auf „du“');
+            if (teile.length) text = 'Gesang: ' + teile.join('; ') + '.';
+        }
+    }
+    if (api.score !== score) return;   // inzwischen anderes Lied
+    el.textContent = text;
+    el.hidden = !text;
 }
 
 /** Tonhöhenecht dehnen (WSOLA): tempo > 1 = schneller. */
@@ -1483,10 +1530,10 @@ function buildSoundChips() {
     Array.from(select.options).forEach(o => {
         const chip = document.createElement('button');
         chip.className = 'chip' + (o.value === select.value ? ' active' : '');
-        // Gesang bleibt gewählt, auch bei Liedern ohne Aufnahme: dort klingt "Stimme"
+        // Gesang bleibt gewählt, auch bei Liedern ohne Aufnahme: dort klingt "Duu"
         if (o.value === 'gesang' && !gesangOrdner()) {
             chip.classList.add('blass');
-            chip.title = 'Für dieses Lied gibt es noch keinen Gesang, es klingt „Stimme“';
+            chip.title = 'Für dieses Lied gibt es noch keinen Gesang, es klingt „Duu“';
         }
         chip.innerText = o.text;
         chip.onclick = () => {
@@ -2914,8 +2961,8 @@ const HILFE = [
         'Loop: am Ende fängt das Lied von selbst wieder von vorn an.'],
     ['Einstellungen (Zahnrad)', '#countInRow', '<span class="k hell">Aus</span><span class="k">1 Takt</span><span class="k hell">2 × ¼</span>',
         'Einzählen: vor dem Start klickt es, dann setzen alle gemeinsam ein. „1 Takt“ zählt einen ganzen Takt ein, „2 × ¼“ nur zwei Viertel, „Aus“ startet sofort. Beginnt der Takt mit Pausen, wird auf den ersten Einsatz hin gezählt. Beim Einzählen steht der Strich still, eine Zahl zählt mit (z.B. 3, 4, ►). Gilt für Abspielen und für das zweimalige Tippen auf einen Takt oder eine Note.'],
-    ['Einstellungen (Zahnrad)', '#soundChips', '<span class="k">Stimme</span><span class="k hell">Orgel</span>',
-        'Klang: womit die Noten gespielt werden, zum Beispiel Stimme, Chor oder Orgel.'],
+    ['Einstellungen (Zahnrad)', '#soundChips', '<span class="k">Gesang</span><span class="k hell">Duu</span>',
+        'Klang: womit die Noten gespielt werden. „Gesang“ singt mit Text (künstliche Stimmen, noch nicht bei jedem Lied), „Duu“ summt die Töne, dazu Chor, Orgel und andere.'],
     ['Einstellungen (Zahnrad)', '#offlineRow', '<span class="k hell">Offline</span>',
         'Offline: speichert alle Lieder auf dem Gerät. Steht dort „Netz kann aus“, läuft der Trainer auch ohne Internet.'],
     ['Einstellungen (Zahnrad)', '#homescreenRow', '<span class="k hell">Auf den Startbildschirm</span>',
