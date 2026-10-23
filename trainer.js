@@ -658,19 +658,22 @@ function updateTrackVolumes() {
     });
 }
 
-/* --- Gesang: vorab gerenderte Stimmen (data-gesang am Lied, je Stimme <Trackname>.mp3) ---
+/* --- Gesang: vorab gerenderte Stimmen (data-gesang am Lied, Ordner von werkzeug/gesang.py) ---
    alphaTab bleibt der Taktgeber: Strich, Einzählen, Metronom, Bereich, Sprünge und Tempo
    laufen wie beim Synth, dessen Spur der Stimme ist dann stumm. Die Aufnahmen laufen über
    Web Audio: einmal zur Player-Position eingeplant, danach nur bei echter Abweichung neu
-   angesetzt (kein laufendes Nachregeln, das knackt). Für ein anderes Tempo wird jede
-   Aufnahme einmal tonhöhenecht gedehnt (WSOLA) und zwischengespeichert. */
+   angesetzt (kein laufendes Nachregeln, das knackt). Langsamere Tempo-Stufen liegen
+   vorgerendert auf dem Server (stimmen.json "tempi"); vom nächstliegenden Stand wird nur
+   der Rest tonhöhenecht gedehnt (WSOLA im Worker), so rechnet das Handy wenig. */
 const GESANG_SR = 22050;
 const GESANG_PEGEL = 1.6;   // Gesamtlautstärke Gesang (Spuren liegen bei -24 dBFS je Stimme)
-let gesang = {};          // Trackname -> { roh: Float32Array, gain: GainNode }
+let gesang = {};          // Trackname -> { roh: Float32Array der Stufe, gain: GainNode }
+let gesangInfo = null;    // stimmen.json des Lieds
+let gesangStufe = null;   // geladene Tempo-Stufe in %
 let gesangCtx = null;
 let gesangLauf = null;    // { quellen, ctxStart, pos, tempo, abw } während des Abspielens
 let gesangTempo = null;   // Tempo der Puffer in gesangPuffer
-let gesangPuffer = {};    // Trackname -> AudioBuffer (gedehnt auf gesangTempo)
+let gesangPuffer = {};    // Trackname -> AudioBuffer (passend zu gesangTempo)
 let gesangRechnet = false;
 let gesangPartitur = '';  // MusicXML-Text des geladenen Lieds (Abgleich mit stand.txt)
 
@@ -686,9 +689,20 @@ async function gesangPasst(ordner) {
     } catch (e) { return false; }
 }
 
-function gesangOrdner() {
-    const opt = document.getElementById('songSelect').selectedOptions[0];
+function gesangOrdner(opt = document.getElementById('songSelect').selectedOptions[0]) {
     return opt ? opt.dataset.gesang : undefined;
+}
+
+async function gesangInfoHolen(ordner) {
+    try {
+        const r = await fetch(ordner + '/stimmen.json', { cache: 'no-cache' });
+        return r.ok ? await r.json() : null;
+    } catch (e) { return null; }
+}
+
+/** Dateiname einer Spur in einer Tempo-Stufe (100 = ohne Zusatz). */
+function gesangDatei(ordner, name, stufe) {
+    return ordner + '/' + encodeURIComponent(name) + (stufe === 100 ? '' : '_' + stufe) + '.mp3';
 }
 
 let gesangSumme = null;   // alle Stimmen -> Begrenzer -> Ausgang
@@ -711,43 +725,35 @@ function gesangKontext() {
     return gesangCtx;
 }
 
-function gesangLaden() {
+async function gesangLaden() {
     gesangStopp();
     gesang = {};
+    gesangInfo = null;
+    gesangStufe = null;
     gesangPuffer = {};
     gesangTempo = null;
+    gesangRechnet = false;
+    gesangAuftrag++;
     const ordner = gesangOrdner();
     if (!ordner || document.getElementById('soundSelect').value !== 'gesang') return;
-    const ctx = gesangKontext();
     const score = api.score;
-    gesangPasst(ordner).then(ok => {
-        if (api.score !== score) return;   // inzwischen anderes Lied
-        if (!ok) {
-            // Noten geändert, Spuren veraltet: lieber Synth als falscher Gesang
-            console.warn('Gesang passt nicht mehr zur Partitur:', ordner);
-            gesangStopp();
-            gesang = {};
-            updateTrackVolumes();
-        }
-    });
-    api.score.tracks.forEach(t => {
-        if (!t.name || t.staves.length === 0 || gesang[t.name]) return;
+    const [info, passt] = await Promise.all([gesangInfoHolen(ordner), gesangPasst(ordner)]);
+    if (api.score !== score) return;   // inzwischen anderes Lied
+    if (!info || !passt) {
+        // Noten geändert, Spuren veraltet: lieber Synth als falscher Gesang
+        if (!passt) console.warn('Gesang passt nicht mehr zur Partitur:', ordner);
+        return;
+    }
+    gesangInfo = info;
+    const ctx = gesangKontext();
+    score.tracks.forEach(t => {
+        if (!t.name || t.staves.length === 0 || !info.stimmen[t.name]) return;
         const g = { roh: null, gain: ctx.createGain() };
         g.gain.connect(gesangSumme);
         gesang[t.name] = g;
-        fetch(ordner + '/' + encodeURIComponent(t.name) + '.mp3')
-            .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
-            .then(d => ctx.decodeAudioData(d))
-            .then(b => {
-                if (gesang[t.name] !== g) return;
-                g.roh = b.getChannelData(0);
-                if (Object.values(gesang).every(x => x.roh)) gesangVorbereiten(api.playbackSpeed || 1);
-            })
-            .catch(() => {
-                // Keine Aufnahme für diese Stimme: sie spielt wieder der Synth
-                if (gesang[t.name] === g) { delete gesang[t.name]; updateTrackVolumes(); }
-            });
     });
+    updateTrackVolumes();
+    gesangVorbereiten(api.playbackSpeed || 1);
 }
 
 /** Hinweis unter der Klangwahl: Gesang fehlt, ist veraltet oder nur teilweise da. */
@@ -762,18 +768,15 @@ async function gesangHinweisZeigen() {
     if (!ordner) {
         text = 'Gesang: für dieses Lied noch nicht da, es klingt „Duu“.';
     } else {
-        let info = {};
-        try {
-            const r = await fetch(ordner + '/stimmen.json', { cache: 'no-cache' });
-            if (r.ok) info = await r.json();
-        } catch (e) { }
+        const info = (await gesangInfoHolen(ordner)) || { stimmen: {} };
         if (!(await gesangPasst(ordner))) {
             text = 'Gesang: Die Noten wurden geändert, der Gesang wird noch angepasst. Bis dahin klingt „Duu“.';
         } else {
-            const fehlt = namen.filter(n => !info[n]);
-            const du = namen.filter(n => info[n] === 'vokalise');
+            const fehlt = namen.filter(n => !info.stimmen[n]);
+            const du = namen.filter(n => info.stimmen[n] === 'vokalise');
             const teile = [];
-            if (fehlt.length) teile.push(liste(fehlt) + ' noch ohne Gesang (klingt „Duu“)');
+            if (fehlt.length === namen.length) teile.push('für dieses Lied noch nicht da, es klingt „Duu“');
+            else if (fehlt.length) teile.push(liste(fehlt) + ' noch ohne Gesang (klingt „Duu“)');
             if (du.length) teile.push(liste(du) + ' ohne Text, singt auf „du“');
             if (teile.length) text = 'Gesang: ' + teile.join('; ') + '.';
         }
@@ -813,46 +816,65 @@ function gesangDehnen(x, tempo) {
     return y.subarray(0, n);
 }
 
-/** Puffer für das Tempo vorbereiten. Gedehnt wird in einem Worker, damit Seite und
-    Player nicht stocken; ein neuerer Auftrag (Tempo weitergeschoben) verwirft ältere. */
+/** Puffer für das Tempo vorbereiten: nächstliegende Stufe laden (falls nicht schon da),
+    den Rest im Worker dehnen. Ein neuerer Auftrag (Tempo weitergeschoben) verwirft ältere. */
 let gesangWorker = null, gesangAuftrag = 0;
-function gesangVorbereiten(tempo) {
+async function gesangVorbereiten(tempo) {
+    if (!gesangInfo) return;
     const ctx = gesangKontext(), nr = ++gesangAuftrag;
+    const ordner = gesangOrdner();
+    const stufen = gesangInfo.tempi || [100];
+    const stufe = stufen.reduce((a, b) => Math.abs(Math.log(tempo * 100 / b)) < Math.abs(Math.log(tempo * 100 / a)) ? b : a);
+    gesangRechnet = true;
+    if (gesangStufe !== stufe) {
+        const namen = Object.keys(gesang);
+        const daten = await Promise.all(namen.map(n => fetch(gesangDatei(ordner, n, stufe))
+            .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+            .then(d => ctx.decodeAudioData(d))
+            .then(b => b.getChannelData(0))
+            .catch(() => null)));
+        if (nr !== gesangAuftrag) return;
+        namen.forEach((n, i) => {
+            if (daten[i]) gesang[n].roh = daten[i];
+            else { delete gesang[n]; }   // Spur fehlt: diese Stimme spielt der Synth
+        });
+        gesangStufe = stufe;
+        updateTrackVolumes();
+    }
+    const rest = tempo * 100 / stufe;
     const namen = Object.keys(gesang).filter(n => gesang[n].roh);
-    if (tempo === 1) {
-        // Originaltempo: nichts zu rechnen
-        gesangPuffer = {};
+    let puffer = {};
+    if (Math.abs(rest - 1) < 0.005) {
+        // Genau eine Stufe: nichts zu rechnen
         namen.forEach(n => {
             const b = ctx.createBuffer(1, gesang[n].roh.length, ctx.sampleRate);
             b.copyToChannel(gesang[n].roh, 0);
-            gesangPuffer[n] = b;
+            puffer[n] = b;
         });
-        gesangTempo = 1;
-        gesangRechnet = false;
-        return Promise.resolve();
+    } else {
+        if (!gesangWorker) {
+            const code = gesangDehnen.toString() + '\nonmessage = e => { const y = gesangDehnen(e.data.x, e.data.tempo); postMessage({ nr: e.data.nr, name: e.data.name, y }, [y.buffer]); };';
+            gesangWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+        }
+        puffer = await new Promise(fertig => {
+            const p = {};
+            let offen = namen.length;
+            if (!offen) fertig(p);
+            gesangWorker.onmessage = e => {
+                if (e.data.nr !== gesangAuftrag) return;
+                const b = ctx.createBuffer(1, e.data.y.length, ctx.sampleRate);
+                b.copyToChannel(e.data.y, 0);
+                p[e.data.name] = b;
+                if (--offen === 0) fertig(p);
+            };
+            // Kopie schicken, das Original bleibt für das nächste Tempo
+            namen.forEach(n => gesangWorker.postMessage({ nr, name: n, tempo: rest, x: gesang[n].roh.slice() }));
+        });
     }
-    gesangRechnet = true;
-    if (!gesangWorker) {
-        const code = gesangDehnen.toString() + '\nonmessage = e => { const y = gesangDehnen(e.data.x, e.data.tempo); postMessage({ nr: e.data.nr, name: e.data.name, y }, [y.buffer]); };';
-        gesangWorker = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
-    }
-    return new Promise(fertig => {
-        const puffer = {};
-        let offen = namen.length;
-        gesangWorker.onmessage = e => {
-            if (e.data.nr !== gesangAuftrag) return;
-            const b = ctx.createBuffer(1, e.data.y.length, ctx.sampleRate);
-            b.copyToChannel(e.data.y, 0);
-            puffer[e.data.name] = b;
-            if (--offen > 0) return;
-            gesangPuffer = puffer;
-            gesangTempo = tempo;
-            gesangRechnet = false;
-            fertig();
-        };
-        // Kopie schicken, das Original bleibt für das nächste Tempo
-        namen.forEach(n => gesangWorker.postMessage({ nr, name: n, tempo, x: gesang[n].roh.slice() }));
-    });
+    if (nr !== gesangAuftrag) return;
+    gesangPuffer = puffer;
+    gesangTempo = tempo;
+    gesangRechnet = false;
 }
 
 /** Nach Tempo-Änderung: kurz abwarten (Regler wird noch geschoben), dann vorbereiten. */
@@ -878,9 +900,10 @@ function gesangFolgen(zeitMs) {
     const laeuft = api.playerState === 1 && !einzaehlPhase;
     if (!laeuft) { gesangStopp(); return; }
     const tempo = api.playbackSpeed || 1;
-    if (gesangTempo !== tempo || namen.some(n => gesang[n].roh && !gesangPuffer[n])) {
+    if (gesangTempo !== tempo) {
+        // Puffer passen (noch) nicht zum Tempo: still, bis sie fertig sind
         gesangStopp();
-        if (!gesangRechnet && namen.every(n => gesang[n].roh)) gesangVorbereiten(tempo);
+        if (!gesangRechnet) gesangVorbereiten(tempo);
         return;
     }
     const ctx = gesangKontext();
@@ -1542,6 +1565,8 @@ function buildSoundChips() {
             select.value = o.value;
             box.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
             loadSelectedSong();
+            // Gesang gewählt: die Spuren gleich auch für offline speichern
+            if (o.value === 'gesang' && offlineMoeglich()) setTimeout(() => offlineJetztSpeichern(), 3000);
         };
         box.appendChild(chip);
     });
@@ -2796,11 +2821,27 @@ function offlineProgrammDateien() {
         'sonivox.sf2', 'font/Bravura.woff2', 'font/Bravura.woff'];
 }
 
-// Freigegebene Lieder mit ihren Dateien (gesperrte zählen ohne Login nicht mit)
-function offlineLieder() {
-    return Array.from(document.getElementById('songSelect').options)
-        .filter(o => o.value.endsWith('.musicxml') && !o.disabled)
-        .map(o => [o.value, o.dataset.mp3, hatZugang && o.dataset.neu].filter(Boolean));
+// Freigegebene Lieder mit ihren Dateien (gesperrte zählen ohne Login nicht mit).
+// Mit Klang „Gesang“ gehören die Gesangsspuren aller Tempo-Stufen dazu (stimmen.json sagt,
+// welche es gibt; offline liefert sie der Service Worker aus seinem Speicher).
+async function offlineLieder() {
+    const mitGesang = document.getElementById('soundSelect').value === 'gesang';
+    const lieder = [];
+    for (const o of document.getElementById('songSelect').options) {
+        if (!o.value.endsWith('.musicxml') || o.disabled) continue;
+        const dateien = [o.value, o.dataset.mp3, hatZugang && o.dataset.neu].filter(Boolean);
+        const ordner = gesangOrdner(o);
+        if (mitGesang && ordner) {
+            const info = await gesangInfoHolen(ordner);
+            if (info) {
+                dateien.push(ordner + '/stimmen.json', ordner + '/stand.txt');
+                for (const name of Object.keys(info.stimmen || {}))
+                    for (const stufe of info.tempi || [100]) dateien.push(gesangDatei(ordner, name, stufe));
+            }
+        }
+        lieder.push(dateien);
+    }
+    return lieder;
 }
 
 // Erst exakt, dann ohne ?v=… (der Service Worker behält nur eine Fassung je Datei)
@@ -2811,7 +2852,7 @@ async function istGespeichert(f) {
 
 async function offlineStatus() {
     const programm = (await Promise.all(offlineProgrammDateien().map(istGespeichert))).every(Boolean);
-    const lieder = offlineLieder();
+    const lieder = await offlineLieder();
     let da = 0;
     for (const dateien of lieder) {
         if ((await Promise.all(dateien.map(istGespeichert))).every(Boolean)) da++;
@@ -2867,7 +2908,7 @@ async function offlineSpeichern() {
                 new Promise(r => setTimeout(r, 5000))
             ]);
         }
-        const dateien = [...offlineProgrammDateien(), ...offlineLieder().flat()];
+        const dateien = [...offlineProgrammDateien(), ...(await offlineLieder()).flat()];
         for (let i = 0; i < dateien.length; i++) {
             offlineStatusZeigen(`Speichere ${i + 1} von ${dateien.length} …`);
             const res = await fetch(dateien[i], { cache: 'no-cache' });

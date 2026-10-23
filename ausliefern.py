@@ -9,6 +9,9 @@
     -n                               nur anzeigen, was sich ändern würde
     ./ausliefern.py tv --pruefen     Rückgabe 1, wenn der Vereins-Ordner nicht dem Motor entspricht
                                      (ruft hochladen.sh im Verein vor jedem Upload auf)
+    ./ausliefern.py gesang [Lied.musicxml …]
+                                     Gesangsspuren (Klang „Gesang“) für alle Lieder beider Orte
+                                     rendern, nur wo Noten oder Renderer sich geändert haben
 
 Motor = Programmdateien (MOTOR) plus index.html als Vorlage. Die Abschnitte zwischen
 <!-- <<KOPF>> -->, <<LIEDER>> und <<FUSS>> gehören dem Ort: pankd nimmt die Vorlage, wie sie
@@ -21,6 +24,12 @@ tv: schreibt geänderte Motor-Dateien in den Vereins-Ordner, lädt sie mit desse
 hochladen.sh hoch (Lied-Prüfung, Versionsnummer) und committet dort samt Versionsleiter.
 Wurde eine Motor-Datei im Vereins-Ordner direkt geändert, bricht es ab, statt sie zu
 überschreiben (Stand der letzten Auslieferung: ort/motor-stand.json).
+
+Gesang: pankd und tv rendern vor dem Ausliefern die Gesangsspuren ihrer Lieder, wo nötig
+(werkzeug/gesang.py, Ablage gesang/<Lied>/ bzw. gesang/tv/<Lied>/, gitignoriert; beide
+Orte haben eigene Fassungen derselben Lieder). Lieder mit Spuren bekommen in
+index.html data-gesang. pankd lädt sie mit abgleich.py hoch, tv per scp nach gesang/<Lied>/
+auf dem Server (vor index.html, damit data-gesang nie ins Leere zeigt).
 """
 import hashlib
 import json
@@ -46,6 +55,9 @@ TV = Path.home() / 'Documents/Cursor/projects/Waldböckelheim/TotalVokal'
 TV_ZIEL = TV / 'www.totalvokal.de/trainer'
 TV_ORT = TV / 'www_dazu/trainer/ort'
 TV_STAND = TV_ORT / 'motor-stand.json'
+TV_SERVER = ('tv', 'totalvokal-nahe.de/httpdocs/trainer')   # ssh-Host und Ordner wie in hochladen.sh
+GESANG = QUELLE / 'gesang'   # Spuren je Ort: gesang/<Lied> (pankd, wie die Entwicklungsseite) und gesang/tv/<Lied>
+GESANG_ORT = {'pankd': GESANG, 'tv': GESANG / 'tv'}
 
 VERSION_RE = [
     (re.compile(r'(name="trainer-version" content=")[^"]*'), r'\g<1>{v}'),
@@ -73,7 +85,7 @@ def ohne_version(daten):
     return version_setzen(daten.decode(), '').encode()
 
 
-def index_bauen(abschnitte=None, version=''):
+def index_bauen(abschnitte=None, version='', ort='pankd'):
     """Vorlage mit den Abschnitten des Orts füllen (None = Vorlage unverändert)."""
     html = (QUELLE / 'index.html').read_text()
     for name, inhalt in (abschnitte or {}).items():
@@ -81,7 +93,92 @@ def index_bauen(abschnitte=None, version=''):
         if len(muster.findall(html)) != 1:
             sys.exit(f'Abschnitt {name} fehlt in der Vorlage index.html')
         html = muster.sub(lambda m: m.group(1) + inhalt + m.group(3), html)
+    html = gesang_markieren(html, ort)
     return version_setzen(html, version) if version else html
+
+
+# ---------------------------------------------------------------- Gesang
+
+def gesang_modul():
+    """werkzeug/gesang.py, oder None, wenn MBROLA hier nicht eingerichtet ist."""
+    sys.path.insert(0, str(QUELLE / 'werkzeug'))
+    import gesang
+    if not Path(gesang.MBROLA).exists():
+        print('Hinweis: MBROLA fehlt (werkzeug/mbrola/), Gesang wird nicht gerendert.')
+        return None
+    return gesang
+
+
+def gesang_da(stamm, ort='pankd'):
+    """Gibt es Gesangsspuren für dieses Lied?"""
+    try:
+        return bool(json.loads((GESANG_ORT[ort] / stamm / 'stimmen.json').read_text()).get('stimmen'))
+    except (OSError, ValueError):
+        return False
+
+
+def gesang_dateien(stamm, ort='pankd'):
+    """Dateinamen der Spuren eines Lieds (ohne Ordner)."""
+    return sorted(p.name for p in (GESANG_ORT[ort] / stamm).iterdir() if p.is_file())
+
+
+def gesang_markieren(html, ort):
+    """Lieder mit Gesangsspuren bekommen data-gesang (sofern nicht schon gesetzt)."""
+    def option(m):
+        tag, stamm = m.group(0), Path(m.group(1)).stem
+        if 'data-gesang' in tag or not gesang_da(stamm, ort):
+            return tag
+        return tag.replace('<option ', f'<option data-gesang="gesang/{stamm}" ', 1)
+    return re.sub(r'<option value="([^"]+\.musicxml)"[^>]*>', option, html)
+
+
+def gesang_rendern(lieder, ort, nur_zeigen=False):
+    """Gesang für die Lieder (Pfade) rendern, wo Noten oder Renderer sich geändert haben."""
+    g = gesang_modul()
+    if not g:
+        return
+    for lied in lieder:
+        ziel = GESANG_ORT[ort] / Path(lied).stem
+        if g.aktuell(str(lied), str(ziel)):
+            continue
+        if nur_zeigen:
+            print('Gesang würde neu gerendert:', Path(lied).name)
+            continue
+        print('Gesang rendern:', Path(lied).name, flush=True)
+        g.rendern(str(lied), str(ziel))
+
+
+def tv_lieder():
+    return [TV_ZIEL / f for f in re.findall(r'<option value="([^"]+\.musicxml)"', tv_abschnitte()['LIEDER'])]
+
+
+def tv_gesang_veraltet():
+    """Lieder, deren Gesang auf dem Vereins-Server fehlt oder nicht dem Stand hier entspricht."""
+    host, ordner = TV_SERVER
+    veraltet = []
+    for lied in tv_lieder():
+        stamm = lied.stem
+        if not gesang_da(stamm, 'tv'):
+            continue
+        quelle = GESANG_ORT['tv'] / stamm
+        lokal = (quelle / 'stand.txt').read_text() + (quelle / 'stimmen.json').read_text()
+        r = subprocess.run(['ssh', host, f"cat '{ordner}/gesang/{stamm}/stand.txt' '{ordner}/gesang/{stamm}/stimmen.json'"],
+                           capture_output=True, text=True)
+        if r.stdout != lokal:
+            veraltet.append(stamm)
+    return veraltet
+
+
+def tv_gesang_hochladen(staemme):
+    host, ordner = TV_SERVER
+    for stamm in staemme:
+        dateien = gesang_dateien(stamm, 'tv')
+        # stand.txt zuletzt: bricht der Upload ab, gilt der Ordner auf dem Server nicht als aktuell
+        dateien.sort(key=lambda f: f == 'stand.txt')
+        quelle = GESANG_ORT['tv'] / stamm
+        subprocess.run(['ssh', host, f"mkdir -p '{ordner}/gesang/{stamm}' && rm -f '{ordner}/gesang/{stamm}/stand.txt'"], check=True)
+        subprocess.run(['scp', '-q', *[str(quelle / f) for f in dateien], f'{host}:{ordner}/gesang/{stamm}/'], check=True)
+        print(f'Gesang hochgeladen: {stamm} ({len(dateien)} Dateien)')
 
 
 def git_stand(ordner):
@@ -96,7 +193,7 @@ def pankd_vergleich():
     """Dateien, in denen pankd.de/noten/ (lokal) von der Quelle abweicht."""
     alt_index = PANKD_ZIEL / 'index.html'
     alte_version = version_von(alt_index.read_text()) if alt_index.exists() else ''
-    neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN}
+    neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN + pankd_gesang()}
     neu['index.html'] = index_bauen(version=alte_version or 'neu').encode()
 
     def gleich(f, d):
@@ -108,13 +205,21 @@ def pankd_vergleich():
     return [f for f, d in neu.items() if not gleich(f, d)]
 
 
+def pankd_gesang():
+    """Gesangsspuren der pankd-Lieder als Pfade relativ zur Quelle (gesang/<Lied>/…)."""
+    return [f'gesang/{Path(lied).stem}/{f}' for lied in PANKD_EIGEN
+            if lied.endswith('.musicxml') and gesang_da(Path(lied).stem)
+            for f in gesang_dateien(Path(lied).stem)]
+
+
 def pankd(nur_zeigen):
+    gesang_rendern([QUELLE / f for f in PANKD_EIGEN if f.endswith('.musicxml')], 'pankd', nur_zeigen)
     abgleich = [str(PANKD / 'abgleich.py')]
     if not nur_zeigen:
         print('== Abgleich vorher (Serverstand holen)', flush=True)
         subprocess.run(abgleich, cwd=PANKD, check=True)
     PANKD_ZIEL.mkdir(exist_ok=True)
-    neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN}
+    neu = {f: (QUELLE / f).read_bytes() for f in MOTOR + PANKD_EIGEN + pankd_gesang()}
     geaendert = pankd_vergleich()
     if not geaendert:
         print('pankd.de/noten/ ist schon auf dem Stand der Quelle.')
@@ -145,7 +250,7 @@ def tv_vergleich():
     stand = json.loads(TV_STAND.read_text()) if TV_STAND.exists() else None
     alt_index = (TV_ZIEL / 'index.html').read_text()
     neu = {f: (QUELLE / f).read_bytes() for f in MOTOR}
-    neu['index.html'] = index_bauen(tv_abschnitte(), version_von(alt_index)).encode()
+    neu['index.html'] = index_bauen(tv_abschnitte(), version_von(alt_index), 'tv').encode()
     geaendert, konflikte = [], []
     for f, d in neu.items():
         p = TV_ZIEL / f
@@ -160,6 +265,8 @@ def tv_vergleich():
 
 
 def tv(lieder, nur_zeigen, pruefen, ueberschreiben):
+    if not pruefen:
+        gesang_rendern(tv_lieder(), 'tv', nur_zeigen)
     geaendert, konflikte, neu = tv_vergleich()
     if pruefen:
         if geaendert:
@@ -177,11 +284,17 @@ def tv(lieder, nur_zeigen, pruefen, ueberschreiben):
     sauber, kopf = git_stand(QUELLE)
     if not sauber and not nur_zeigen:
         sys.exit('~/Music/chortrainer hat ungesicherte Änderungen: erst committen, dann ausliefern.')
-    if not geaendert and not lieder:
+    gesang_hoch = tv_gesang_veraltet()
+    if not geaendert and not lieder and not gesang_hoch:
         print('Der Vereins-Ordner ist schon auf dem Stand der Quelle.')
         return
     print('Motor-Dateien:', *(geaendert or ['(keine)']), sep='\n  ')
+    print('Gesang hochladen:', *(gesang_hoch or ['(nichts)']), sep='\n  ')
     if nur_zeigen:
+        return
+    # Gesang zuerst: index.html mit data-gesang kommt erst danach auf den Server
+    tv_gesang_hochladen(gesang_hoch)
+    if not geaendert and not lieder:
         return
     for f in geaendert:
         (TV_ZIEL / f).write_bytes(neu[f])
@@ -280,10 +393,18 @@ def main():
     args = sys.argv[1:]
     schalter = {a for a in args if a.startswith('-')}
     rest = [a for a in args if not a.startswith('-')]
-    if not rest or rest[0] not in ('pankd', 'tv', 'stand'):
+    if not rest or rest[0] not in ('pankd', 'tv', 'stand', 'gesang'):
         sys.exit(__doc__)
     if rest[0] == 'stand':
         stand()
+    elif rest[0] == 'gesang':
+        pk = [QUELLE / f for f in PANKD_EIGEN if f.endswith('.musicxml')]
+        tv_l = tv_lieder()
+        if rest[1:]:   # nur die genannten Lieder (Dateiname genügt)
+            namen = {Path(a).name for a in rest[1:]}
+            pk, tv_l = [l for l in pk if l.name in namen], [l for l in tv_l if l.name in namen]
+        gesang_rendern(pk, 'pankd', '-n' in schalter)
+        gesang_rendern(tv_l, 'tv', '-n' in schalter)
     elif rest[0] == 'pankd':
         pankd('-n' in schalter)
     else:

@@ -22,6 +22,10 @@
 - Login-Logik: `MIT_LOGIN` in `trainer.js` = es gibt Lieder ohne `data-frei`. Davon hängen Schlösser,
   Login-Eintrag, Rückmeldung, Hinweistexte und die ungefragte Startbildschirm-Begrüßung ab.  
 - Vereinslogo (TV) nie in die öffentliche Fassung; deren Symbol kommt aus `werkzeug/symbol.py`.  
+- Klang „Gesang“: `werkzeug/gesang.py` rendert je Lied MBROLA-Spuren (3 Tempo-Stufen) nach `gesang/<Lied>/`
+  bzw. `gesang/tv/<Lied>/` (gitignoriert). `./ausliefern.py gesang` rendert, was veraltet ist; `pankd`/`tv`
+  rendern vor dem Ausliefern selbst und laden die Spuren mit hoch. MBROLA und Stimmen: `werkzeug/mbrola/`
+  (gitignoriert, Einrichtung im Kopf von gesang.py). Englischer Text wird (noch) nicht gesungen.  
 - Prüfbilder nach `.shots/` (gitignoriert). Test lokal headless (Playwright), Ports 8780-8799 vorher prüfen.  
 - Repo ist öffentlich (github.com/3Dietrich/chortrainer): keine Vereinslieder, keine Zugangsdaten,
   nichts aus dem Vereins-Repo außer dem Motor.
