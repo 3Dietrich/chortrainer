@@ -3697,6 +3697,11 @@ function homescreenBegruessen() {
     // Ungefragt nur im Chor-Trainer: Mitglieder sollen ihn auf den Startbildschirm legen,
     // die öffentliche Fassung drängt sich Besuchern nicht auf
     if (hsStand().aus || !MIT_LOGIN) return;
+    // Lesezeichen-Tipp vorerst aus: der einmalige Klang-Hinweis (klangUmstellungHinweis)
+    // soll frei stehen und nicht vom Begrüßungs-Dialog überlagert werden. Zum Wiederanschalten
+    // diese Zeile auf true setzen – homescreenZeigen und das #homescreen-HTML bleiben erhalten.
+    const LESEZEICHEN_TIPP_AN = false;
+    if (!LESEZEICHEN_TIPP_AN) return;
     setTimeout(() => homescreenZeigen(true), 1200);
 }
 
