@@ -876,6 +876,16 @@ function klangUmstellungHinweis() {
     // bleibt die Marke ungesetzt und der Hinweis kommt beim nächsten Mal.
     localStorage.setItem(KLANG_HINWEIS_KEY, '1');
     document.documentElement.appendChild(el);
+    // Klebt die Bedienleiste (Play/Loop/Tempo) unten am Fensterrand (Handy), den Hinweis
+    // darüber setzen, damit er sie nicht verdeckt. Die gemessene Höhe enthält schon die
+    // Safe-Area; auf dem Desktop sitzt die Leiste oben, dann bleibt die Vorgabe aus style.css.
+    const leiste = document.getElementById('player');
+    if (leiste) requestAnimationFrame(() => {
+        const r = leiste.getBoundingClientRect();
+        if (r.height > 0 && r.bottom >= window.innerHeight - 2) {
+            el.style.bottom = Math.round(window.innerHeight - r.top + 16) + 'px';
+        }
+    });
 }
 
 /** Tonhöhenecht dehnen (WSOLA): tempo > 1 = schneller. */
