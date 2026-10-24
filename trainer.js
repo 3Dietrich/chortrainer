@@ -57,7 +57,9 @@ let trackMap = {              // Mapping der musikalischen Tracks
 
 const STORAGE_KEY = 'chorTrainerSettings';
 const KLANG_GESANG_KEY = 'chorTrainerKlangGesang';  // Marke: einmalige Umstellung auf „Gesang" erledigt
-let klangAufGesangUmgestellt = false;   // in dieser Sitzung von einer alten Wahl auf „Gesang" umgestellt → Hinweis einmal zeigen
+const KLANG_HINWEIS_KEY = 'chorTrainerKlangHinweisGesehen';  // Marke: Klang-Hinweis auf diesem Gerät einmal gezeigt
+let klangAufGesangUmgestellt = false;   // in dieser Sitzung von einer alten Wahl auf „Gesang" umgestellt
+let klangHinweisZeigen = false;         // Klang-Hinweis in dieser Sitzung noch zeigen (bis KLANG_HINWEIS_KEY gesetzt)
 
 /** Alle aktuellen Toolbar-Einstellungen in localStorage speichern. */
 function saveSettings() {
@@ -95,6 +97,12 @@ function saveSettings() {
 /** Gespeicherte Einstellungen laden und auf UI-Elemente anwenden. */
 function loadSavedSettings() {
     const data = localStorage.getItem(STORAGE_KEY);
+
+    // Jedes Gerät sieht den Klang-Hinweis genau einmal, egal ob eine alte Wahl migriert
+    // wurde, ob schon „Gesang" gespeichert war oder ob es der erste Besuch ist (kein
+    // STORAGE_KEY). Deshalb vor dem frühen Rücksprung und unabhängig von der Migration.
+    if (!localStorage.getItem(KLANG_HINWEIS_KEY)) klangHinweisZeigen = true;
+
     if (!data) return;
     try {
         const s = JSON.parse(data);
@@ -853,17 +861,20 @@ async function gesangHinweisZeigen() {
     el.hidden = !text;
 }
 
-/** Einmaliger Hinweis nach der Umstellung auf „Gesang": erklärt den neuen Standard und
-    den Weg zurück zu „Duu". Erscheint nur in der Sitzung, in der umgestellt wurde. */
+/** Einmaliger Hinweis auf den Klang-Standard „Gesang": erklärt ihn und den Weg zurück zu
+    „Duu". Erscheint auf jedem Gerät genau einmal (Marke KLANG_HINWEIS_KEY). */
 function klangUmstellungHinweis() {
-    if (!klangAufGesangUmgestellt || document.getElementById('klangHinweis')) return;
+    if (!klangHinweisZeigen || document.getElementById('klangHinweis')) return;
     const el = document.createElement('div');
     el.id = 'klangHinweis';
     el.setAttribute('role', 'status');
-    el.innerHTML = `<p>Der Klang steht jetzt auf „Gesang": die Stimmen singen mit Text.
+    el.innerHTML = `<p>Der Klang steht auf „Gesang": die Stimmen singen mit Text.
         In den Einstellungen (Zahnrad) unter „Klang" kannst du jederzeit wieder auf „Duu" zurückstellen.</p>
         <button type="button">Okay</button>`;
     el.querySelector('button').onclick = () => el.remove();
+    // Erst jetzt merken, dass der Hinweis wirklich gezeigt wurde – bricht vorher etwas ab,
+    // bleibt die Marke ungesetzt und der Hinweis kommt beim nächsten Mal.
+    localStorage.setItem(KLANG_HINWEIS_KEY, '1');
     document.documentElement.appendChild(el);
 }
 
@@ -3722,7 +3733,7 @@ applySongFromUrl();
 
 // 1c. Bedienelemente auf die geladenen Werte setzen
 buildSoundChips();
-klangUmstellungHinweis();   // einmaliger Hinweis, falls gerade von „Duu" auf „Gesang" umgestellt wurde
+klangUmstellungHinweis();   // einmaliger Hinweis je Gerät: Klang steht auf „Gesang"
 updateBgDisplay();
 updateBpmDisplay();
 document.getElementById('textSizeDisplay').innerText = currentTextSize;
