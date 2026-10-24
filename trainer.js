@@ -56,6 +56,8 @@ let trackMap = {              // Mapping der musikalischen Tracks
    ============================== */
 
 const STORAGE_KEY = 'chorTrainerSettings';
+const KLANG_GESANG_KEY = 'chorTrainerKlangGesang';  // Marke: einmalige Umstellung auf „Gesang" erledigt
+let klangAufGesangUmgestellt = false;   // in dieser Sitzung von einer alten Wahl auf „Gesang" umgestellt → Hinweis einmal zeigen
 
 /** Alle aktuellen Toolbar-Einstellungen in localStorage speichern. */
 function saveSettings() {
@@ -96,6 +98,19 @@ function loadSavedSettings() {
     if (!data) return;
     try {
         const s = JSON.parse(data);
+
+        // Einmalige Umstellung auf „Gesang": Wer früher „Duu" oder einen anderen Klang
+        // gewählt hatte, hört beim nächsten Öffnen „Gesang". Danach wird die eigene Wahl
+        // wieder respektiert (Marke KLANG_GESANG_KEY gesetzt), damit man dauerhaft bei „Duu"
+        // bleiben kann. Fängt zugleich alte, nicht mehr angebotene Klangnamen ab.
+        if (!localStorage.getItem(KLANG_GESANG_KEY)) {
+            if (s.sound && s.sound !== 'gesang') {
+                s.sound = 'gesang';
+                klangAufGesangUmgestellt = true;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(s));   // gespeicherte Wahl dauerhaft überschreiben
+            }
+            localStorage.setItem(KLANG_GESANG_KEY, '1');
+        }
 
         // Dropdowns wiederherstellen
         if (s.song) document.getElementById('songSelect').value = s.song;
@@ -836,6 +851,20 @@ async function gesangHinweisZeigen() {
     if (api.score !== score) return;   // inzwischen anderes Lied
     el.textContent = text;
     el.hidden = !text;
+}
+
+/** Einmaliger Hinweis nach der Umstellung auf „Gesang": erklärt den neuen Standard und
+    den Weg zurück zu „Duu". Erscheint nur in der Sitzung, in der umgestellt wurde. */
+function klangUmstellungHinweis() {
+    if (!klangAufGesangUmgestellt || document.getElementById('klangHinweis')) return;
+    const el = document.createElement('div');
+    el.id = 'klangHinweis';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<p>Der Klang steht jetzt auf „Gesang": die Stimmen singen mit Text.
+        In den Einstellungen (Zahnrad) unter „Klang" kannst du jederzeit wieder auf „Duu" zurückstellen.</p>
+        <button type="button">Okay</button>`;
+    el.querySelector('button').onclick = () => el.remove();
+    document.documentElement.appendChild(el);
 }
 
 /** Tonhöhenecht dehnen (WSOLA): tempo > 1 = schneller. */
@@ -3693,6 +3722,7 @@ applySongFromUrl();
 
 // 1c. Bedienelemente auf die geladenen Werte setzen
 buildSoundChips();
+klangUmstellungHinweis();   // einmaliger Hinweis, falls gerade von „Duu" auf „Gesang" umgestellt wurde
 updateBgDisplay();
 updateBpmDisplay();
 document.getElementById('textSizeDisplay').innerText = currentTextSize;

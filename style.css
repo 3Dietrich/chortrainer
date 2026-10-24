@@ -1250,3 +1250,15 @@ body:not(.zugang) .nur-zugang { display: none; }
     background: #efede7; color: #1f1f1e; }
 #homescreen .hs-knoepfe .hs-ok { background: #1f1f1e; color: #fff; border-color: #1f1f1e; }
 .k svg .blass { opacity: .35; }
+
+/* Einmaliger Hinweis zur Umstellung auf „Gesang" (trainer.js: klangUmstellungHinweis) */
+#klangHinweis { position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 2147483004;
+    width: min(460px, calc(100vw - 24px)); box-sizing: border-box;
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+    border-radius: 14px; border: 2px solid var(--red); background: #fbfaf7; color: #1f1f1e;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+#klangHinweis p { margin: 0; flex: 1; }
+#klangHinweis button { flex: 0 0 auto; min-height: 50px; padding: 12px 22px; border-radius: 25px;
+    border: 0; background: #1f1f1e; color: #fff; font: 600 18px/1 inherit; cursor: pointer; }
