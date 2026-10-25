@@ -19,9 +19,9 @@ mitbringt:
 | | pankd.de/noten/ | Chor |
 |---|---|---|
 | Lieder | nur „Bereit" | alle Lieder des Chors, „Bereit" frei, die übrigen mit Login |
-| Titel, Fußzeile | „Bereit · Chor-Trainer", Link zu pankd.de und hierher | „Chor-Trainer", Link zur alten Ansicht |
+| Titel, Fußzeile | „Bereit · Chor-Trainer", Link zu pankd.de und hierher | „Chor-Trainer", nur Versionsnummer |
 | Symbol | Noten (`werkzeug/symbol.py`) | Logo des Chors |
-| Nur dort | | Login, Rückmeldung mit Bildschirmfoto, Begrüßung, alte Ansicht |
+| Nur dort | | Login, Rückmeldung mit Bildschirmfoto, Begrüßung |
 
 `./ausliefern.py stand` zeigt diese Tabelle für den tatsächlichen Stand, dazu die live
 laufenden Versionen und ob ein Ort hinter der Quelle zurückliegt.
