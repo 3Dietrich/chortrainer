@@ -40,6 +40,8 @@ let scrollNachRender = null;   // nach dem Laden eines Songs einmal dorthin scro
 let lastLoadedFile = null;     // zuletzt geladene MusicXML (gleicher Song = nur Klang gewechselt)
 let pendingResume = null;      // {tick, play}: nach dem Neuladen hier weitermachen
 let taktWahl = null;           // gewählter Takt (Tipp in die Noten, roter Rahmen), null = keiner
+let strophe = 0;               // gewählte Strophe (0 = alle), siehe strophenErmitteln
+let strophenBereiche = [];     // [{ start, ende }] in Ticks je Durchgang
 let bereich = null;            // Abspielbereich { start, ende } in Ticks (dazu von, bis, vonAb, bisBis), null = keiner
 let bereichVorschau = null;    // Bereich beim Ziehen, noch nicht gesetzt
 const BEREICH_LOOP_START = true;   // neuer Bereich: Loop-Knopf neben Play zuerst an?
@@ -297,7 +299,11 @@ async function loadSelectedSong() {
     // Bereich und Taktwahl gehören zum alten Lied
     anker = null;
     taktWahl = null;
+    // Strophen gehören zum alten Lied: bis zur neuen Berechnung (midiLoaded) ganzes Lied
+    strophe = 0;
+    strophenBereiche = [];
     if (bereich) bereichAufheben();
+    else api.playbackRange = null;
     // Eintrag "Chor-Login" in der Songauswahl: Auswahl zurücksetzen, zur Anmeldung
     const auswahl = document.getElementById('songSelect');
     if (auswahl.value === LOGIN_WERT) {
@@ -2178,6 +2184,9 @@ function handlePlayClick(abHier = false) {
         // Ohne Loop ist hinter dem Bereich erlaubt (dort lief es weiter)
         if (bereich && (api.tickPosition < bereich.start || (bereichLoop && api.tickPosition >= bereich.ende)))
             api.tickPosition = bereich.start;
+        // Mit gewählter Strophe (ohne Bereich) nur in ihr
+        const sb = !bereich && strophe ? strophenBereiche[strophe - 1] : null;
+        if (sb && (api.tickPosition < sb.start || api.tickPosition >= sb.ende)) api.tickPosition = sb.start;
     }
     if (api.score) updateTrackVolumes();
     document.getElementById('hpAudio').pause();
@@ -2298,8 +2307,14 @@ function noteAmOrt(idx, x, y) {
     return beste;
 }
 
-// Anfang eines Takts in Ticks (beim ersten Durchlauf, Wiederholungen eingerechnet)
+// Anfang eines Takts in Ticks: beim ersten Durchlauf (Wiederholungen eingerechnet), mit
+// gewählter Strophe in deren Durchgang (Tipp, Go und Bereich bleiben in der Strophe)
 function taktStart(idx) {
+    const b = strophe ? strophenBereiche[strophe - 1] : null;
+    if (b) {
+        const lk = api.tickCache.masterBars.find(m => m.masterBar.index === idx && m.start >= b.start && m.start < b.ende);
+        if (lk) return lk.start;
+    }
     return api.tickCache.getMasterBarStart(api.score.masterBars[idx]);
 }
 
@@ -2571,7 +2586,7 @@ function bereichAuf(start, nurZeigen = false) {
 function bereichAufheben() {
     bereich = null;
     el.classList.remove('mit-bereich', 'bereich-greifbar', 'bereich-rand');
-    api.playbackRange = null;
+    stropheAnwenden(false);   // ohne Bereich gilt wieder die gewählte Strophe (oder das ganze Lied)
     loopAnwenden();
     taktWahlZeigen();
     stelleMerken();
@@ -2587,8 +2602,9 @@ function loopAnwenden() {
     if (knopf) {
         knopf.classList.toggle('active', an);
         knopf.setAttribute('aria-pressed', an);
-        knopf.title = bereich ? 'Bereich wiederholen an/aus' : 'Ganzes Lied wiederholen an/aus';
-        knopf.setAttribute('aria-label', bereich ? 'Bereich wiederholen' : 'Ganzes Lied wiederholen');
+        const was = bereich ? 'Bereich' : strophe ? 'Strophe' : 'Ganzes Lied';
+        knopf.title = was + ' wiederholen an/aus';
+        knopf.setAttribute('aria-label', was + ' wiederholen');
     }
     document.querySelectorAll('.wdh-zeichen').forEach(e => e.classList.toggle('an', bereichLoop));
 }
@@ -3199,6 +3215,8 @@ const HILFE = [
     ['Einstellungen (Zahnrad)', '#feedbackRow', '<span class="k hell">Rückmeldung</span>',
         'Rückmeldung: schickt eine Nachricht mit Bildschirmfoto an den Trainer-Betreuer. Im Bild kann man rot markieren, was gemeint ist, und Persönliches schwärzen. Nur mit Chor-Login.']
 ];
+HILFE.push(['Kopfzeile', '.strophewrap', '<span class="k">Alle Strophen</span><span class="k hell">Strophe 2</span>',
+    'Strophe: bei Liedern mit mehreren Strophen spielt „Strophe 2“ nur diesen Durchgang, von der Strophe bis zum Ende ihres Refrains (die letzte bis zum Schluss). Mit Loop wird nur sie wiederholt. Ein markierter Bereich gilt vor der Strophe. „Alle Strophen“ spielt das ganze Lied.']);
 // Admin-Regler für den Pegel je Stimme (nur Hörseite am Mac, ?admin): siehe pegelAdmin()
 HILFE.push(['Admin', '#pegelAdmin', '<span class="k">Pegel</span>',
     'Pegel je Stimme (nur für den Admin): gleicht die Lautstärke des Gesangs für dieses Lied ab, in Dezibel. „Speichern“ legt die Werte in pegel.json beim Trainer ab und klappt die Regler wieder zu, beim Ausliefern gelten sie überall. „Pegel ✕“ oder Esc klappt sie ohne Speichern zu.']);
@@ -3930,3 +3948,77 @@ function pegelAdminZeilen() {
 }
 
 pegelAdmin();
+
+
+/* --- Strophen: bei Liedern mit mehreren Strophen nur einen Durchgang spielen ---
+   Der Durchgang ist ein Ausschnitt der gespielten Abfolge (tickCache mit Wiederholungen
+   und Klammern), so bleiben Strich und Gesang synchron. Durchgang n beginnt beim n-ten
+   Erklingen des Takts mit dem Wiederholungsanfang und endet beim nächsten, der letzte
+   am Liedende (Refrain-Wiederholung, Coda). Ohne Bereich ist er der Abspielbereich, Loop
+   wiederholt dann nur ihn. Die Wahl gilt je Lied und wird gemerkt. */
+const STROPHE_KEY = 'chorTrainerStrophe';
+
+function strophenGemerkt() {
+    try { return JSON.parse(localStorage.getItem(STROPHE_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function strophenErmitteln() {
+    strophenBereiche = [];
+    const verse = Math.max(1, ...Array.from(gesangPartitur.matchAll(/<lyric[^>]*number="(\d+)"/g), m => +m[1]));
+    if (api.score && api.tickCache && verse > 1) {
+        const mbs = api.score.masterBars;
+        const anfang = mbs.find(m => m.isRepeatStart) || (mbs.some(m => m.repeatCount > 0) ? mbs[0] : null);
+        if (anfang) {
+            const takte = api.tickCache.masterBars;
+            const starts = takte.filter(t => t.masterBar.index === anfang.index).map(t => t.start);
+            if (starts.length > 1) starts.forEach((s, i) => strophenBereiche.push(
+                { start: s, ende: i + 1 < starts.length ? starts[i + 1] : takte[takte.length - 1].end }));
+        }
+    }
+    const wahl = document.getElementById('stropheSelect');
+    const n = strophenBereiche.length;
+    wahl.parentNode.hidden = n < 2;
+    // Handy: kurz („Alle“, „Str. 2“), sonst ausgeschrieben
+    const kurz = matchMedia('(max-width: 600px)').matches;
+    wahl.innerHTML = `<option value="0">${kurz ? 'Alle' : 'Alle Strophen'}</option>` +
+        strophenBereiche.map((_, i) => `<option value="${i + 1}">${kurz ? 'Str.' : 'Strophe'} ${i + 1}</option>`).join('');
+    const gemerkt = +(strophenGemerkt()[lastLoadedFile] || 0);
+    strophe = gemerkt <= n && n >= 2 ? gemerkt : 0;
+    wahl.value = String(strophe);
+    wahl.classList.toggle('gewaehlt', strophe > 0);
+    stropheAnwenden(false);
+}
+
+function stropheWaehlen(nr) {
+    strophe = nr;
+    const g = strophenGemerkt();
+    if (nr) g[lastLoadedFile] = nr; else delete g[lastLoadedFile];
+    try { localStorage.setItem(STROPHE_KEY, JSON.stringify(g)); } catch (e) {}
+    document.getElementById('stropheSelect').classList.toggle('gewaehlt', nr > 0);
+    stropheAnwenden(true);
+}
+
+/* Strophe an alphaTab geben (nur ohne Bereich; der Bereich gilt vor der Strophe).
+   springen: Strich bzw. laufende Wiedergabe in die Strophe holen, wenn sie außerhalb steht. */
+function stropheAnwenden(springen) {
+    const b = strophe ? strophenBereiche[strophe - 1] : null;
+    if (!bereich) {
+        if (b) {
+            const range = new alphaTab.synth.PlaybackRange();
+            range.startTick = b.start;
+            range.endTick = b.ende - 50;
+            api.playbackRange = range;
+        } else {
+            api.playbackRange = null;
+        }
+        if (b && springen) {
+            const t = api.tickPosition;
+            if (t < b.start || t >= b.ende) {
+                if (api.playerState === 1) sprungPlanen(b.start); else api.tickPosition = b.start;
+            }
+        }
+    }
+    loopAnwenden();
+}
+
+api.midiLoaded.on(() => strophenErmitteln());

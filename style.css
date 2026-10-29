@@ -118,6 +118,50 @@ svg { display: block; }
 
 #songSelect option { color: #000; }
 
+/* Strophenwahl neben dem Lied: wie die Liedauswahl, kleiner */
+.strophewrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+#stropheSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    color: var(--on-ink);
+    border: none;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 600;
+    min-height: 40px;
+    padding: 6px 30px 6px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    cursor: pointer;
+}
+#stropheSelect:hover { background: rgba(255, 255, 255, 0.16); }
+#stropheSelect:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+#stropheSelect.gewaehlt { background: var(--red); box-shadow: none; }
+#stropheSelect option { color: #000; }
+/* Handy: kurze Beschriftung (trainer.js), Vollbild nur als Symbol, damit das Lied lesbar bleibt */
+@media (max-width: 600px) {
+    #stropheSelect { font-size: 16px; padding: 6px 26px 6px 10px; }
+    .topbar:has(.strophewrap:not([hidden])) .fs-btn span { display: none; }
+    .topbar:has(.strophewrap:not([hidden])) .fs-btn { padding: 0 10px; }
+    .topbar:has(.strophewrap:not([hidden])) .songwrap { min-width: 100px; }
+}
+.strophewrap .caret {
+    position: absolute;
+    right: 9px;
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: var(--on-ink);
+    stroke-width: 2.5;
+    pointer-events: none;
+}
+
 .songwrap .caret {
     position: absolute;
     right: 10px;
@@ -1058,6 +1102,7 @@ body.sheet-open #sheet { transform: none; }
 
     .brand { order: 1; width: 34px; height: 34px; }
     .songwrap { order: 2; flex-shrink: 0; }
+    .strophewrap { order: 2; }
     .p-ctl { order: 3; }
     .p-voices { order: 8; flex-basis: 100%; padding-bottom: 10px; }
     .spacer { order: 5; }
