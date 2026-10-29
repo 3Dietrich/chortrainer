@@ -759,7 +759,7 @@ function updateTrackVolumes() {
         const laut = (allActive || activeTracks.has(i)) ? 1.0 : bgAmp;
         const stimme = gesang[spurName(t)];
         if (stimme) {
-            stimme.gain.gain.setTargetAtTime(laut, gesangKontext().currentTime, 0.02);
+            stimme.gain.gain.setTargetAtTime(laut * lagePegel(t), gesangKontext().currentTime, 0.02);
             api.changeTrackVolume([t], 0);   // gesungen wird aus der Aufnahme
         } else {
             api.changeTrackVolume([t], laut);
@@ -780,6 +780,14 @@ let gesang = {};          // Trackname -> { roh: Float32Array der Stufe, gain: G
 /** Name einer Spur wie in stimmen.json und den Dateinamen: MuseScore schreibt in Namen wie
     „Sopran 2“ ein geschütztes Leerzeichen, gesang.py ein normales. */
 const spurName = t => t.name.replace(/\u00a0/g, ' ');
+/** Pegel je Stimmlage in dB (nur Motor, nicht auf der Seite): die hohen MBROLA-Stimmen klingen
+    verhauchter und wirken bei gleichem Messpegel leiser (Hinweis @dd 20261029). */
+const GESANG_LAGE_DB = { sopran: 3, alt: 1.5, tenor: 0, bass: 0 };
+function lagePegel(t) {
+    const n = spurName(t).toLowerCase();
+    const lage = Object.keys(GESANG_LAGE_DB).find(k => n.includes(k));
+    return lage ? Math.pow(10, GESANG_LAGE_DB[lage] / 20) : 1;
+}
 let gesangInfo = null;    // stimmen.json des Lieds
 let gesangStufe = null;   // geladene Tempo-Stufe in %
 let gesangCtx = null;
