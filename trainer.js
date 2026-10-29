@@ -380,6 +380,39 @@ async function loadSelectedSong() {
 }
 
 /**
+ * Klammern (1.–2., 3. …) in alle Stimmen übernehmen. MuseScore schreibt <ending> nur in die
+ * oberste Stimme; alphaTab setzt die Klammern eines Takts aber bei jeder Stimme neu und
+ * übernimmt so die der letzten (keine). Ohne diese Kopie spielt der Trainer jede Klammer
+ * bei jedem Durchgang, und der Gesang (gesang.py liest die oberste Stimme) läuft davon.
+ */
+function klammernAufAlleStimmen(xmlDoc) {
+    const parts = Array.from(xmlDoc.querySelectorAll('part'));
+    if (parts.length < 2) return;
+    const vorlage = Array.from(parts[0].querySelectorAll(':scope > measure'));
+    parts.slice(1).forEach(part => {
+        const takte = Array.from(part.querySelectorAll(':scope > measure'));
+        vorlage.forEach((m, i) => {
+            const ziel = takte[i];
+            if (!ziel) return;
+            m.querySelectorAll(':scope > barline > ending').forEach(ending => {
+                const ort = ending.parentNode.getAttribute('location') || 'right';
+                let bl = Array.from(ziel.querySelectorAll(':scope > barline'))
+                    .find(b => (b.getAttribute('location') || 'right') === ort);
+                if (bl && bl.querySelector(':scope > ending')) return;
+                if (!bl) {
+                    bl = xmlDoc.createElement('barline');
+                    bl.setAttribute('location', ort);
+                    if (ort === 'left') ziel.insertBefore(bl, ziel.querySelector(':scope > note, :scope > direction, :scope > backup, :scope > forward'));
+                    else ziel.appendChild(bl);
+                }
+                // MusicXML-Reihenfolge: bar-style … ending vor repeat
+                bl.insertBefore(ending.cloneNode(true), bl.querySelector(':scope > repeat'));
+            });
+        });
+    });
+}
+
+/**
  * MusicXML aufteilen: Mehrstimmige Parts → einzelne Solo-Parts.
  * Sortiert nach SATB, weist jedem Part einen eigenen MIDI-Kanal zu.
  *
@@ -387,6 +420,7 @@ async function loadSelectedSong() {
  * @param {string}   soundId – MIDI-Programm-Nummer für das Instrument
  */
 function createSoloAudioTracks(xmlDoc, soundId) {
+    klammernAufAlleStimmen(xmlDoc);
     const parts = Array.from(xmlDoc.querySelectorAll('part'));
     const partList = xmlDoc.querySelector('part-list');
     const scoreRoot = xmlDoc.documentElement;
