@@ -3450,11 +3450,12 @@ async function rueckmeldungStarten() {
         <div class="rm-werkzeuge rm-bildhinweis">
             <button type="button" class="chip active" data-werkzeug="stift">✎ Rot markieren</button>
             <button type="button" class="chip" data-werkzeug="schwarz">■ Schwärzen</button>
+            <button type="button" class="chip rm-zurueck" disabled>↶ Zurück</button>
+            <button type="button" class="chip rm-loeschen" disabled>✕ Alles löschen</button>
         </div>
         <p class="rm-hinweis rm-bildhinweis rm-werkzeugtext"></p>
         <div class="rm-bild"><div class="rm-warten">Bildschirmfoto wird gemacht …</div></div>
         <div class="hm-knoepfe">
-            <button type="button" class="rm-zurueck">Letzten Schritt zurück</button>
             <button type="button" class="rm-abbrechen">Abbrechen</button>
             <button type="button" class="hm-fertig rm-senden">Senden</button>
         </div>
@@ -3462,14 +3463,22 @@ async function rueckmeldungStarten() {
     </div>`;
     document.documentElement.appendChild(seite);
     seite.querySelector('.rm-abbrechen').onclick = rueckmeldungEnde;
+    // Zurück nimmt den letzten Strich bzw. das letzte Rechteck weg, Alles löschen alle
     seite.querySelector('.rm-zurueck').onclick = () => { rmAktionen.pop(); rmZeichnen(); };
+    seite.querySelector('.rm-loeschen').onclick = () => { rmAktionen = []; rmZeichnen(); };
+    seite.addEventListener('keydown', e => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.target.matches('textarea, input')) {
+            e.preventDefault();
+            rmAktionen.pop();
+            rmZeichnen();
+        }
+    });
     seite.querySelectorAll('[data-werkzeug]').forEach(k => { k.onclick = () => rmWerkzeugWaehlen(k.dataset.werkzeug); });
     rmWerkzeugWaehlen('stift');
     seite.querySelector('.rm-senden').onclick = rueckmeldungSenden;
     seite.querySelector('#rmMitBild').onchange = e => {
         seite.querySelector('.rm-bild').hidden = !e.target.checked;
         seite.querySelectorAll('.rm-bildhinweis').forEach(h => { h.hidden = !e.target.checked; });
-        seite.querySelector('.rm-zurueck').hidden = !e.target.checked;
     };
     rmBild = null;
     rmAktionen = [];
@@ -3503,6 +3512,8 @@ function rmWerkzeugWaehlen(w) {
 function rmZeichnen(vorschau) {
     const leinwand = document.querySelector('#rueckmeldung canvas');
     if (!leinwand || !rmBild) return;
+    // Zurück/Alles löschen nur, wenn es etwas wegzunehmen gibt
+    document.querySelectorAll('#rueckmeldung .rm-zurueck, #rueckmeldung .rm-loeschen').forEach(k => { k.disabled = !rmAktionen.length; });
     const g = leinwand.getContext('2d');
     g.drawImage(rmBild, 0, 0);
     const strich = Math.max(3, leinwand.width / 130);

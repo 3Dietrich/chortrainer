@@ -1238,7 +1238,8 @@ body:not(.zugang) .nur-zugang { display: none; }
 #rueckmeldung .rm-bildzeile { display: flex; align-items: center; gap: 10px; margin: 16px 0 6px; font-weight: 600; }
 #rueckmeldung .rm-bildzeile input { width: 26px; height: 26px; }
 #rueckmeldung .rm-bild { position: relative; text-align: center; }
-#rueckmeldung .rm-werkzeuge { display: flex; gap: 10px; margin: 6px 0 4px; }
+#rueckmeldung .rm-werkzeuge { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+#rueckmeldung .rm-werkzeuge .chip:disabled { opacity: 0.4; cursor: default; }
 #rueckmeldung .rm-werkzeuge .chip { font-size: 17px; padding: 12px 16px; }
 #rueckmeldung canvas { max-width: 100%; max-height: 60vh; border: 1px solid #cfccc4; border-radius: 8px; touch-action: none; cursor: crosshair; background: #fff; }
 #rueckmeldung .rm-warten { padding: 40px 0; text-align: center; color: #57554f; }
