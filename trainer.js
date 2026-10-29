@@ -723,7 +723,7 @@ function updateTrackVolumes() {
         }
         // Vordergrund 100 %, Hintergrund bgAmp
         const laut = (allActive || activeTracks.has(i)) ? 1.0 : bgAmp;
-        const stimme = gesang[t.name];
+        const stimme = gesang[spurName(t)];
         if (stimme) {
             stimme.gain.gain.setTargetAtTime(laut, gesangKontext().currentTime, 0.02);
             api.changeTrackVolume([t], 0);   // gesungen wird aus der Aufnahme
@@ -743,6 +743,9 @@ function updateTrackVolumes() {
 const GESANG_SR = 22050;
 const GESANG_PEGEL = 1.6;   // Gesamtlautstärke Gesang (Spuren liegen bei -24 dBFS je Stimme)
 let gesang = {};          // Trackname -> { roh: Float32Array der Stufe, gain: GainNode }
+/** Name einer Spur wie in stimmen.json und den Dateinamen: MuseScore schreibt in Namen wie
+    „Sopran 2“ ein geschütztes Leerzeichen, gesang.py ein normales. */
+const spurName = t => t.name.replace(/\u00a0/g, ' ');
 let gesangInfo = null;    // stimmen.json des Lieds
 let gesangStufe = null;   // geladene Tempo-Stufe in %
 let gesangCtx = null;
@@ -822,11 +825,14 @@ async function gesangLaden() {
     gesangInfo = info;
     const ctx = gesangKontext();
     score.tracks.forEach(t => {
-        if (!t.name || t.staves.length === 0 || !info.stimmen[t.name]) return;
+        if (!t.name || t.staves.length === 0 || !info.stimmen[spurName(t)]) return;
         const g = { roh: null, gain: ctx.createGain() };
         g.gain.connect(gesangSumme);
-        gesang[t.name] = g;
+        gesang[spurName(t)] = g;
     });
+    // Mehr Stimmen, mehr Summe: ab der fünften Stimme den Gesamtpegel im Verhältnis senken
+    // (4 Stimmen = GESANG_PEGEL wie bisher, 6 Stimmen = zwei Drittel)
+    gesangSumme.gain.value = GESANG_PEGEL * Math.min(1, 4 / Math.max(1, Object.keys(gesang).length));
     updateTrackVolumes();
     gesangVorbereiten(api.playbackSpeed || 1);
 }
@@ -837,7 +843,7 @@ async function gesangHinweisZeigen() {
     if (!el || !api.score) return;
     const score = api.score;
     const ordner = gesangOrdner();
-    const namen = score.tracks.filter(t => t.name && t.staves.length > 0).map(t => t.name);
+    const namen = score.tracks.filter(t => t.name && t.staves.length > 0).map(spurName);
     const liste = l => l.length > 1 ? l.slice(0, -1).join(', ') + ' und ' + l[l.length - 1] : l[0];
     let text = '';
     if (!ordner) {
