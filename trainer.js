@@ -3201,7 +3201,7 @@ const HILFE = [
 ];
 // Admin-Regler für den Pegel je Stimme (nur Hörseite am Mac, ?admin): siehe pegelAdmin()
 HILFE.push(['Admin', '#pegelAdmin', '<span class="k">Pegel</span>',
-    'Pegel je Stimme (nur für den Admin): gleicht die Lautstärke des Gesangs für dieses Lied ab, in Dezibel. „Speichern“ legt die Werte in pegel.json beim Trainer ab, beim Ausliefern gelten sie überall. Der Knopf „Pegel“ blendet die Regler ein und aus, Esc blendet sie aus.']);
+    'Pegel je Stimme (nur für den Admin): gleicht die Lautstärke des Gesangs für dieses Lied ab, in Dezibel. „Speichern“ legt die Werte in pegel.json beim Trainer ab und klappt die Regler wieder zu, beim Ausliefern gelten sie überall. „Pegel ✕“ oder Esc klappt sie ohne Speichern zu.']);
 const HILFE_START = 'Auf einen Knopf tippen: hier steht dann, was er macht. Der Knopf selbst wird dabei nicht ausgelöst. Noch einmal „?“ tippen beendet die Hilfe.';
 
 function hilfeSichtbar(e) {
@@ -3857,6 +3857,8 @@ async function pegelAdmin() {
         box.querySelector('.pa-inhalt').hidden = !an;
         schalter.setAttribute('aria-expanded', an);
         box.classList.toggle('offen', an);
+        schalter.textContent = an ? 'Pegel  ✕' : 'Pegel';
+        schalter.setAttribute('aria-label', an ? 'Pegel zuklappen' : 'Pegel aufklappen');
         try { localStorage.setItem(PEGEL_SICHTBAR_KEY, an ? '1' : ''); } catch (e) {}
     };
     schalter.onclick = () => offen(box.querySelector('.pa-inhalt').hidden);
@@ -3871,6 +3873,8 @@ async function pegelAdmin() {
             const r = await fetch('__pegel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(pegelAlle) });
             pegelStand(r.ok ? 'Gespeichert' : 'Speichern ging nicht (' + r.status + ')');
+            // Nach dem Speichern wieder klein: nur der Knopf „Pegel“ bleibt
+            if (r.ok) setTimeout(() => { offen(false); schalter.focus(); }, 900);
         } catch (e) { pegelStand('Speichern ging nicht'); }
     };
     window.addEventListener('keydown', e => {
