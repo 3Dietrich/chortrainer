@@ -1771,6 +1771,7 @@ function metroKlick() {
         if (!g) return;
         clearTimeout(g.zeit);
         clearInterval(g.takt);
+        if (g.takt && api.playerState !== 1) pendel.ruhe();
         knopf.classList.remove('dragging');
         g = null;
     };
@@ -1787,8 +1788,9 @@ function metroKlick() {
             api.metronomeVolume = metronomLaut;
             saveSettings();
             if (api.playerState !== 1) {
-                metroKlick();
-                g.takt = setInterval(metroKlick, viertelMs());
+                const probe = () => { metroKlick(); pendel.klick(); };
+                probe();
+                g.takt = setInterval(probe, viertelMs());
             }
         }, 350);
     });
@@ -1816,6 +1818,88 @@ function metroKlick() {
     // Tastatur (Enter/Leertaste): an/aus
     knopf.addEventListener('click', e => { if (e.detail === 0) toggleMetronome(knopf); });
 })();
+
+/* Pendel im Metronom-Knopf: schwingt beim Abspielen im Schlag, auf jedem Schlag ganz
+   außen (wie ein echtes Metronom), hin und her im Wechsel. Steht das Lied, gleitet es in die
+   Ruhelage. Der Schlag kommt aus der Position (Tick, zwischen den Meldungen mit dem Tempo
+   hochgerechnet), beim Einzählen und beim Vorhören aus den Klicks. Gezählt wird durch das
+   ganze Stück (Tick / Schlaglänge), damit das Pendel über Taktgrenzen hinweg weiter wechselt.
+   Mit „Bewegung reduzieren“ im System bleibt es stehen. */
+const pendel = (() => {
+    const arm = document.getElementById('metroArm');
+    const AUSSCHLAG = 28;               // Grad nach jeder Seite
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    let anker = null;                   // { schlag, zeit, proMs }: Schlag (mit Bruchteil) zur Zeit
+    let bild = 0;
+
+    function malen() {
+        bild = 0;
+        if (!anker) return;
+        // höchstens anderthalb Schläge vorausrechnen, falls Meldungen ausbleiben
+        const s = anker.schlag + Math.min((performance.now() - anker.zeit) * anker.proMs, 1.5);
+        arm.style.transform = 'rotate(' + (AUSSCHLAG * Math.cos(Math.PI * s)).toFixed(1) + 'deg)';
+        bild = requestAnimationFrame(malen);
+    }
+
+    function setzen(schlag, proMs) {
+        if (!arm || still.matches) return;
+        anker = { schlag, zeit: performance.now(), proMs };
+        arm.classList.remove('ruhe');
+        if (!bild) bild = requestAnimationFrame(malen);
+    }
+
+    // Takt an einer Stelle: Schlaglänge in Ticks (nach dem Nenner) und Schläge je Takt
+    function taktAn(tick) {
+        const mb = api.tickCache && api.tickCache.masterBars.find(m => m.start <= tick && tick < m.end);
+        const nenner = mb ? mb.masterBar.timeSignatureDenominator : 4;
+        return { mb, laenge: 3840 / nenner, zaehler: mb ? mb.masterBar.timeSignatureNumerator : 4 };
+    }
+
+    // Schläge je ms beim aktuellen Tempo (Tempo gilt für Viertel)
+    const proMs = laenge => 960 / laenge / viertelMs();
+
+    let startTick = 0;                  // wo das Lied beim Start stand (Ziel des Einzählens)
+
+    return {
+        start() { startTick = api.tickPosition; },
+        position(tick) {
+            if (api.playerState !== 1) return;
+            const t = taktAn(tick);
+            setzen(tick / t.laenge, proMs(t.laenge));
+        },
+        // Einzähl-Klick mit seinem Schlag im Takt (0 = erster): liegt so viele Schläge vor dem
+        // Startschlag, dass das Pendel ohne Sprung ins Lied übergeht (Start auf 3 mit einem
+        // Takt: Klicks 3 4 1 2 = vier, drei, zwei, ein Schlag davor)
+        einzaehlKlick(nummer) {
+            const t = taktAn(startTick);
+            const beimStart = t.mb ? Math.round((startTick - t.mb.start) / t.laenge) : 0;
+            const davor = ((beimStart - nummer) % t.zaehler + t.zaehler) % t.zaehler || t.zaehler;
+            setzen(Math.round(startTick / t.laenge) - davor, proMs(t.laenge));
+        },
+        // Vorhör-Klick (Lied steht): einfach zum nächsten Schlag weiter
+        klick() {
+            const s = anker ? Math.round(anker.schlag) + 1 : 0;
+            setzen(s, 1 / viertelMs());
+        },
+        ruhe() {
+            anker = null;
+            cancelAnimationFrame(bild);
+            bild = 0;
+            if (!arm) return;
+            arm.classList.add('ruhe');
+            arm.style.transform = '';
+        }
+    };
+})();
+
+api.playerStateChanged.on(args => { if (args.state === 1) pendel.start(); else pendel.ruhe(); });
+api.playerPositionChanged.on(e => pendel.position(e.currentTick));
+api.midiEventsPlayed.on(args => {
+    if (!einzaehlPhase) return;
+    for (const e of args.events) {
+        if (e.type === alphaTab.midi.MidiEventType.AlphaTabMetronome) pendel.einzaehlKlick(e.metronomeNumerator);
+    }
+});
 
 /* --- Tempo --- */
 const MIN_BPM = 24;      // langsamstes Übetempo in BPM

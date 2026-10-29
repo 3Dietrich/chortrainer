@@ -454,6 +454,17 @@ input[type=range]::-moz-range-thumb {
 .metro-btn.active { background: rgba(248, 84, 84, 0.22); }
 .metro-btn.active svg { stroke: var(--red); }
 
+/* Pendel: in Ruhe schräg wie im alten Symbol, beim Abspielen setzt trainer.js den Winkel
+   je Bild (ohne Übergang), zurück in die Ruhe gleitet es */
+.metro-arm {
+    transform-box: view-box;
+    transform-origin: 12px 14px;
+    transform: rotate(37deg);
+}
+.metro-arm.ruhe { transition: transform 0.4s ease-out; }
+.metro-arm rect { fill: var(--on-ink); stroke-width: 1; }
+.metro-btn.active .metro-arm rect { fill: var(--red); }
+
 /* Wischflächen (Tempo, Lautstärke der anderen Stimmen) mit ‹ › als Hinweis */
 .swipe-box {
     touch-action: none;          /* Wischen ändert den Wert statt die Seite zu scrollen */

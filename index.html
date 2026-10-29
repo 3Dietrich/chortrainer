@@ -113,7 +113,9 @@
                         <button class="go-btn" id="jumpBtn" onclick="jumpTo()">Go</button>
                     </div>
                     <button class="metro-btn" id="metronomeBtn" title="Metronom: tippen an/aus, halten und ziehen = Lautstärke">
-                        <svg viewBox="0 0 24 24"><path d="M8 21h8l-3-17h-2z" /><path d="M12 14l6-8" /><path d="M6 21h12" /></svg>
+                        <svg viewBox="0 0 24 24"><path d="M8 21h8l-3-17h-2z" /><path d="M6 21h12" />
+                            <!-- Pendel: dreht um den Drehpunkt (12|14), trainer.js schwenkt es im Schlag -->
+                            <g id="metroArm" class="metro-arm"><path d="M12 14V4" /><rect x="10.6" y="7" width="2.8" height="2.4" rx=".6" /></g></svg>
                         <b class="bf-wert" id="metroWert"></b>
                     </button>
                 </div>
