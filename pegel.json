@@ -4,5 +4,11 @@
     "Bass": -2,
     "Sopran": 4,
     "Tenor": 0.5
+  },
+  "SieSangenGloria.musicxml": {
+    "Sopran": 7
+  },
+  "SieSangenGloria_F_bearb.musicxml": {
+    "Sopran": 7
   }
 }
