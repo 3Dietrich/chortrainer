@@ -561,6 +561,9 @@ def rendern(lied, ziel, anhoeren=None, erzwingen=False):
             rms = np.sqrt(np.mean(y[klingt] ** 2)) if np.any(klingt) else 1.0
             y *= min(LAUTHEIT / max(rms, 1e-9), 0.5 / max(1e-9, np.max(np.abs(y))))
             vorn = np.zeros(max(0, int((sl[0]['start'] - vorlauf) * SR)))
+            # Setzt die Stimme früher ein als der Vorlauf lang ist (Takt 1, Schlag 1), liegt sonst die
+            # ganze Spur um den Rest des Vorlaufs zu spät: vorn so viel abschneiden
+            y = y[max(0, int((vorlauf - sl[0]['start']) * SR)):]
             voll = np.concatenate([vorn, y])
             wav = os.path.join(tmp, f'{name}_{tempo}.wav')
             sf.write(wav, voll, SR)
