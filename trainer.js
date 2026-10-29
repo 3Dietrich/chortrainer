@@ -593,6 +593,8 @@ api.scoreLoaded.on(score => {
     gesangLaden();
     gesangHinweisZeigen();
     updateTrackVolumes();
+    pegelGeladen.then(updateTrackVolumes);
+    pegelAdminZeilen();
     updateView();
 
     setTimeout(adjustContentPadding, 100);
@@ -759,7 +761,7 @@ function updateTrackVolumes() {
         const laut = (allActive || activeTracks.has(i)) ? 1.0 : bgAmp;
         const stimme = gesang[spurName(t)];
         if (stimme) {
-            stimme.gain.gain.setTargetAtTime(laut * lagePegel(t), gesangKontext().currentTime, 0.02);
+            stimme.gain.gain.setTargetAtTime(laut * stimmPegel(t), gesangKontext().currentTime, 0.02);
             api.changeTrackVolume([t], 0);   // gesungen wird aus der Aufnahme
         } else {
             api.changeTrackVolume([t], laut);
@@ -780,13 +782,19 @@ let gesang = {};          // Trackname -> { roh: Float32Array der Stufe, gain: G
 /** Name einer Spur wie in stimmen.json und den Dateinamen: MuseScore schreibt in Namen wie
     „Sopran 2“ ein geschütztes Leerzeichen, gesang.py ein normales. */
 const spurName = t => t.name.replace(/\u00a0/g, ' ');
-/** Pegel je Stimmlage in dB (nur Motor, nicht auf der Seite): die hohen MBROLA-Stimmen klingen
-    verhauchter und wirken bei gleichem Messpegel leiser (Hinweis @dd 20261029). */
-const GESANG_LAGE_DB = { sopran: 3, alt: 1.5, tenor: 0, bass: 0 };
-function lagePegel(t) {
-    const n = spurName(t).toLowerCase();
-    const lage = Object.keys(GESANG_LAGE_DB).find(k => n.includes(k));
-    return lage ? Math.pow(10, GESANG_LAGE_DB[lage] / 20) : 1;
+/* --- Pegel je Stimme (Admin) ---
+   pegel.json liegt beim Motor: { "<Lieddatei>": { "<Stimme>": dB } }. Der Trainer liest sie überall
+   und gleicht damit den Gesang ab (hohe Stimmen klingen verhauchter und wirken leiser). Setzen kann
+   man die Werte nur mit ?admin auf einer Seite, deren Server POST /__pegel kennt (Hörseite am Mac);
+   ausliefern.py nimmt die Datei mit. */
+let pegelAlle = {};
+const pegelGeladen = fetch('pegel.json', { cache: 'no-cache' })
+    .then(r => r.ok ? r.json() : {}).catch(() => ({}))
+    .then(p => { pegelAlle = (p && typeof p === 'object') ? p : {}; });
+const pegelLied = () => document.getElementById('songSelect').value;
+function stimmPegel(t) {
+    const db = (pegelAlle[pegelLied()] || {})[spurName(t)] || 0;
+    return Math.pow(10, db / 20);
 }
 let gesangInfo = null;    // stimmen.json des Lieds
 let gesangStufe = null;   // geladene Tempo-Stufe in %
@@ -3191,6 +3199,9 @@ const HILFE = [
     ['Einstellungen (Zahnrad)', '#feedbackRow', '<span class="k hell">Rückmeldung</span>',
         'Rückmeldung: schickt eine Nachricht mit Bildschirmfoto an den Trainer-Betreuer. Im Bild kann man rot markieren, was gemeint ist, und Persönliches schwärzen. Nur mit Chor-Login.']
 ];
+// Admin-Regler für den Pegel je Stimme (nur Hörseite am Mac, ?admin): siehe pegelAdmin()
+HILFE.push(['Admin', '#pegelAdmin', '<span class="k">Pegel</span>',
+    'Pegel je Stimme (nur für den Admin): gleicht die Lautstärke des Gesangs für dieses Lied ab, in Dezibel. „Speichern“ legt die Werte in pegel.json beim Trainer ab, beim Ausliefern gelten sie überall. Der Knopf „Pegel“ blendet die Regler ein und aus, Esc blendet sie aus.']);
 const HILFE_START = 'Auf einen Knopf tippen: hier steht dann, was er macht. Der Knopf selbst wird dabei nicht ausgelöst. Noch einmal „?“ tippen beendet die Hilfe.';
 
 function hilfeSichtbar(e) {
@@ -3822,3 +3833,96 @@ api.render();
     offlineEinrichten();
     homescreenBegruessen();
 })();
+
+
+/* --- Admin: Regler für pegel.json (nur mit ?admin und nur, wo der Server /__pegel kennt) --- */
+const PEGEL_SICHTBAR_KEY = 'chorTrainerPegelAdminOffen';
+let pegelAdminAn = false;
+
+async function pegelAdmin() {
+    if (!new URLSearchParams(location.search).has('admin')) return;
+    const ok = await fetch('__pegel', { cache: 'no-store' }).then(r => r.ok).catch(() => false);
+    if (!ok) return;
+    pegelAdminAn = true;
+    const box = document.createElement('section');
+    box.id = 'pegelAdmin';
+    box.innerHTML = '<button type="button" class="pa-schalter" aria-expanded="false">Pegel</button>' +
+        '<div class="pa-inhalt" hidden><div class="pa-zeilen"></div>' +
+        '<div class="pa-knoepfe"><button type="button" class="pa-null">Alle 0 dB</button>' +
+        '<button type="button" class="pa-speichern">Speichern</button></div>' +
+        '<div class="pa-stand" aria-live="polite"></div></div>';
+    document.body.appendChild(box);
+    const schalter = box.querySelector('.pa-schalter');
+    const offen = an => {
+        box.querySelector('.pa-inhalt').hidden = !an;
+        schalter.setAttribute('aria-expanded', an);
+        box.classList.toggle('offen', an);
+        try { localStorage.setItem(PEGEL_SICHTBAR_KEY, an ? '1' : ''); } catch (e) {}
+    };
+    schalter.onclick = () => offen(box.querySelector('.pa-inhalt').hidden);
+    box.querySelector('.pa-null').onclick = () => {
+        delete pegelAlle[pegelLied()];
+        pegelAdminZeilen();
+        updateTrackVolumes();
+        pegelStand('Nicht gespeichert');
+    };
+    box.querySelector('.pa-speichern').onclick = async () => {
+        try {
+            const r = await fetch('__pegel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pegelAlle) });
+            pegelStand(r.ok ? 'Gespeichert' : 'Speichern ging nicht (' + r.status + ')');
+        } catch (e) { pegelStand('Speichern ging nicht'); }
+    };
+    window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !box.querySelector('.pa-inhalt').hidden && !document.getElementById('hilfeModus')) {
+            offen(false);
+            schalter.focus();
+        }
+    });
+    let gemerkt = '';
+    try { gemerkt = localStorage.getItem(PEGEL_SICHTBAR_KEY) || ''; } catch (e) {}
+    offen(!!gemerkt);
+    pegelGeladen.then(pegelAdminZeilen);
+}
+
+function pegelStand(text) {
+    const el = document.querySelector('#pegelAdmin .pa-stand');
+    if (el) el.textContent = text;
+}
+
+/** Je Stimme des geladenen Lieds ein Regler (-12 … +12 dB, halbe Schritte). */
+function pegelAdminZeilen() {
+    const ziel = document.querySelector('#pegelAdmin .pa-zeilen');
+    if (!ziel || !api.score) return;
+    const lied = pegelLied();
+    const werte = pegelAlle[lied] || {};
+    ziel.innerHTML = '';
+    api.score.tracks.filter(t => t.name && t.staves.length > 0).forEach(t => {
+        const name = spurName(t);
+        const zeile = document.createElement('label');
+        zeile.className = 'pa-zeile';
+        const db = werte[name] || 0;
+        zeile.innerHTML = '<span class="pa-name"></span><input type="range" min="-12" max="12" step="0.5">' +
+            '<span class="pa-wert"></span>';
+        zeile.querySelector('.pa-name').textContent = name;
+        const regler = zeile.querySelector('input');
+        const wert = zeile.querySelector('.pa-wert');
+        const zeigen = v => { wert.textContent = (v > 0 ? '+' : '') + String(v).replace('.', ',') + ' dB'; };
+        regler.value = db;
+        regler.setAttribute('aria-label', 'Pegel ' + name);
+        zeigen(db);
+        regler.addEventListener('input', () => {
+            const v = parseFloat(regler.value);
+            pegelAlle[lied] = Object.assign({}, pegelAlle[lied], { [name]: v });
+            if (!v) delete pegelAlle[lied][name];
+            if (!Object.keys(pegelAlle[lied]).length) delete pegelAlle[lied];
+            zeigen(v);
+            updateTrackVolumes();
+            pegelStand('Nicht gespeichert');
+        });
+        ziel.appendChild(zeile);
+    });
+    pegelStand('');
+}
+
+pegelAdmin();

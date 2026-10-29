@@ -1261,3 +1261,47 @@ body:not(.zugang) .nur-zugang { display: none; }
 #klangHinweis p { margin: 0; flex: 1; }
 #klangHinweis button { flex: 0 0 auto; min-height: 50px; padding: 12px 22px; border-radius: 25px;
     border: 0; background: #1f1f1e; color: #fff; font: 600 18px/1 inherit; cursor: pointer; }
+
+/* ---------- Admin: Pegel je Stimme (nur Hörseite am Mac, ?admin) ----------
+   Unten links über dem Notenbereich; zugeklappt nur der Knopf „Pegel“. */
+#pegelAdmin {
+    position: fixed;
+    left: 12px;
+    bottom: calc(96px + var(--safe-b));
+    z-index: 900;
+    background: var(--ink);
+    color: var(--on-ink);
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
+    font-size: 18px;
+    max-width: min(460px, calc(100vw - 24px));
+}
+#pegelAdmin button {
+    min-height: 48px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--ink2);
+    color: var(--on-ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+#pegelAdmin button:focus-visible,
+#pegelAdmin input:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+#pegelAdmin .pa-schalter { width: 100%; }
+#pegelAdmin.offen { width: min(440px, calc(100vw - 24px)); }
+#pegelAdmin.offen .pa-schalter { background: var(--red); border-radius: 12px 12px 0 0; }
+#pegelAdmin .pa-inhalt { padding: 8px 14px 12px; }
+#pegelAdmin .pa-zeile {
+    display: grid;
+    grid-template-columns: 5.5em 1fr 4.5em;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+}
+#pegelAdmin .pa-zeile input { width: 100%; height: 44px; accent-color: var(--red); cursor: pointer; }
+#pegelAdmin .pa-wert { text-align: right; font-variant-numeric: tabular-nums; color: var(--mute); }
+#pegelAdmin .pa-knoepfe { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+#pegelAdmin .pa-speichern { background: var(--red); }
+#pegelAdmin .pa-stand { min-height: 1.4em; margin-top: 6px; color: var(--mute); font-size: 16px; text-align: right; }

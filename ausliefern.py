@@ -43,7 +43,7 @@ from pathlib import Path
 
 QUELLE = Path(__file__).resolve().parent
 MOTOR = ['trainer.js', 'style.css', 'sw.js', 'alphaTab_v1_8_1.js', 'sonivox.sf2',
-         'html-to-image_1_11_11.js'] + sorted(
+         'html-to-image_1_11_11.js', 'pegel.json'] + sorted(
     str(p.relative_to(QUELLE)) for p in (QUELLE / 'font').iterdir() if not p.name.startswith('.'))
 PANKD_EIGEN = ['manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
                'favicon-32.png', 'Bereit.musicxml', 'bereit.mp3']
