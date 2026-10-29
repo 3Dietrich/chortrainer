@@ -1138,7 +1138,8 @@ body.sheet-open #sheet { transform: none; }
     .ctl-side .bf-wert, .p-voices .bf-wert { bottom: auto; top: calc(100% + 10px); }   /* oben ist der Bildschirmrand */
     .p-ctl .play { width: 48px; height: 48px; }
     .p-ctl .play svg { width: 20px; height: 20px; }
-    .takt-box, .tempo-box { height: 44px; }
+    .takt-box, .tempo-box, .metro-btn { height: 44px; }
+    .metro-btn { width: 44px; }
     #taktNummer, .go-btn { height: 44px; font-size: 19px; }
     .t-val b { font-size: 18px; }
 
