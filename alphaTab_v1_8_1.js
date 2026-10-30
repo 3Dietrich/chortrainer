@@ -60236,10 +60236,12 @@
             const canvas = this.renderer.scoreRenderer.canvas;
             canvas.font = this.font;
             let y = 0;
+            // chortrainer: feste Zeilenhöhe je Schrift statt Höhe des einzelnen Worts, sonst springen die
+            // Strophenzeilen je nach Ober-/Unterlängen auf und ab („you“, „my“, „with“)
+            const zeile = canvas.measureText('ÄÖÜÉfhklbdgjpqy|').height;
             for (const line of this._lines) {
                 this._linePositions.push(y);
-                const size = canvas.measureText(line.length > 0 ? line : ' ');
-                y += size.height + lineSpacing;
+                y += zeile + lineSpacing;
             }
             y -= lineSpacing;
             this.height = y;
