@@ -77,9 +77,8 @@ KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b':
 # Plosive lauter (Faktor auf die Lautstärke des Lauts), sonst gehen t/p/k im Chor unter (Wunsch @dd)
 PLOSIV_EN = {'p': 2.2, 't': 2.2, 'k': 2.2, 'p_h': 2.2, 't_h': 2.2, 'k_h': 2.2, 'b': 1.6, 'd': 1.6, 'g': 1.6,
              'tS': 1.8, 'dZ': 1.6}
-# Englisch klang mit Konsonant vor dem Schlag und Vokal auf dem Schlag noch zu spät (@dd 30.10.:
-# „when we're Together, close To“): die ganze Spur so viel früher
-VORZIEHEN_EN = 0.05
+# ganze englische Spur so viel früher (s); 0,05 klang zu früh (@dd 30.10.), darum aus
+VORZIEHEN_EN = 0.0
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
 
 
