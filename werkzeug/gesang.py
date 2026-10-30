@@ -399,6 +399,11 @@ def pho_bauen(silben, vorlauf):
             pause = 300
         verf = naechst - beat
         pause = min(pause, max(0.0, verf - VOKAL_MIN))
+        # Englisch: stimmhafter Verschlusslaut am Phrasenende (land., sand.) klingt in MBROLA-us
+        # wie eine eigene Silbe („lan-də“), darum vor einer Pause weglassen
+        if SPRACHE == 'en' and pause >= 250 and teile[i][2] and teile[i][2][-1] in ('b', 'd', 'g'):
+            teile[i] = teile[i][0], teile[i][1], teile[i][2][:-1]
+            ab_ms[i] = ab_ms[i][:-1]
         nach = an_ms[i + 1] if i + 1 < len(silben) else []
         kons = sum(ab_ms[i]) + sum(nach)
         platz = verf - pause - VOKAL_MIN
