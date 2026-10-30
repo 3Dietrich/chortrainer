@@ -73,11 +73,15 @@ VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI',
 DIPHTHONG_EN = {}
 # Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
 KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b': 80, 'd': 70, 'l': 90,
-           'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 65, 't_h': 65, 'k_h': 65}
+           'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 65, 't_h': 65, 'k_h': 65, 's': 75}
 # Knall der Plosive lauter (Faktor, nur ein Fenster von 20 ms), sonst gehen t/p/k im Chor unter (Wunsch @dd)
 PLOSIV_EN = {'p': 2.5, 't': 2.5, 'k': 2.5, 'p_h': 2.5, 't_h': 2.5, 'k_h': 2.5, 'b': 1.8, 'd': 1.8, 'g': 1.8,
              'tS': 1.8, 'dZ': 1.6}
-HAUCH_EN = 0.3   # Lautstärke des Hauchs nach dem Knall von p/t/k („sTHHay“)
+HAUCH_EN = 0.15  # Lautstärke des Hauchs nach dem Knall von p/t/k („sTHHay“), 45 ms lang
+ANSATZ_EN_MS = 70    # erstes Stück eines langen Vokals (ms): so lang dauert der Übergang vom Konsonanten
+# MBROLA-Knall ist zu schwach: künstlicher Knall (abklingendes Rauschen, 12 ms) im Verhältnis zur
+# Lautstärke des folgenden Vokals, Klangfarbe je Laut (t hell, k mittel, p dumpf)
+KNALL_EN = {'t': 0.9, 't_h': 0.9, 'k': 0.8, 'k_h': 0.8, 'p': 0.7, 'p_h': 0.7}
 # ganze englische Spur so viel früher (s); 0,05 klang zu früh (@dd 30.10.), darum aus
 VORZIEHEN_EN = 0.0
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
@@ -462,9 +466,16 @@ def pho_bauen(silben, vorlauf):
         # MBROLA schafft höchstens 2000 Perioden je Lautabschnitt: lange Töne in Stücke
         # desselben Lauts teilen (Diphone wie m-m gibt es)
         fmax = max(h for _, _, h in s['teile']) * 1.05
-        n = max(1, math.ceil((e - a) / 1000 * fmax / 1200))
-        for k in range(n):
-            a1, e1 = a + (e - a) * k / n, a + (e - a) * (k + 1) / n
+        grenzen = [a]
+        # Englisch: MBROLA dehnt den Übergang Konsonant -> Vokal über die halbe Vokallänge, auf langen
+        # Tönen kam der Vokal darum hörbar spät („sTHHHaaay“). Kurzes erstes Stück: der Übergang
+        # bleibt kurz, der Rest ist derselbe Vokal
+        if SPRACHE == 'en' and e - a > 2 * ANSATZ_EN_MS:
+            grenzen.append(a + ANSATZ_EN_MS)
+        rest_a = grenzen[-1]
+        n = max(1, math.ceil((e - rest_a) / 1000 * fmax / 1200))
+        grenzen += [rest_a + (e - rest_a) * (k + 1) / n for k in range(n)]
+        for a1, e1 in zip(grenzen, grenzen[1:]):
             raus(laut, a1, e1, ' ' + tonkurve(s, s['start'] + (a1 - a) / 1000, e1 - a1, a1 - a))
     for laut, a, e, s, hz in ereignisse:
         if s is not None:
@@ -509,7 +520,8 @@ def lautstaerke_vibrato(x, sr, zeilen):
             g[i0:i1] = 1 + VIB_AM * tiefe * np.sin(2 * np.pi * VIB_HZ * (pos + tt))
         pos += d
     if SPRACHE == 'en':
-        g *= plosive_formen(x, sr, zeilen)
+        f, knall = plosive_formen(x, sr, zeilen)
+        return x * g * f + knall
     return x * g
 
 
@@ -517,6 +529,8 @@ def plosive_formen(x, sr, zeilen):
     """Englisch: Knall der Plosive lauter, Hauch danach leiser („sTHHay“, „apHHart“). Der Hauch liegt
     schon im Übergang zum Vokal (Diphon t-EI), darum eigener Durchgang über die ganze Spur."""
     f = np.ones(len(x))
+    zusatz = np.zeros(len(x))
+    rng = np.random.default_rng(7)
     pos = 0.0
     for z in zeilen:
         t = z.split()
@@ -530,17 +544,32 @@ def plosive_formen(x, sr, zeilen):
                 knall = i0 + int(np.argmax(np.convolve(hp, np.ones(k) / k, mode='same')))
                 a, b = max(0, knall - int(0.006 * sr)), min(len(x), knall + int(0.014 * sr))
                 f[a:b] = np.maximum(f[a:b], 1 + (PLOSIV_EN[t[0]] - 1) * np.hanning(b - a))
-                # danach 35 ms Hauch leiser, weich zurück auf voll
+                # danach 45 ms Hauch leiser, weich zurück auf voll
                 if t[0] in ('p', 't', 'k', 'p_h', 't_h', 'k_h'):
-                    e = min(len(x), b + int(0.035 * sr))
+                    e = min(len(x), b + int(0.045 * sr))
                     n, rampe = e - b, int(0.004 * sr)
                     if n > 4 * rampe:
                         daempf = np.full(n, HAUCH_EN)
                         daempf[:rampe] = np.linspace(1, HAUCH_EN, rampe)
                         daempf[n - 3 * rampe:] = np.linspace(HAUCH_EN, 1, 3 * rampe)
                         f[b:e] = np.minimum(f[b:e], daempf)
+                if t[0] in KNALL_EN:
+                    vokal = np.abs(x[knall:min(len(x), knall + int(0.15 * sr))])
+                    hoehe = KNALL_EN[t[0]] * (np.percentile(vokal, 98) if len(vokal) else 0.1)
+                    n = int(0.012 * sr)
+                    r = rng.standard_normal(n + 2)
+                    if t[0].startswith('t'):
+                        r = np.diff(r, 2)          # hell
+                    elif t[0].startswith('k'):
+                        r = np.diff(r, 1)[:n]      # mittel
+                    else:
+                        r = np.convolve(r, np.ones(3) / 3, mode='same')[:n]   # dumpf
+                    r = r[:n] / (np.max(np.abs(r[:n])) or 1)
+                    stoss = hoehe * r * np.exp(-np.arange(n) / (0.003 * sr))
+                    e2 = min(len(x), knall + n)
+                    zusatz[knall:e2] += stoss[:e2 - knall]
         pos += d
-    return f
+    return f, zusatz
 
 
 def hall(y, sr):
@@ -604,9 +633,26 @@ def diphone_reparieren(zeilen, db):
             aus[i] = '_ ' + aus[i].split()[1]
         elif b not in VOKALE and b != '_':
             aus[i + 1] = '_ ' + aus[i + 1].split()[1]
+        elif a == b:
+            pass   # gleicher Vokal (geteilter langer Ton): unten zusammenlegen
         else:
             print(f'  Übergang {a}-{b} fehlt in {db}, bleibt (mbrola -e)')
-    return aus
+    # geteilte lange Töne, deren Stimme den Übergang Vokal-gleicher Vokal nicht kennt (us3: @-@),
+    # wieder zu einer Zeile zusammenlegen; die Tonhöhenpunkte werden auf die neue Länge umgerechnet
+    zus = []
+    for z in aus:
+        t = z.split()
+        if zus and len(t) > 2 and t[0] == zus[-1].split()[0] and len(zus[-1].split()) > 2 \
+                and not diphon_da(db, t[0], t[0]):
+            v = zus[-1].split()
+            d1, d2 = int(v[1]), int(t[1])
+            dd = d1 + d2
+            pkt = [f'{float(v[i]) * d1 / dd:.1f} {v[i + 1]}' for i in range(2, len(v) - 1, 2)]
+            pkt += [f'{100 * d1 / dd + float(t[i]) * d2 / dd:.1f} {t[i + 1]}' for i in range(2, len(t) - 1, 2)]
+            zus[-1] = f'{v[0]} {dd} ' + ' '.join(pkt)
+        else:
+            zus.append(z)
+    return zus
 
 
 def mp3(wav, ziel):
