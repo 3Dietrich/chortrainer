@@ -69,8 +69,9 @@ ENGLISCH = {'a#': '@', '@2': '@', '@5': '@', '@/': '@', '3': 'r=', 'I2': 'I', 'a
             'i@': 'I @', 'i@3': 'i r', 'I#': '@', 't2': 't', '?': 't', 'n-': 'n', 'e': 'E', 'o': '@U',
             'oI': 'OI', 'OI': 'OI'}
 VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI', 'OI', '@U', 'aU'}
-# Diphthonge sind in us1/us3 eigene Laute und bleiben ganz (geteilt wurde aus „Go“ ein „Long“, Whisper-Test)
-DIPHTHONG_EN = {}
+# Diphthonge sind in us1/us3 eigene Laute und bleiben meist ganz (geteilt wurde aus „Go“ ein „Long“).
+# Nur AI wird auf A gehalten und gleitet am Ende nach I, ganz klang „night“ wie „näääaiit“ (@dd)
+DIPHTHONG_EN = {'AI': ('A', 'I')}
 # Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
 KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b': 80, 'd': 70, 'l': 90,
            'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 65, 't_h': 65, 'k_h': 65, 's': 75}
