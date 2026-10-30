@@ -77,6 +77,7 @@ KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b':
 # Knall der Plosive lauter (Faktor, nur ein Fenster von 20 ms), sonst gehen t/p/k im Chor unter (Wunsch @dd)
 PLOSIV_EN = {'p': 2.5, 't': 2.5, 'k': 2.5, 'p_h': 2.5, 't_h': 2.5, 'k_h': 2.5, 'b': 1.8, 'd': 1.8, 'g': 1.8,
              'tS': 1.8, 'dZ': 1.6}
+HAUCH_EN = 0.3   # Lautstärke des Hauchs nach dem Knall von p/t/k („sTHHay“)
 # ganze englische Spur so viel früher (s); 0,05 klang zu früh (@dd 30.10.), darum aus
 VORZIEHEN_EN = 0.0
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
@@ -506,19 +507,40 @@ def lautstaerke_vibrato(x, sr, zeilen):
             tt = np.arange(i1 - i0) / sr
             tiefe = np.clip((tt - VIB_EIN) / VIB_RAMPE, 0, 1) * np.clip((d - tt) / 0.08, 0, 1)
             g[i0:i1] = 1 + VIB_AM * tiefe * np.sin(2 * np.pi * VIB_HZ * (pos + tt))
-        elif SPRACHE == 'en' and t[0] in PLOSIV_EN:
-            # Nur den Knall lauter, nicht die Behauchung danach („sTHHay“, „apHHart“): stärkste
-            # Änderung im Laut (plus Übergang) suchen, dort ein kurzes Fenster anheben
+        pos += d
+    if SPRACHE == 'en':
+        g *= plosive_formen(x, sr, zeilen)
+    return x * g
+
+
+def plosive_formen(x, sr, zeilen):
+    """Englisch: Knall der Plosive lauter, Hauch danach leiser („sTHHay“, „apHHart“). Der Hauch liegt
+    schon im Übergang zum Vokal (Diphon t-EI), darum eigener Durchgang über die ganze Spur."""
+    f = np.ones(len(x))
+    pos = 0.0
+    for z in zeilen:
+        t = z.split()
+        d = float(t[1]) / 1000
+        if t[0] in PLOSIV_EN:
+            # stärkste Änderung im Laut (plus Übergang) = Knall, dort ein Fenster von 20 ms anheben
             i0, i1 = int(pos * sr), min(len(x), int((pos + d + 0.02) * sr))
             if i1 - i0 > 8:
                 hp = np.abs(np.diff(x[i0:i1]))
                 k = max(1, int(0.001 * sr))
                 knall = i0 + int(np.argmax(np.convolve(hp, np.ones(k) / k, mode='same')))
                 a, b = max(0, knall - int(0.006 * sr)), min(len(x), knall + int(0.014 * sr))
-                fenster = 1 + (PLOSIV_EN[t[0]] - 1) * np.hanning(b - a)
-                g[a:b] = np.maximum(g[a:b], fenster)
+                f[a:b] = np.maximum(f[a:b], 1 + (PLOSIV_EN[t[0]] - 1) * np.hanning(b - a))
+                # danach 35 ms Hauch leiser, weich zurück auf voll
+                if t[0] in ('p', 't', 'k', 'p_h', 't_h', 'k_h'):
+                    e = min(len(x), b + int(0.035 * sr))
+                    n, rampe = e - b, int(0.004 * sr)
+                    if n > 4 * rampe:
+                        daempf = np.full(n, HAUCH_EN)
+                        daempf[:rampe] = np.linspace(1, HAUCH_EN, rampe)
+                        daempf[n - 3 * rampe:] = np.linspace(HAUCH_EN, 1, 3 * rampe)
+                        f[b:e] = np.minimum(f[b:e], daempf)
         pos += d
-    return x * g
+    return f
 
 
 def hall(y, sr):
