@@ -1742,6 +1742,7 @@ function buildSoundChips() {
 function toggleMetronome(btn) {
     const isOn = btn.classList.toggle('active');
     api.metronomeVolume = isOn ? metronomLaut : 0;
+    if (!isOn) pendel.ruhe();   // aus = Pendel steht; an = es schwingt mit der nächsten Positionsmeldung
     saveSettings();
 }
 
@@ -1836,9 +1837,11 @@ function metroKlick() {
    Ruhelage. Der Schlag kommt aus der Position (Tick, zwischen den Meldungen mit dem Tempo
    hochgerechnet), beim Einzählen und beim Vorhören aus den Klicks. Gezählt wird durch das
    ganze Stück (Tick / Schlaglänge), damit das Pendel über Taktgrenzen hinweg weiter wechselt.
-   Mit „Bewegung reduzieren“ im System bleibt es stehen. */
+   Mit „Bewegung reduzieren“ im System bleibt es stehen, ebenso bei ausgeschaltetem Metronom
+   (auch beim Einzählen). */
 const pendel = (() => {
     const arm = document.getElementById('metroArm');
+    const knopf = document.getElementById('metronomeBtn');
     const AUSSCHLAG = 28;               // Grad nach jeder Seite
     const still = matchMedia('(prefers-reduced-motion: reduce)');
     let anker = null;                   // { schlag, zeit, proMs }: Schlag (mit Bruchteil) zur Zeit
@@ -1853,8 +1856,18 @@ const pendel = (() => {
         bild = requestAnimationFrame(malen);
     }
 
+    function ruhe() {
+        anker = null;
+        cancelAnimationFrame(bild);
+        bild = 0;
+        if (!arm) return;
+        arm.classList.add('ruhe');
+        arm.style.transform = '';
+    }
+
     function setzen(schlag, proMs) {
         if (!arm || still.matches) return;
+        if (!knopf.classList.contains('active')) { if (anker) ruhe(); return; }
         anker = { schlag, zeit: performance.now(), proMs };
         arm.classList.remove('ruhe');
         if (!bild) bild = requestAnimationFrame(malen);
@@ -1893,14 +1906,7 @@ const pendel = (() => {
             const s = anker ? Math.round(anker.schlag) + 1 : 0;
             setzen(s, 1 / viertelMs());
         },
-        ruhe() {
-            anker = null;
-            cancelAnimationFrame(bild);
-            bild = 0;
-            if (!arm) return;
-            arm.classList.add('ruhe');
-            arm.style.transform = '';
-        }
+        ruhe
     };
 })();
 
@@ -3280,7 +3286,7 @@ const HILFE = [
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
-        'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Wischen wie beim Tempo: nach rechts oder oben lauter, nach links oder unten leiser, von 50 bis 100 %. Dabei steht die Zahl in einer Blase und es ist zu hören, steht das Lied, klickt es zur Probe.'],
+        'Metronom: tickt im Takt mit, das Pendel im Knopf schwingt dazu (ausgeschaltet steht es). Antippen schaltet es ein und aus. Wischen wie beim Tempo: nach rechts oder oben lauter, nach links oder unten leiser, von 50 bis 100 %. Dabei steht die Zahl in einer Blase und es ist zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
         'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt dieser Bereich, und der Loop-Knopf neben Play gilt für ihn. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
