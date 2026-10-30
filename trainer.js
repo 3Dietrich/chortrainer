@@ -24,7 +24,8 @@ const MIN_DB = -40;
 const MAX_DB = 0;
 
 let isLooping = false;  // Loop-Modus aktiv?
-let metronomLaut = 1.5;    // Lautstärke des Metronoms (Mix-Faktor, 0.25 – 3), wenn es an ist
+let metroProzent = 75;     // Lautstärke des Metronoms in % (50 – 100, 100 % = Mix-Faktor METRO_MAX)
+let metronomLaut = 2.25;   // daraus der Mix-Faktor für alphaTab, wenn es an ist
 let isCountIn = true;   // vor jedem Start einzählen? (Standard: an, 2 × ¼)
 let countInArt = '2v';    // 'takt' = ein ganzer Takt, '2v' = zwei Viertel
 let baseTempo = 110;    // Originaltempo aus dem Score
@@ -90,7 +91,7 @@ function saveSettings() {
         zoomScale: currentScale,
         soloView: isSoloView,
         metronome: document.getElementById('metronomeBtn').classList.contains('active'),
-        metronomLaut: metronomLaut,
+        metroProzent: metroProzent,
         voices: voices
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -149,7 +150,8 @@ function loadSavedSettings() {
         if (metronomeBtn) {
             metronomeBtn.classList.toggle('active', !!s.metronome);
         }
-        if (s.metronomLaut > 0) metronomLaut = s.metronomLaut;
+        // alter Mix-Faktor (metronomLaut) wird nicht übernommen: ohne metroProzent gilt 75 %
+        if (s.metroProzent > 0) metroProzentSetzen(s.metroProzent, false);
 
     } catch (e) { console.error("Load settings failed", e); }
 }
@@ -1743,10 +1745,21 @@ function toggleMetronome(btn) {
     saveSettings();
 }
 
-const METRO_MIN = 0.25, METRO_MAX = 3;   // Lautstärke-Grenzen (Faktor; 3 kurz vor Übersteuern), Schritt × 1,25 ≈ 2 dB
+// Lautstärke in Prozent, 5-%-Schritte von 50 bis 100 %. 100 % = Faktor 3 (kurz vor Übersteuern),
+// 50 % = Faktor 1,5 (früher der Standard)
+const METRO_MAX = 3, METRO_PROZENT_MIN = 50, METRO_PROZENT_MAX = 100, METRO_SCHRITT = 5;
+
+function metroProzentSetzen(p, speichern = true) {
+    p = Math.max(METRO_PROZENT_MIN, Math.min(METRO_PROZENT_MAX, Math.round(p / METRO_SCHRITT) * METRO_SCHRITT));
+    metroProzent = p;
+    metronomLaut = METRO_MAX * p / 100;
+    if (document.getElementById('metronomeBtn').classList.contains('active')) api.metronomeVolume = metronomLaut;
+    metroWertZeigen();
+    if (speichern) saveSettings();
+}
 
 function metroWertZeigen() {
-    document.getElementById('metroWert').innerText = 'Metronom ' + Math.round(metronomLaut * 100) + ' %';
+    document.getElementById('metroWert').innerText = 'Metronom ' + metroProzent + ' %';
 }
 
 // Ein Klick zum Vorhören (Lied steht): Taktart plus ein Ereignis eine Achtel später,
@@ -1761,28 +1774,30 @@ function metroKlick() {
     } catch (e) { console.warn('Metronom-Vorhören', e); }
 }
 
-/* Metronom-Knopf: kurz tippen = an/aus. Halten (0,35 s), bis die Blase erscheint, dann
-   hoch/runter ziehen = lauter/leiser (12 px je Schritt). Dabei ist es an und zu hören:
-   läuft das Lied, mit dem Lied, sonst klickt es im Tempo zur Probe. */
+/* Metronom-Knopf: kurz tippen = an/aus. Wischen wie beim Tempo (rechts/oben lauter,
+   links/unten leiser, 18 px je 5-%-Schritt, 50 – 100 %), der Wert steht dabei in der Blase.
+   Beim Wischen ist es an und zu hören: läuft das Lied, mit dem Lied, sonst klickt es im
+   Tempo zur Probe. Am Rechner Pfeiltasten. */
 (() => {
     const knopf = document.getElementById('metronomeBtn');
     let g = null;
     const ende = () => {
         if (!g) return;
-        clearTimeout(g.zeit);
         clearInterval(g.takt);
         if (g.takt && api.playerState !== 1) pendel.ruhe();
         knopf.classList.remove('dragging');
         g = null;
     };
     knopf.addEventListener('pointerdown', e => {
-        g = { x: e.clientX, y: e.clientY, halten: false, laut: metronomLaut };
+        g = { x: e.clientX, y: e.clientY, p: metroProzent, zieht: false };
         knopf.setPointerCapture(e.pointerId);
-        g.zeit = setTimeout(() => {
-            if (!g) return;
-            g.halten = true;
-            g.laut = metronomLaut;
-            g.y = g.yJetzt !== undefined ? g.yJetzt : g.y;
+    });
+    knopf.addEventListener('pointermove', e => {
+        if (!g) return;
+        if (!g.zieht) {
+            if (Math.hypot(e.clientX - g.x, e.clientY - g.y) < 6) return;
+            // Wischen beginnt: an, Blase zeigen, steht das Lied, im Tempo zur Probe klicken
+            g.zieht = true;
             knopf.classList.add('dragging', 'active');
             audioBereit();
             api.metronomeVolume = metronomLaut;
@@ -1792,31 +1807,24 @@ function metroKlick() {
                 probe();
                 g.takt = setInterval(probe, viertelMs());
             }
-        }, 350);
-    });
-    knopf.addEventListener('pointermove', e => {
-        if (!g) return;
-        g.yJetzt = e.clientY;
-        if (!g.halten) {
-            // Vor dem Halten bewegt: kein Tipp und kein Regeln
-            if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > 10) { clearTimeout(g.zeit); g.bewegt = true; }
-            return;
         }
-        const n = Math.round((g.y - e.clientY) / 12);
-        const neu = Math.max(METRO_MIN, Math.min(METRO_MAX, Math.round(g.laut * Math.pow(1.25, n) * 100) / 100));
-        if (neu === metronomLaut) return;
-        metronomLaut = neu;
-        api.metronomeVolume = metronomLaut;
-        metroWertZeigen();
-        saveSettings();
+        const d = (e.clientX - g.x) - (e.clientY - g.y);
+        const ziel = g.p + Math.round(d / 18) * METRO_SCHRITT;
+        if (ziel !== metroProzent) metroProzentSetzen(ziel);
     });
     knopf.addEventListener('pointerup', () => {
-        if (g && !g.halten && !g.bewegt) toggleMetronome(knopf);
+        if (g && !g.zieht) toggleMetronome(knopf);
         ende();
     });
     knopf.addEventListener('pointercancel', ende);
-    // Tastatur (Enter/Leertaste): an/aus
+    // Tastatur: Enter/Leertaste an/aus, Pfeiltasten lauter/leiser
     knopf.addEventListener('click', e => { if (e.detail === 0) toggleMetronome(knopf); });
+    knopf.addEventListener('keydown', e => {
+        const n = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+        if (!n) return;
+        metroProzentSetzen(metroProzent + n * METRO_SCHRITT);
+        e.preventDefault();
+    });
 })();
 
 /* Pendel im Metronom-Knopf: schwingt beim Abspielen im Schlag, auf jedem Schlag ganz
@@ -3264,7 +3272,7 @@ const HILFE = [
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
-        'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Gedrückt halten, bis die Zahl erscheint, dann hoch- oder runterziehen: lauter oder leiser. Dabei ist es zu hören, steht das Lied, klickt es zur Probe.'],
+        'Metronom: tickt im Takt mit. Antippen schaltet es ein und aus. Wischen wie beim Tempo: nach rechts oder oben lauter, nach links oder unten leiser, von 50 bis 100 %. Dabei steht die Zahl in einer Blase und es ist zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
         'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt dieser Bereich, und der Loop-Knopf neben Play gilt für ihn. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
