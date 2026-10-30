@@ -73,7 +73,7 @@ VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI',
 DIPHTHONG_EN = {}
 # Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
 KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 90, 'b': 90, 'd': 80, 'l': 90,
-           'n': 80, 'm': 90, 'h': 90, 'k': 90, 't': 90, 'p': 90}
+           'n': 80, 'm': 90, 'h': 90, 'k': 90, 't': 90, 'p': 90, 'p_h': 110, 't_h': 110, 'k_h': 110}
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
 
 
@@ -288,6 +288,12 @@ def _espeak(text, sprache):
             laute += ENGLISCH.get(tok, tok).split()
         else:
             laute.append(ESPEAK.get(tok, tok))
+    if sprache == 'en':
+        # p/t/k vor Vokal behaucht wie im Englischen (nicht nach s: sp, st, sk), sonst fehlen die Plosive
+        for i, l in enumerate(laute):
+            if l in ('p', 't', 'k') and i + 1 < len(laute) and laute[i + 1] in VOKALE_EN \
+                    and not (i and laute[i - 1] == 's'):
+                laute[i] = l + '_h'
     return tuple(laute)
 
 
@@ -335,6 +341,13 @@ def silben_laute(silben):
                 s['laute'] = AUSSPRACHE[s['text']].split()
             if re.fullmatch(r'(?i)m+h*|hm+', s['text']):
                 s['laute'] = ['m']   # Summen
+            # Englisch: auf langen Tönen kein Schwa halten („won-der-lllll“): Vokal der Silbe für sich
+            if SPRACHE == 'en' and s['ende'] - s['start'] >= 0.4:
+                k = kerne(s['laute'])
+                if len(k) == 1 and s['laute'][k[0]] == '@':
+                    voll = [l for l in espeak(s['text']) if l in VOKALE_EN and l != '@']
+                    if voll:
+                        s['laute'] = s['laute'][:k[0]] + [voll[0]] + s['laute'][k[0] + 1:]
         i = j + 1
 
 
@@ -400,10 +413,11 @@ def pho_bauen(silben, vorlauf):
         verf = naechst - beat
         pause = min(pause, max(0.0, verf - VOKAL_MIN))
         # Englisch: stimmhafter Verschlusslaut am Phrasenende (land., sand.) klingt in MBROLA-us
-        # wie eine eigene Silbe („lan-də“), darum vor einer Pause weglassen
+        # wie eine eigene Silbe („lan-də“), darum vor einer Pause stimmlos und kurz (lan-t)
         if SPRACHE == 'en' and pause >= 250 and teile[i][2] and teile[i][2][-1] in ('b', 'd', 'g'):
-            teile[i] = teile[i][0], teile[i][1], teile[i][2][:-1]
-            ab_ms[i] = ab_ms[i][:-1]
+            teile[i] = teile[i][0], teile[i][1], teile[i][2][:-1] + [{'b': 'p', 'd': 't', 'g': 'k'}[teile[i][2][-1]]]
+            ab_ms[i] = ab_ms[i][:-1] + [50]
+            ab = teile[i][2]
         nach = an_ms[i + 1] if i + 1 < len(silben) else []
         kons = sum(ab_ms[i]) + sum(nach)
         platz = verf - pause - VOKAL_MIN
