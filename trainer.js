@@ -1794,6 +1794,9 @@ function metroKlick() {
     });
     knopf.addEventListener('pointermove', e => {
         if (!g) return;
+        // Maustaste schon los, aber kein pointerup angekommen (Chrome am Mac): Ziehen beenden,
+        // sonst läuft die Lautstärke mit der Maus weiter
+        if (e.pointerType === 'mouse' && e.buttons === 0) { ende(); return; }
         if (!g.zieht) {
             if (Math.hypot(e.clientX - g.x, e.clientY - g.y) < 6) return;
             // Wischen beginnt: an, Blase zeigen, steht das Lied, im Tempo zur Probe klicken
@@ -1817,6 +1820,7 @@ function metroKlick() {
         ende();
     });
     knopf.addEventListener('pointercancel', ende);
+    knopf.addEventListener('lostpointercapture', ende);
     // Tastatur: Enter/Leertaste an/aus, Pfeiltasten lauter/leiser
     knopf.addEventListener('click', e => { if (e.detail === 0) toggleMetronome(knopf); });
     knopf.addEventListener('keydown', e => {
@@ -1951,6 +1955,7 @@ function makeSwipe(box, getValue, apply, px = 18) {
     });
     box.addEventListener('pointermove', e => {
         if (!start) return;
+        if (e.pointerType === 'mouse' && e.buttons === 0) { ende(); return; }   // Taste los ohne pointerup
         // Im Blatt entscheidet die erste Bewegung: senkrecht = scrollen, der Regler bleibt
         if (nurWaagerecht && !start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8
             && Math.abs(e.clientY - start.y) > Math.abs(e.clientX - start.x)) {
@@ -1966,6 +1971,7 @@ function makeSwipe(box, getValue, apply, px = 18) {
         ende();
     });
     box.addEventListener('pointercancel', ende);
+    box.addEventListener('lostpointercapture', ende);
     box.addEventListener('keydown', e => {
         if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { apply(getValue(), 1); e.preventDefault(); }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { apply(getValue(), -1); e.preventDefault(); }
@@ -2041,6 +2047,7 @@ function tempoEingeben() {
     });
     knopf.addEventListener('pointermove', e => {
         if (!g) return;
+        if (e.pointerType === 'mouse' && e.buttons === 0) { ende(); return; }   // Taste los ohne pointerup
         const d = (e.clientX - g.x) - (e.clientY - g.y);
         if (!g.zieht && Math.hypot(e.clientX - g.x, e.clientY - g.y) < 6) return;
         g.zieht = true;
@@ -2057,6 +2064,7 @@ function tempoEingeben() {
         ende();
     });
     knopf.addEventListener('pointercancel', ende);
+    knopf.addEventListener('lostpointercapture', ende);
     knopf.addEventListener('keydown', e => {
         const n = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
         if (!n) return;
