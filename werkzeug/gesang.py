@@ -73,9 +73,9 @@ VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI',
 DIPHTHONG_EN = {}
 # Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
 KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b': 80, 'd': 70, 'l': 90,
-           'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 80, 't_h': 80, 'k_h': 80}
-# Plosive lauter (Faktor auf die Lautstärke des Lauts), sonst gehen t/p/k im Chor unter (Wunsch @dd)
-PLOSIV_EN = {'p': 2.2, 't': 2.2, 'k': 2.2, 'p_h': 2.2, 't_h': 2.2, 'k_h': 2.2, 'b': 1.6, 'd': 1.6, 'g': 1.6,
+           'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 65, 't_h': 65, 'k_h': 65}
+# Knall der Plosive lauter (Faktor, nur ein Fenster von 20 ms), sonst gehen t/p/k im Chor unter (Wunsch @dd)
+PLOSIV_EN = {'p': 2.5, 't': 2.5, 'k': 2.5, 'p_h': 2.5, 't_h': 2.5, 'k_h': 2.5, 'b': 1.8, 'd': 1.8, 'g': 1.8,
              'tS': 1.8, 'dZ': 1.6}
 # ganze englische Spur so viel früher (s); 0,05 klang zu früh (@dd 30.10.), darum aus
 VORZIEHEN_EN = 0.0
@@ -507,9 +507,16 @@ def lautstaerke_vibrato(x, sr, zeilen):
             tiefe = np.clip((tt - VIB_EIN) / VIB_RAMPE, 0, 1) * np.clip((d - tt) / 0.08, 0, 1)
             g[i0:i1] = 1 + VIB_AM * tiefe * np.sin(2 * np.pi * VIB_HZ * (pos + tt))
         elif SPRACHE == 'en' and t[0] in PLOSIV_EN:
-            # Plosiv lauter, mit dem Übergang in den folgenden Laut (dort liegt der Knall)
-            i0, i1 = int(pos * sr), min(len(x), int((pos + d + 0.03) * sr))
-            g[i0:i1] = np.maximum(g[i0:i1], PLOSIV_EN[t[0]])
+            # Nur den Knall lauter, nicht die Behauchung danach („sTHHay“, „apHHart“): stärkste
+            # Änderung im Laut (plus Übergang) suchen, dort ein kurzes Fenster anheben
+            i0, i1 = int(pos * sr), min(len(x), int((pos + d + 0.02) * sr))
+            if i1 - i0 > 8:
+                hp = np.abs(np.diff(x[i0:i1]))
+                k = max(1, int(0.001 * sr))
+                knall = i0 + int(np.argmax(np.convolve(hp, np.ones(k) / k, mode='same')))
+                a, b = max(0, knall - int(0.006 * sr)), min(len(x), knall + int(0.014 * sr))
+                fenster = 1 + (PLOSIV_EN[t[0]] - 1) * np.hanning(b - a)
+                g[a:b] = np.maximum(g[a:b], fenster)
         pos += d
     return x * g
 
