@@ -69,9 +69,11 @@ ENGLISCH = {'a#': '@', '@2': '@', '@5': '@', '@/': '@', '3': 'r=', 'I2': 'I', 'a
             'i@': 'I @', 'i@3': 'i r', 'I#': '@', 't2': 't', '?': 't', 'n-': 'n', 'e': 'E', 'o': '@U',
             'oI': 'OI', 'OI': 'OI'}
 VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI', 'OI', '@U', 'aU'}
-# lange Töne auf dem ersten Teil halten, der zweite gleitet am Ende
-DIPHTHONG_EN = {'EI': ('E', 'I'), 'AI': ('A', 'I'), 'OI': ('O', 'I'), '@U': ('O', 'U'), 'aU': ('A', 'U')}
-KONS_EN = {'T': 90, 'D': 60, 'r': 60, 'w': 60, 'dZ': 100, '4': 40}
+# Diphthonge sind in us1/us3 eigene Laute und bleiben ganz (geteilt wurde aus „Go“ ein „Long“, Whisper-Test)
+DIPHTHONG_EN = {}
+# Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
+KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 90, 'b': 90, 'd': 80, 'l': 90,
+           'n': 80, 'm': 90, 'h': 90, 'k': 90, 't': 90, 'p': 90}
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
 
 
