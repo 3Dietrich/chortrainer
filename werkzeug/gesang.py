@@ -72,8 +72,14 @@ VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI',
 # Diphthonge sind in us1/us3 eigene Laute und bleiben ganz (geteilt wurde aus „Go“ ein „Long“, Whisper-Test)
 DIPHTHONG_EN = {}
 # Konsonanten länger als im Deutschen, sonst verschluckt MBROLA-us die Anlaute (g, b, d nach Pausen)
-KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 90, 'b': 90, 'd': 80, 'l': 90,
-           'n': 80, 'm': 90, 'h': 90, 'k': 90, 't': 90, 'p': 90, 'p_h': 110, 't_h': 110, 'k_h': 110}
+KONS_EN = {'T': 90, 'D': 80, 'r': 80, 'w': 80, 'dZ': 100, '4': 40, 'g': 80, 'b': 80, 'd': 70, 'l': 90,
+           'n': 80, 'm': 90, 'h': 90, 'k': 70, 't': 70, 'p': 70, 'p_h': 80, 't_h': 80, 'k_h': 80}
+# Plosive lauter (Faktor auf die Lautstärke des Lauts), sonst gehen t/p/k im Chor unter (Wunsch @dd)
+PLOSIV_EN = {'p': 2.2, 't': 2.2, 'k': 2.2, 'p_h': 2.2, 't_h': 2.2, 'k_h': 2.2, 'b': 1.6, 'd': 1.6, 'g': 1.6,
+             'tS': 1.8, 'dZ': 1.6}
+# Englisch klang mit Konsonant vor dem Schlag und Vokal auf dem Schlag noch zu spät (@dd 30.10.:
+# „when we're Together, close To“): die ganze Spur so viel früher
+VORZIEHEN_EN = 0.05
 SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
 
 
@@ -501,6 +507,10 @@ def lautstaerke_vibrato(x, sr, zeilen):
             tt = np.arange(i1 - i0) / sr
             tiefe = np.clip((tt - VIB_EIN) / VIB_RAMPE, 0, 1) * np.clip((d - tt) / 0.08, 0, 1)
             g[i0:i1] = 1 + VIB_AM * tiefe * np.sin(2 * np.pi * VIB_HZ * (pos + tt))
+        elif SPRACHE == 'en' and t[0] in PLOSIV_EN:
+            # Plosiv lauter, mit dem Übergang in den folgenden Laut (dort liegt der Knall)
+            i0, i1 = int(pos * sr), min(len(x), int((pos + d + 0.03) * sr))
+            g[i0:i1] = np.maximum(g[i0:i1], PLOSIV_EN[t[0]])
         pos += d
     return x * g
 
@@ -675,10 +685,11 @@ def rendern(lied, ziel, anhoeren=None, erzwingen=False):
             klingt = np.abs(y) > 0.02 * np.max(np.abs(y))
             rms = np.sqrt(np.mean(y[klingt] ** 2)) if np.any(klingt) else 1.0
             y *= min(LAUTHEIT / max(rms, 1e-9), 0.5 / max(1e-9, np.max(np.abs(y))))
-            vorn = np.zeros(max(0, int((sl[0]['start'] - vorlauf) * SR)))
+            vz = VORZIEHEN_EN if SPRACHE == 'en' else 0.0
+            vorn = np.zeros(max(0, int((sl[0]['start'] - vorlauf - vz) * SR)))
             # Setzt die Stimme früher ein als der Vorlauf lang ist (Takt 1, Schlag 1), liegt sonst die
             # ganze Spur um den Rest des Vorlaufs zu spät: vorn so viel abschneiden
-            y = y[max(0, int((vorlauf - sl[0]['start']) * SR)):]
+            y = y[max(0, int((vorlauf + vz - sl[0]['start']) * SR)):]
             voll = np.concatenate([vorn, y])
             wav = os.path.join(tmp, f'{name}_{tempo}.wav')
             sf.write(wav, voll, SR)
