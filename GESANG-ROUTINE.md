@@ -27,7 +27,7 @@ Nur rendern, nichts hochladen: `./ausliefern.py gesang` (oder `./ausliefern.py g
 |---|---|
 | Lied mit deutschem Text | Gesang, alle Stimmen |
 | Stimme ohne Text (z.B. Bass) | singt auf „du“, Hinweis unter „Klang“ |
-| Englischer Text | kein Gesang, es klingt „Duu“, Hinweis unter „Klang“ |
+| Englischer Text | Gesang mit den englischen Stimmen us1 (Frauen) und us3 (Männer) |
 | Lied ganz ohne Text | kein Gesang, es klingt „Duu“ |
 | Noten geändert, Gesang nicht neu gerendert | Trainer merkt es (stand.txt) und spielt „Duu“, Hinweis |
 

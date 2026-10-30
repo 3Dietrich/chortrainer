@@ -25,7 +25,7 @@
 - Klang „Gesang“: `werkzeug/gesang.py` rendert je Lied MBROLA-Spuren (3 Tempo-Stufen) nach `gesang/<Lied>/`
   bzw. `gesang/tv/<Lied>/` (gitignoriert). `./ausliefern.py gesang` rendert, was veraltet ist; `pankd`/`tv`
   rendern vor dem Ausliefern selbst und laden die Spuren mit hoch. MBROLA und Stimmen: `werkzeug/mbrola/`
-  (gitignoriert, Einrichtung im Kopf von gesang.py). Englischer Text wird (noch) nicht gesungen.  
+  (gitignoriert, Einrichtung im Kopf von gesang.py). Englischer Text: Stimmen us1/us3 (espeak-ng en-us).  
 - Prüfbilder nach `.shots/` (gitignoriert). Test lokal headless (Playwright), Ports 8780-8799 vorher prüfen.  
 - Repo ist öffentlich (github.com/3Dietrich/chortrainer): keine Vereinslieder, keine Zugangsdaten,
   nichts aus dem Vereins-Repo außer dem Motor.

@@ -14,11 +14,12 @@ Ist der Stand aktuell, passiert nichts (--erzwingen rendert trotzdem).
 Jede Spur beginnt bei Liedanfang (Takt 1, Schlag 1), Wiederholungen sind ausgeklappt wie
 bei alphaTab, Tempoangaben gelten ab ihrer Stelle im Takt. Aussprache: espeak-ng (deutsch)
 je Wort, auf die Silben der Partitur verteilt; Korrekturen in AUSSPRACHE. Englischer Text
-(per Wortliste erkannt) wird nicht gesungen, bis es eine englische Stimme gibt.
+(per Wortliste erkannt) singen die Stimmen us1 (Frauen) und us3 (Männer), Aussprache espeak-ng en-us,
+Laute nach der Tabelle von espeak-ng (phsource/mbrola/us) auf MBROLA-us umgesetzt (ENGLISCH).
 
 MBROLA (AGPL) und die Stimmen de5/de6 liegen in werkzeug/mbrola/ (gitignoriert):
   git clone https://github.com/numediart/MBROLA werkzeug/mbrola/MBROLA && make -C werkzeug/mbrola/MBROLA
-  Stimmen: https://github.com/numediart/MBROLA-voices/tree/master/data/de5 (und de6) nach werkzeug/mbrola/voices/
+  Stimmen: https://github.com/numediart/MBROLA-voices/tree/master/data/de5 (und de6, us1, us3) nach werkzeug/mbrola/voices/
 """
 import argparse, functools, math, os, re, subprocess, sys, xml.etree.ElementTree as ET
 import numpy as np, soundfile as sf
@@ -43,6 +44,7 @@ DIPHTHONG = {'aI': ('a', 'I'), 'aU': ('a', 'U'), 'OY': ('O', 'Y')}
 KONS_MS = {'VOR': 80, 'p': 70, 't': 70, 'k': 70, 'b': 60, 'd': 60, 'g': 60, '?': 40, 'h': 70, 'R': 55,
            'f': 90, 'v': 70, 's': 100, 'z': 80, 'S': 100, 'Z': 90, 'C': 100, 'x': 100, 'j': 60,
            'ts': 100, 'tS': 110, 'pf': 90, 'm': 75, 'n': 70, 'N': 70, 'l': 70}
+VOKALE_DE, DIPHTHONG_DE, KONS_MS_DE = VOKALE, DIPHTHONG, KONS_MS
 ATEM_MS = 180      # Pause bei Komma/Punkt
 VOKALISE = 'du'    # Silbe für Stimmen ohne Text
 LAUTHEIT = 0.063   # Ziel-RMS je Stimme (-24 dBFS)
@@ -56,6 +58,29 @@ AUSSPRACHE = {}
 ESPEAK = {'_!': '?', '_|': '?', 'r': 'R', '3': '6', 'W': '9', 'Y:': '2:', 'A:': 'a:', 'A': 'a',
           'pF': 'pf', 'y': 'Y', 'i': 'i:', 'e': 'e:', 'o': 'o:', 'u': 'u:', 'a#': 'a', '@2': '@',
           'E2': 'E', 'aI@': 'aI', 'I2': 'I', 'aa': 'a:'}
+
+# Englisch: espeak-ng en-us (Mnemonik) -> SAMPA der MBROLA-Stimmen us1/us3
+# (nach espeak-ng phsource/mbrola/us; p/t/k ohne Behauchung, sonst unverändert)
+ENGLISCH = {'a#': '@', '@2': '@', '@5': '@', '@/': '@', '3': 'r=', 'I2': 'I', 'a': '{', 'aa': '{',
+            '@L': '@ l', 'l/2': 'l', 'r/': 'r', 'r-': 'r', 'w/': 'w', ';': '', 'g-': '', 'x': 'k', '@-': '',
+            'aI@': 'AI @', 'aI3': 'AI r=', 'aU@': 'aU r', '*': '4', 't#': '4', '3:': 'r=', 'IR': 'r=',
+            'VR': 'r=', 'i:': 'i', 'A:': 'A', 'u:': 'u', 'eI': 'EI', 'aI': 'AI', 'oU': '@U', 'O:': 'O',
+            '0': 'A', 'O2': 'O', 'O@': 'O r', 'o@': 'O r', 'A@': 'A r', 'e@': 'E r', 'U@': 'U r',
+            'i@': 'I @', 'i@3': 'i r', 'I#': '@', 't2': 't', '?': 't', 'n-': 'n', 'e': 'E', 'o': '@U',
+            'oI': 'OI', 'OI': 'OI'}
+VOKALE_EN = {'i', 'I', 'E', '{', 'A', 'O', 'U', 'u', 'V', '@', 'r=', 'EI', 'AI', 'OI', '@U', 'aU'}
+# lange Töne auf dem ersten Teil halten, der zweite gleitet am Ende
+DIPHTHONG_EN = {'EI': ('E', 'I'), 'AI': ('A', 'I'), 'OI': ('O', 'I'), '@U': ('O', 'U'), 'aU': ('A', 'U')}
+KONS_EN = {'T': 90, 'D': 60, 'r': 60, 'w': 60, 'dZ': 100, '4': 40}
+SPRACHE = 'de'   # 'en' setzt rendern() für Lieder mit englischem Text
+
+
+def sprache_setzen(sprache):
+    """Laut-Tabellen der Sprache wählen (Deutsch ist der Grundzustand des Moduls)."""
+    global SPRACHE, VOKALE, DIPHTHONG, KONS_MS
+    SPRACHE = sprache
+    VOKALE, DIPHTHONG, KONS_MS = ((VOKALE_EN, DIPHTHONG_EN, {**KONS_MS_DE, **KONS_EN}) if sprache == 'en'
+                                  else (VOKALE_DE, DIPHTHONG_DE, KONS_MS_DE))
 
 
 # ---------------------------------------------------------------- Partitur lesen
@@ -91,6 +116,13 @@ def ablauf(part):
         if vor.get(i) and i != anfang:
             anfang, durchgang = i, 1
         if i in volta and durchgang not in volta[i]:
+            # alphaTab wertet das Wiederholungszeichen auch in einem übersprungenen Klammer-Takt aus
+            # (Fire in your heart: Rücksprung nach Takt 25, der in Durchgang 1 und 3 nicht klingt)
+            if i in zurueck and spruenge.get(i, 0) < zurueck[i] - 1:
+                spruenge[i] = spruenge.get(i, 0) + 1
+                durchgang += 1
+                i = anfang
+                continue
             i += 1
             continue
         folge.append((i, durchgang))
@@ -237,17 +269,24 @@ def silben_lesen(root, part, stimme, achse, vokalise=None):
 
 # ---------------------------------------------------------------- Aussprache
 
-@functools.lru_cache(maxsize=None)
 def espeak(text):
-    out = subprocess.run(['espeak-ng', '-v', 'de', '-q', '-x', '--sep= ', text],
+    return list(_espeak(text, SPRACHE))
+
+
+@functools.lru_cache(maxsize=None)
+def _espeak(text, sprache):
+    out = subprocess.run(['espeak-ng', '-v', 'en-us' if sprache == 'en' else 'de', '-q', '-x', '--sep= ', text],
                          capture_output=True, text=True).stdout
     laute = []
     for tok in out.split():
         tok = tok.replace("'", '').replace(',', '')
         if not tok or tok == '_':
             continue
-        laute.append(ESPEAK.get(tok, tok))
-    return laute
+        if sprache == 'en':
+            laute += ENGLISCH.get(tok, tok).split()
+        else:
+            laute.append(ESPEAK.get(tok, tok))
+    return tuple(laute)
 
 
 def kerne(laute):
@@ -465,7 +504,10 @@ def mp3(wav, ziel):
 
 def stimme_fuer(name):
     n = name.lower()
-    return 'de6' if ('tenor' in n or 'bass' in n or 'bariton' in n or 'männer' in n) else 'de5'
+    mann = 'tenor' in n or 'bass' in n or 'bariton' in n or 'männer' in n
+    if SPRACHE == 'en':
+        return 'us3' if mann else 'us1'
+    return 'de6' if mann else 'de5'
 
 
 def englisch(root):
@@ -499,7 +541,8 @@ def aktuell(lied, ziel):
                 return False
         with open(os.path.join(ziel, 'stimmen.json')) as fh:
             info = json.load(fh)
-        return info.get('version') == VERSION and info.get('tempi') == TEMPI
+        # 'englisch' = von einer Fassung ohne englischen Gesang übersprungen: jetzt nachholen
+        return info.get('version') == VERSION and info.get('tempi') == TEMPI and info.get('hinweis') != 'englisch'
     except (OSError, ValueError):
         return False
 
@@ -520,10 +563,9 @@ def rendern(lied, ziel, anhoeren=None, erzwingen=False):
     info = {'stimmen': {}, 'tempi': TEMPI, 'version': VERSION}
     # Hat das Lied überhaupt Text? Sonst gar kein Gesang (der Synth spielt)
     mit_text = any(re.search(r'\w', l.findtext('text') or '') for l in root.iter('lyric'))
-    if mit_text and englisch(root):
-        print(f'  {name_lied}: englischer Text, noch kein Gesang')
-        mit_text = False
-        info['hinweis'] = 'englisch'
+    sprache_setzen('en' if mit_text and englisch(root) else 'de')
+    if SPRACHE == 'en':
+        info['sprache'] = 'en'
     vorlauf = 1.0
     chor = []
     for name, part, key in (spuren(root) if mit_text else []):
