@@ -9,8 +9,8 @@
 
 - **Übersicht: `./ausliefern.py stand`** zeigt beide Orte nebeneinander (Motor auf Stand?, Version lokal/live,
   Titel, Lieder, Fußzeile) und was zu tun ist. Bei jeder Frage „wo steht was" zuerst das laufen lassen.  
-- **Den Verein (tv) nur auf ausdrücklichen Wunsch von @dpa beliefern** (@dpa 2026-10-16: bei TotalVokal soll
-  alles bleiben, wie es ist). `stand` darf „Verein ausliefern" vorschlagen, ausführen nicht ungefragt.  
+- **„Liefer aus“ heißt immer alles: Verein (tv), pankd und GitHub-Push** (@dd 2026-10-30: „immer alles, VOR
+  ALLEM auf / für den Verein“). Ohne „liefer aus“ wird nichts ausgeliefert.  
 - Nie in `~/Documents/pankd.de/webseite/noten/` korrigieren: dort überschreibt die nächste Auslieferung alles.  
 - Ausliefern: `./ausliefern.py pankd` bzw. `./ausliefern.py tv [Lied.musicxml …]`, `-n` = nur zeigen.
   Vorher hier committen (tv verlangt das; der Commit steht in der Vereins-Commit-Message).  
