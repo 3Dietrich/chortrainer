@@ -3282,13 +3282,20 @@ const HILFE = [
     ['Üben', '#tempoBox', '<span class="k">‹ 100 % ›</span>',
         'Tempo: ‹ macht langsamer, › schneller. 100 % ist das Originaltempo, darunter steht es in Schlägen pro Minute (BPM). Zweimal schnell auf die Zahl tippen: Tempo in BPM direkt eintippen.'],
     ['Üben', '#bereichLoopBtn', '<span class="k">{svg:#bereichLoopBtn}</span>',
-        'Loop: ohne markierten Bereich für das ganze Lied, an (rot) fängt es am Ende wieder von vorn an (wie der Schalter Loop in den Einstellungen). Mit markiertem Bereich gilt der Knopf für den Bereich: an springt es am Ende des Bereichs wieder an seinen Anfang, aus spielt es dort einfach weiter. Die roten Wiederholungszeichen in den Noten schalten das ebenso. Auf dem Handy: lange auf einen Takt drücken, bis der gestrichelte Rahmen erscheint, dann zum letzten Takt ziehen. Wer doch keinen Bereich will, lässt im Anfangstakt los. Am Rand (rotes Wiederholungszeichen) waagrecht ziehen macht den Bereich länger oder kürzer; innen ziehen (auch auf Noten) verschiebt ihn im Ganzen, die Länge bleibt (ebenso die Pfeiltasten). Beides rastet pro Viertel ein. Läuft das Lied, spielt es dabei ungestört weiter; der neue Bereich gilt ab dem Loslassen (liegt die Stelle dann dahinter, geht es am nächsten Taktstrich zum Anfang). Außerhalb des Rahmens ziehen wählt einen neuen Bereich. Das Feld „Takt“ zeigt den Anfang des Bereichs. So kommt z.B. ein Auftakt mit hinein.'],
+        'Loop: an (rot) fängt das Lied am Ende wieder von vorn an, wie der Schalter Loop in den Einstellungen.\n' +
+        'Mit Bereich: an springt es am Ende des Bereichs zurück an seinen Anfang, aus spielt es weiter. Die roten Wiederholungszeichen in den Noten schalten ebenso.\n' +
+        'Bereich ändern: am roten Wiederholungszeichen ziehen macht ihn länger oder kürzer, innen ziehen oder die Pfeiltasten verschieben ihn, in Vierteln (so passt auch ein Auftakt hinein).\n' +
+        'Neuer Bereich: außerhalb des Rahmens ziehen.'],
     ['Lied hören', '#chorRegler', '<span class="k">{svg:#chorRegler}</span>',
         'Andere Stimmen: wie laut die übrigen Stimmen neben der eigenen (rot) klingen. Antippen schaltet sie stumm und wieder zurück. Nach rechts oder oben ziehen macht sie lauter, nach links oder unten leiser. Ganz klein (Punkte) sind sie stumm, gleich groß klingen alle gleich laut. Bei „Alle“ blass.'],
     ['Üben', '#metronomeBtn', '<span class="k">{svg:#metronomeBtn}</span>',
         'Metronom: tickt im Takt mit, das Pendel im Knopf schwingt dazu (ausgeschaltet steht es). Antippen schaltet es ein und aus. Wischen wie beim Tempo: nach rechts oder oben lauter, nach links oder unten leiser, von 50 bis 100 %. Dabei steht die Zahl in einer Blase und es ist zu hören, steht das Lied, klickt es zur Probe.'],
     ['Üben', '#alphaTab', '<span class="k hell">♩ ♪</span>',
-        'In den Noten: auf einen Takt tippen wählt ihn (roter Rahmen). Mehrere Takte: ersten Takt antippen, dann mit Shift auf den letzten klicken, oder mit der Maus vom ersten zum letzten ziehen. Auf dem Handy lange auf den ersten Takt drücken, bis der gestrichelte Rahmen erscheint, dann mit dem Finger zum letzten ziehen. Beim Aufziehen ist der Rahmen gestrichelt; zurück in den Anfangstakt und dort loslassen heißt doch kein Bereich. Dann spielt dieser Bereich, und der Loop-Knopf neben Play gilt für ihn. Ein einfacher Tipp neben die Noten hebt den Bereich auf. Steht das Lied, geht es dort beim Abspielen los. Eine angetippte Note erklingt nur, Takt und Bereich bleiben dabei, wie sie sind. Läuft das Lied, wird es kurz still, und am nächsten Taktstrich geht es im selben Schlag mit dem gewählten Takt weiter. Zweimal schnell auf einen Takt tippen spielt ab seinem Anfang, zweimal auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist, und trägt die Taktnummer bei „Takt“ ein. Offene Einstellungen gehen dabei zu.'],
+        'Takt wählen: antippen, er bekommt einen roten Rahmen. Steht das Lied, geht es dort los; läuft es, springt es am nächsten Taktstrich dorthin.\n' +
+        'Mehrere Takte: mit der Maus vom ersten zum letzten ziehen, oder den ersten antippen und mit Shift den letzten. Am Handy lange auf den ersten drücken, bis der Rahmen gestrichelt ist, dann ziehen. Im Anfangstakt loslassen bricht ab.\n' +
+        'Aufheben: neben die Noten tippen.\n' +
+        'Zweimal tippen: auf einen Takt spielt ab seinem Anfang, auf eine Note ab dieser Note, mit Einzählen, wenn es eingestellt ist.\n' +
+        'Note antippen: sie erklingt, sonst ändert sich nichts.'],
     ['Ansicht', '#fsBtn', '<span class="k hell">{svg:#fsBtn} Vollbild</span>',
         'Vollbild: nur noch die Noten, groß und ohne Knöpfe. Zurück geht es mit dem kleinen Knopf unten rechts.'],
     ['', '.fs-exit', '', 'Vollbild verlassen: die Knöpfe kommen wieder.'],
@@ -3431,6 +3438,23 @@ function hilfeZeichnen() {
     karte.style.top = (hoehe >= 170 ? luecke[0] + Math.max(10, (hoehe - kh) / 2) : 10) + 'px';
 }
 
+// Hilfetext einsetzen (als Text, nicht als HTML). Längere Texte bestehen aus Abschnitten,
+// getrennt durch \n; beginnt ein Abschnitt mit „Titel: “, steht der Titel fett darüber.
+function hilfeTextSetzen(ziel, text) {
+    ziel.replaceChildren();
+    const abschnitte = text.split('\n');
+    for (const a of abschnitte) {
+        const p = document.createElement('p');
+        const m = abschnitte.length > 1 && a.match(/^([^.:]{1,40}): (.*)$/s);
+        if (m) {
+            const t = document.createElement('strong');
+            t.textContent = m[1];
+            p.append(t, m[2][0].toUpperCase() + m[2].slice(1));
+        } else p.textContent = a;
+        ziel.append(p);
+    }
+}
+
 // Tipp im Hilfe-Modus: Element unter dem Finger suchen (die Fangfläche liegt darüber)
 function hilfeTipp(x, y) {
     const modus = document.getElementById('hilfeModus');
@@ -3445,7 +3469,7 @@ function hilfeTipp(x, y) {
     const text = modus.querySelector('.hm-text');
     if (treffer) {
         hilfeGewaehlt = treffer[0];
-        text.textContent = treffer[1][3];
+        hilfeTextSetzen(text, treffer[1][3]);
     } else {
         hilfeGewaehlt = null;
         text.textContent = 'Hier ist kein Knopf. ' + HILFE_START;
@@ -3475,7 +3499,7 @@ function soGehtsZeigen() {
     seite.innerHTML = inhalt;
     // Texte als Text einsetzen (nicht als HTML)
     const texte = HILFE.filter(zeigen).map(h => h[3]);
-    seite.querySelectorAll('.sg-text').forEach((t, i) => { t.textContent = texte[i]; });
+    seite.querySelectorAll('.sg-text').forEach((t, i) => hilfeTextSetzen(t, texte[i]));
     seite.querySelector('.hm-fertig').onclick = hilfeEnde;
     document.documentElement.appendChild(seite);
 }

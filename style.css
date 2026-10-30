@@ -1199,6 +1199,10 @@ body.hilfe-an .hilfe-btn { background: #ffd166 !important; color: #1a1400 !impor
     padding: 16px 18px 14px; background: #fff; color: #1f1f1e; border: 2px solid #b07a00; border-radius: 14px;
     box-shadow: 0 10px 30px rgba(40, 40, 35, 0.3); }
 #hilfeModus .hm-text { min-height: 2.8em; }
+/* Hilfetext in Abschnitten: Titel fett als eigene Zeile, Luft dazwischen */
+.hm-text p, .sg-text p { margin: 0 0 0.7em; }
+.hm-text p:last-child, .sg-text p:last-child { margin-bottom: 0; }
+.hm-text strong, .sg-text strong { display: block; }
 .hm-knoepfe { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .hm-knoepfe button, .sg-kopf .hm-fertig { font: 600 17px/1 -apple-system, BlinkMacSystemFont, Arial, sans-serif;
     padding: 14px 18px; border-radius: 24px; border: 1px solid rgba(0, 0, 0, 0.12); background: #efede7; color: #1f1f1e; cursor: pointer; }
