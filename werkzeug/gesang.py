@@ -57,7 +57,7 @@ AUSSPRACHE = {}
 # espeak-ng (Mnemonik) -> SAMPA der MBROLA-Stimmen de5/de6
 ESPEAK = {'_!': '?', '_|': '?', 'r': 'R', '3': '6', 'W': '9', 'Y:': '2:', 'A:': 'a:', 'A': 'a',
           'pF': 'pf', 'y': 'Y', 'i': 'i:', 'e': 'e:', 'o': 'o:', 'u': 'u:', 'a#': 'a', '@2': '@',
-          'E2': 'E', 'aI@': 'aI', 'I2': 'I', 'aa': 'a:'}
+          'E2': 'E', 'aI@': 'aI', 'I2': 'I', 'aa': 'a:', '@-': '@'}
 
 # Englisch: espeak-ng en-us (Mnemonik) -> SAMPA der MBROLA-Stimmen us1/us3
 # (nach espeak-ng phsource/mbrola/us; p/t/k ohne Behauchung, sonst unverändert)
@@ -519,6 +519,58 @@ def auf_sr(x, sr):
     return np.interp(np.arange(int(len(x) * SR / sr)) * sr / SR, np.arange(len(x)), x)
 
 
+# ---------------------------------------------------------------- fehlende Diphone
+
+_DIPHON_CACHE = {}
+
+
+def diphon_da(db, a, b):
+    """Kennt die Stimme den Übergang a-b? (einmal mit mbrola getestet, je Stimme in einer Datei gemerkt)"""
+    import json
+    datei = os.path.join(STIMMEN_DB, f'{db}.diphone.json')
+    if db not in _DIPHON_CACHE:
+        try:
+            with open(datei) as fh:
+                _DIPHON_CACHE[db] = json.load(fh)
+        except (OSError, ValueError):
+            _DIPHON_CACHE[db] = {}
+    c = _DIPHON_CACHE[db]
+    if f'{a} {b}' not in c:
+        os.makedirs(TMP, exist_ok=True)
+        pho = os.path.join(TMP, 'diphon.pho')
+        with open(pho, 'w') as fh:
+            fh.write(f'_ 50\n{a} 80\n{b} 80\n_ 50\n')
+        r = subprocess.run([MBROLA, os.path.join(STIMMEN_DB, db), pho, os.path.join(TMP, 'diphon.wav')],
+                           capture_output=True, text=True)
+        c[f'{a} {b}'] = f'{a}-{b}' not in (r.stdout + r.stderr)
+        with open(datei, 'w') as fh:
+            json.dump(c, fh, sort_keys=True)
+    return c[f'{a} {b}']
+
+
+def diphone_reparieren(zeilen, db):
+    """Fehlt der Stimme ein Übergang (us3: d-t_h in „hand to“), ersetzt mbrola -e ihn stumm durch
+    etwas Falsches und der nächste Laut kommt hörbar zu spät. Darum vorher: den Konsonanten vor der
+    Lücke durch Stille gleicher Länge ersetzen (bei Verschlusslauten ist das ohnehin der Verschluss)."""
+    aus = list(zeilen)
+    for i in range(len(aus) - 1):
+        a, b = aus[i].split()[0], aus[i + 1].split()[0]
+        if (a == '_' and b == '_') or diphon_da(db, a, b):
+            continue
+        # zuerst Behauchung weglassen (us3 kennt t_h nur nach Vokalen), sonst den Konsonanten davor
+        if b.endswith('_h') and diphon_da(db, a, b[:-2]):
+            aus[i + 1] = aus[i + 1].replace(b, b[:-2], 1)
+        elif a.endswith('_h') and diphon_da(db, a[:-2], b):
+            aus[i] = aus[i].replace(a, a[:-2], 1)
+        elif a not in VOKALE and a != '_':
+            aus[i] = '_ ' + aus[i].split()[1]
+        elif b not in VOKALE and b != '_':
+            aus[i + 1] = '_ ' + aus[i + 1].split()[1]
+        else:
+            print(f'  Übergang {a}-{b} fehlt in {db}, bleibt (mbrola -e)')
+    return aus
+
+
 def mp3(wav, ziel):
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', wav, '-ac', '1', '-b:a', f'{MP3_KBPS}k', ziel], check=True)
 
@@ -606,7 +658,7 @@ def rendern(lied, ziel, anhoeren=None, erzwingen=False):
             # Langsamer singen statt dehnen: Notenzeiten strecken, Konsonanten bleiben natürlich
             sl = [dict(x, start=x['start'] / f, ende=x['ende'] / f,
                        teile=[(a / f, e / f, h) for a, e, h in x['teile']]) for x in silben]
-            zeilen = pho_bauen(sl, vorlauf)
+            zeilen = diphone_reparieren(pho_bauen(sl, vorlauf), db)
             pho = os.path.join(tmp, f'{name}_{tempo}.pho')
             roh = os.path.join(tmp, f'{name}_{tempo}_roh.wav')
             with open(pho, 'w') as fh:
