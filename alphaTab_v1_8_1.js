@@ -49680,7 +49680,26 @@
         }
         generateSingleNote(note) {
             const tempo = this.prepareSingleBeat(note.beat);
-            this._generateNote(note, 0, note.beat.playbackDuration, tempo, new Int32Array(note.beat.voice.bar.staff.tuning.length), null);
+            // TotalVokal-Anpassung: eine angetippte Note klingt höchstens 1,2 s (auch gebundene
+            // Noten), danach bleiben 0,8 s für den Ausklang. Ohne dieses Polster stoppt die
+            // Einmal-Wiedergabe mit dem NoteOff (noteOffAll sofort) und schneidet den Ausklang ab.
+            const ticksProS = tempo / 60 * MidiUtils.QuarterTime;
+            const kappe = Math.round(1.2 * ticksProS);
+            const handler = this._handler, addNote = handler.addNote;
+            let ende = 0;
+            handler.addNote = (track, start, length, key, velocity, channel) => {
+                length = Math.min(length, kappe);
+                ende = Math.max(ende, start + length);
+                addNote.call(handler, track, start, length, key, velocity, channel);
+            };
+            try {
+                this._generateNote(note, 0, note.beat.playbackDuration, tempo, new Int32Array(note.beat.voice.bar.staff.tuning.length), null);
+            }
+            finally {
+                handler.addNote = addNote;
+            }
+            const info = note.beat.voice.bar.staff.track.playbackInfo;
+            handler.addControlChange(0, ende + Math.round(0.8 * ticksProS), info.primaryChannel, ControllerType.VolumeCoarse, MidiFileGenerator._toChannelShort(info.volume));
         }
     }
 
