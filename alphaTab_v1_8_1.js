@@ -68127,8 +68127,21 @@
                     actualLineHeight = lineBottom - lineTop;
                     isExtended = true;
                 }
+                // chortrainer: Taktstrich zwischen den Stimmen nur grau gestrichelt, in der
+                // Notenzeile selbst wie gewohnt. Der Systemanfang (Strich links) bleibt durchgezogen.
+                const gestrichelt = isExtended && !(!this._isRight && renderer.isFirstOfStaff);
                 for (const line of lines) {
-                    if (isExtended) {
+                    if (gestrichelt) {
+                        line.paint(cx, cy, canvas);
+                        const strich = 3, luecke = 4;
+                        const alt = canvas.color;
+                        canvas.color = new Color(0, 0, 0, 70);
+                        for (let y = line.y + line.height + luecke; y < line.y + actualLineHeight - luecke; y += strich + luecke) {
+                            canvas.fillRect(cx + line.x, cy + y, line.width, Math.min(strich, line.y + actualLineHeight - luecke - y));
+                        }
+                        canvas.color = alt;
+                    }
+                    else if (isExtended) {
                         line.paintExtended(cx, cy, canvas, actualLineHeight);
                     }
                     else {

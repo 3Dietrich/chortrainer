@@ -1114,8 +1114,45 @@ function updateView() {
         );
     }
     systemTexteVerteilen(tracksToRender[0]);
+    stimmenVerbinden(tracksToRender.length > 1);
     api.renderTracks(tracksToRender);
     setTimeout(adjustContentPadding, 50);
+}
+
+/**
+ * Mehrere Stimmen optisch zu einem System verbinden: Klammer über alle Stimmen,
+ * Taktstriche grau gestrichelt durch die Lücken (alphaTab BarLineGlyph, gepatcht),
+ * zwischen den Systemen mehr Luft als zwischen den Stimmen. Dazu ein sanftes Band
+ * hinter jedem zweiten System (systemBaender). Eine Stimme allein: wie bisher.
+ */
+let mehrStimmig = false;
+function stimmenVerbinden(mehr) {
+    mehrStimmig = mehr;
+    api.score.stylesheet.bracketExtendMode = mehr ? 2 : 1;   // GroupSimilarInstruments : GroupStaves
+    api.score.stylesheet.extendBarLines = mehr;
+    const d = api.settings.display;
+    d.systemPaddingTop = d.systemPaddingBottom = mehr ? 30 : 10;
+    d.trackStaffPaddingBetween = mehr ? 0 : 5;
+}
+
+function systemBaender() {
+    const box = document.getElementById('alphaTab');
+    box.querySelectorAll('.sys-band').forEach(e => e.remove());
+    const lookup = api.renderer && api.renderer.boundsLookup;
+    const flaeche = box.querySelector('.at-surface');
+    if (!mehrStimmig || !lookup || !flaeche) return;
+    const ab = box.getBoundingClientRect(), fb = flaeche.getBoundingClientRect();
+    const dx = fb.left - ab.left, dy = fb.top - ab.top;
+    lookup.staffSystems.forEach((s, i) => {
+        if (i % 2) return;
+        const v = s.visualBounds, band = document.createElement('div');
+        band.className = 'sys-band';
+        band.style.left = (dx + v.x - 14) + 'px';
+        band.style.top = (dy + v.y - 10) + 'px';
+        band.style.width = (v.w + 28) + 'px';
+        band.style.height = (v.h + 20) + 'px';
+        box.appendChild(band);
+    });
 }
 
 /* Systemtexte ("flehend", "strahlend"): MuseScore druckt sie nur über der obersten
@@ -2991,7 +3028,7 @@ api.playerStateChanged.on(args => {
 })();
 
 /* --- Nach dem Laden eines Songs an der gemerkten Stelle beginnen, sonst oben (Titel sichtbar) --- */
-api.renderFinished.on(() => neuTakteMarkieren());
+api.renderFinished.on(() => { neuTakteMarkieren(); systemBaender(); });
 // Erst nach postRenderFinished: dort rollt alphaTab sonst noch sanft zum Strich zurück
 api.postRenderFinished.on(() => {
     if (scrollNachRender === null) return;

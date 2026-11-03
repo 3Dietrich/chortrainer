@@ -306,6 +306,8 @@ svg { display: block; }
 .neu-marke-bild { padding: 2px 5px; border-radius: 6px; background: #ffd166; color: #1f1f1e; font-size: 12px; }
 .neu-takt { position: absolute; pointer-events: none; background: rgba(255, 200, 0, .14); border-radius: 3px; }
 /* Gewählter Takt (Tipp in die Noten): Rahmen, bis die Wiedergabe dort ist */
+/* Band hinter jedem zweiten System (mehrere Stimmen): unter den Noten, über dem Papier */
+.sys-band { position: absolute; z-index: -1; pointer-events: none; border-radius: 10px; background: rgba(70, 110, 200, .07); }
 .takt-wahl { position: absolute; z-index: 4; pointer-events: none; border: 2px solid var(--red); border-radius: 4px; background: rgba(248, 84, 84, .05); }
 .takt-wahl.bereich { background: rgba(248, 84, 84, .09); }
 /* Beim Aufziehen: gestrichelt und kräftiger, bis losgelassen wird */
