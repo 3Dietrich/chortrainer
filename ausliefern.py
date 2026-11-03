@@ -46,7 +46,9 @@ MOTOR = ['trainer.js', 'style.css', 'sw.js', 'alphaTab_v1_8_1.js', 'sonivox.sf2'
          'html-to-image_1_11_11.js', 'pegel.json'] + sorted(
     str(p.relative_to(QUELLE)) for p in (QUELLE / 'font').iterdir() if not p.name.startswith('.'))
 PANKD_EIGEN = ['manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
-               'favicon-32.png', 'Bereit.musicxml', 'bereit.mp3']
+               'favicon-32.png', 'Bereit.musicxml', 'bereit.mp3',
+               # Auftritt (live begleiten mit weiter/zurück): vorerst nur auf pankd, nicht im Verein (@dd 20261103)
+               'auftritt.html', 'auftritt.js']
 ABSCHNITTE = ['KOPF', 'LIEDER', 'FUSS']
 
 PANKD = Path.home() / 'Documents/pankd.de'
