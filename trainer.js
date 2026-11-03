@@ -1125,6 +1125,10 @@ function updateView() {
  * zwischen den Systemen mehr Luft als zwischen den Stimmen. Dazu ein sanftes Band
  * hinter jedem zweiten System (systemBaender). Eine Stimme allein: wie bisher.
  */
+// Taktstrich zwischen den Stimmen (gezeichnet in alphaTab_v1_8_1.js, BarLineGlyph.paint):
+// deckkraft 0 = unsichtbar … 255 = schwarz wie der normale Taktstrich (70 ≈ 27 %),
+// strich = Länge eines Strichs, luecke = Abstand dazwischen (Pixel bei 100 % Zoom)
+globalThis.tvStrichZwischen = { deckkraft: 70, strich: 3, luecke: 4 };
 let mehrStimmig = false;
 function stimmenVerbinden(mehr) {
     mehrStimmig = mehr;

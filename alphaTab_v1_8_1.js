@@ -68129,13 +68129,16 @@
                 }
                 // chortrainer: Taktstrich zwischen den Stimmen nur grau gestrichelt, in der
                 // Notenzeile selbst wie gewohnt. Der Systemanfang (Strich links) bleibt durchgezogen.
+                // Einstellen NICHT hier, sondern in trainer.js: globalThis.tvStrichZwischen
+                // (deckkraft 0-255, strich und luecke in Pixeln).
                 const gestrichelt = isExtended && !(!this._isRight && renderer.isFirstOfStaff);
+                const stil = globalThis.tvStrichZwischen || { deckkraft: 70, strich: 3, luecke: 4 };
                 for (const line of lines) {
                     if (gestrichelt) {
                         line.paint(cx, cy, canvas);
-                        const strich = 3, luecke = 4;
+                        const strich = stil.strich, luecke = stil.luecke;
                         const alt = canvas.color;
-                        canvas.color = new Color(0, 0, 0, 70);
+                        canvas.color = new Color(0, 0, 0, stil.deckkraft);
                         for (let y = line.y + line.height + luecke; y < line.y + actualLineHeight - luecke; y += strich + luecke) {
                             canvas.fillRect(cx + line.x, cy + y, line.width, Math.min(strich, line.y + actualLineHeight - luecke - y));
                         }
