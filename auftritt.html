@@ -39,15 +39,19 @@ header { display: flex; gap: 8px; align-items: center; padding-block: 8px; }
 header h1 { font-size: 22px; margin: 0 auto 0 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rund { width: 52px; padding: 0; border-radius: 50%; font-size: 24px; font-weight: 700; flex: none; }
 
-#arten { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
-#arten button { flex: 1 0 auto; font-size: 18px; }
-#arten small { display: block; font-size: 13px; color: var(--leise); }
+#status { display: flex; gap: 16px; align-items: center; font-size: 20px; padding-bottom: 4px; }
+#tempoAnz { color: var(--leise); min-width: 4em; }
+#zustand { padding: 4px 12px; border-radius: 10px; background: var(--flaeche); }
+#zustand[data-art="laeuft"] { background: #2f4a2a; }
+#zustand[data-art="nachhut"] { background: #5a3a1a; }
+#akkord { font-size: clamp(48px, min(16vw, 12vh), 110px); font-weight: 800; color: var(--warm); line-height: 1; min-height: 1em; }
 
 #anzeige { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; min-height: 0; padding-block: 6px; }
 #wo { font-size: 18px; color: var(--leise); display: flex; justify-content: space-between; }
-#jetzt { font-size: clamp(30px, 8vw, 60px); font-weight: 700; line-height: 1.1; margin: 6px 0; min-height: 1.1em; color: var(--warm); }
+#jetzt { font-size: clamp(26px, 6vw, 44px); font-weight: 600; line-height: 1.15; margin: 6px 0; min-height: 1.15em; }
 #dann { font-size: clamp(20px, 4.5vw, 32px); color: var(--leise); min-height: 1.3em; }
 #dann b { color: var(--text); font-weight: 600; }
+#dann .ak { color: var(--warm); }
 
 #streifen { display: flex; gap: 6px; overflow-x: auto; padding-block: 6px; scrollbar-width: none; }
 #streifen button { flex: none; min-height: 48px; font-size: 16px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -56,20 +60,18 @@ header h1 { font-size: 22px; margin: 0 auto 0 0; font-weight: 600; white-space: 
 
 #tasten { display: grid; grid-template-columns: 1fr 3fr; gap: 10px; height: 42vh; min-height: 180px; padding-block: 8px 10px; }
 #zurueck { font-size: 26px; }
-#weiter { font-size: 44px; font-weight: 700; background: #3a2c18; border-color: var(--warm); }
+#weiter { font-size: 48px; font-weight: 700; background: #3a2c18; border-color: var(--warm); }
 #weiter:active, #weiter.druck { background: var(--warm-tief); }
 
-header, #arten, #streifen, #tasten { flex: none; }
+header, #status, #streifen, #tasten { flex: none; }
 #anzeige { overflow: hidden; }
-#jetzt { font-size: clamp(28px, min(8vw, 7vh), 60px); }
+#jetzt { font-size: clamp(22px, min(6vw, 5vh), 44px); }
 #dann { font-size: clamp(18px, min(4.5vw, 4vh), 32px); }
 
 /* Quer (Handy liegt): Text links, Tasten rechts über die volle Höhe */
 @media (orientation: landscape) and (max-height: 600px) {
     body { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto 1fr auto; column-gap: 12px; }
-    header, #arten { grid-column: 1 / -1; }
-    #arten small { display: inline; margin-left: 6px; }
-    #arten button { min-height: 44px; }
+    header, #status { grid-column: 1 / -1; }
     #anzeige { grid-column: 1; grid-row: 3; }
     #streifen { grid-column: 1; grid-row: 4; }
     #tasten { grid-column: 2; grid-row: 3 / 5; height: auto; min-height: 0; grid-template-columns: 1fr 2fr; }
@@ -102,31 +104,35 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <body>
 <header>
     <h1 id="titel">Auftritt</h1>
-    <button id="ausKnopf" data-hilfe="Lässt den Klang langsam ausklingen (auch Esc). Die Stelle bleibt, weiter spielt danach den nächsten Klang.">Aus</button>
-    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Lautstärke, Tiefbass, Wärme, Tempo für den Phrasen-Modus, Box wach halten, von vorn.">⚙</button>
+    <button id="ausKnopf" data-hilfe="Beendet: der Klang klingt langsam aus (auch Esc). Der nächste Tipp stellt auf den Anfang.">Aus</button>
+    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Klang, Lautstärke, Tiefbass, Wärme, Anfangstempo, Box wach halten, von vorn.">⚙</button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
-<nav id="arten" data-hilfe="Wie oft getippt wird. Klang: bei jedem Wechsel im Satz. Halbtakt und Takt: fest im Raster. Wort: bei Wortanfängen. Phrase: ein Tipp pro Satzstück, die Klänge darin laufen im Tempo, der letzte hält. Die Zahl sagt, wie viele Tipps das Lied braucht."></nav>
+<div id="status" data-hilfe="Tempo, wie es aus deinen Tipps gemittelt wird, und der Zustand: bereit, läuft, wartet auf Tipp (Wartestelle), Nachhut (ein Tipp fehlte, die Begleitung blendet aus, bis der nächste Tipp im Takt kommt), ja weiter (Tipp viel zu früh, zählt als Bestätigung).">
+    <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
+</div>
 
-<main id="anzeige" data-hilfe="Oben die Stelle und wie weit es noch ist, groß der Text zum Klang, der gerade klingt, darunter, was beim nächsten Tipp kommt.">
-    <div id="wo"><span id="stelle">bereit</span><span id="zaehler"></span></div>
+<main id="anzeige" data-hilfe="Takt, Akkord, der gerade klingt, darunter der Text dieses Taktes und was im nächsten Takt kommt.">
+    <div id="wo"><span id="stelle"></span></div>
+    <div id="akkord"></div>
     <div id="jetzt"></div>
     <div id="dann"></div>
 </main>
 
-<div id="streifen" data-hilfe="Alle Klänge des Liedes. Antippen springt dorthin und spielt den Klang sofort, zum Korrigieren oder Üben."></div>
+<div id="streifen" data-hilfe="Alle Takte mit ihren Akkorden. Antippen springt dorthin, der Akkord klingt, der nächste Tipp startet von dieser Stelle."></div>
 
 <div id="tasten">
-    <button id="zurueck" data-hilfe="Einen Klang zurück und gleich spielen. Tastatur: Pfeil links, Bild hoch.">◀<br>zurück</button>
-    <button id="weiter" data-hilfe="Nächster Klang. Er hält, bis wieder getippt wird. Tastatur und Fußtaster: Leertaste, Pfeil rechts, Bild runter.">weiter ▶</button>
+    <button id="zurueck" data-hilfe="An den Anfang des Taktes, kurz nach dem Taktanfang einen Takt davor. Dort wartet die Begleitung auf den nächsten Tipp. Tastatur: Pfeil links, Bild hoch.">◀<br>zurück</button>
+    <button id="weiter" data-hilfe="Jeden Takt einmal auf die Eins tippen. Akkorde mitten im Takt kommen von selbst im Tipp-Tempo. Fehlt ein Tipp, kommt der Takt weich und blendet aus. Ein Tipp viel zu früh heißt nur: ja, weiter. Tastatur und Fußtaster: Leertaste, Pfeil rechts, Bild runter.">weiter</button>
 </div>
 
 <section id="einstellungen" hidden aria-label="Einstellungen">
+    <div id="klangwahl" class="zeile" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Fläche: weicher Synthesizer-Teppich, setzt langsamer ein."></div>
     <label data-hilfe="Gesamtlautstärke der Begleitung.">Lautstärke <input id="lautstaerke" type="range" min="0" max="100"><output></output></label>
     <label data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger.">Tiefbass <input id="tiefbass" type="range" min="0" max="100"><output></output></label>
     <label data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher.">Wärme <input id="waerme" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Nur für den Phrasen-Modus: so schnell laufen die Klänge innerhalb einer Phrase.">Tempo <input id="tempo" type="range" min="50" max="130"><output></output></label>
+    <label data-hilfe="Tempo, mit dem die Uhr beim ersten Tipp anfängt. Danach führen deine Tipps das Tempo.">Anfang ♩ <input id="tempo" type="range" min="50" max="130"><output></output></label>
     <label class="haken" data-hilfe="Spielt einen unhörbar leisen Dauerton, damit eine Bluetooth-Box nach Stille nicht einschläft und den weichen Einsatz verschluckt."><input id="wach" type="checkbox"> Box wach halten</label>
     <div class="zeile">
         <button id="vonVorn" data-hilfe="Zurück an den Anfang, ohne etwas zu spielen.">von vorn</button>

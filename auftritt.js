@@ -1,14 +1,16 @@
 /*
- * Auftritt: live begleiten mit zwei Tasten (@dd 20261103).
+ * Auftritt: live begleiten mit einer Taste (@dd 20261104).
  *
- * Liest die MusicXML des Liedes (vierstimmiger Satz), macht daraus eine Folge von Klängen
- * und spielt bei jedem Tipp auf "weiter" den nächsten. Der Klang hält, bis wieder getippt
- * wird, so folgt die Begleitung dem Chor. Die Akkorde sind der Satz selbst: jede Stimme
- * trägt den Ton bei, der im Abschnitt am längsten klingt, der Bass bekommt eine Oktave
- * darunter dazu (Tiefbass).
+ * Ablauf (Akkorde, Sonderstellen) steht in <Lied>.ablauf.json, Text und Takte kommen aus der MusicXML.
+ * Plan von @dd:
+ * - Jeden Takt "weiter" drücken. Akkorde mitten im Takt laufen im Tipp-Tempo von selbst.
+ * - Tipp ausgelassen: der nächste Takt kommt weich herein und blendet bis zum nächsten Tipp aus (Nachhut).
+ * - Tipp viel zu früh: kein echtes weiter, sondern "ja genau, mach weiter" (Nachhut wieder voll).
+ * - Kommt wieder ein Tipp im Takt, geht es von dort normal weiter.
+ * Tempo: Mittel aus den Tipp-Abständen, dazu Faktoren aus dem Ablauf (Takt 18 zieht an, Schluss langsamer).
+ * Eine Uhr läuft im Tipp-Tempo mit; jeder Tipp rastet auf die nächste Tippstelle der Uhr ein.
  *
- * Tipp-Arten zum Ausprobieren: Klang, Halbtakt, Takt, Wort, Phrase (siehe ARTEN).
- * Aufruf: auftritt.html?lied=Bereit.musicxml (ohne Angabe: Bereit).
+ * Aufruf: auftritt.html?lied=Bereit.musicxml (Ablauf: Bereit.ablauf.json daneben).
  */
 'use strict';
 
@@ -17,27 +19,23 @@ const $ = id => document.getElementById(id);
 /* ---------- Einstellungen (nur Bequemlichkeit pro Gerät, alles geht auch ohne Speicher) ---------- */
 
 const SPEICHER = 'auftritt-einstellungen';
-const VORGABE = { art: 'halbtakt', klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 45, tempo: 0, wach: true };
+const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 45, tempo: 0, wach: true };
 let E = { ...VORGABE };
 try { Object.assign(E, JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch (e) { /* privat/gesperrt */ }
 function sichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(E)); } catch (e) { /* egal */ } }
 
-/* ---------- MusicXML lesen ---------- */
+/* ---------- MusicXML lesen (Text, Taktanfänge) ---------- */
 
 const SCHRITT = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
-/** Liefert Stimmen (Noten mit Start/Ende in Vierteln), Textsilben, Taktanfänge, Tempo, Titel. */
 function partiturLesen(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     const titel = (doc.querySelector('work-title, movement-title')?.textContent || '').trim();
-    const namen = [...doc.querySelectorAll('score-part part-name')].map(e => e.textContent.trim());
-    let tempo = null;
-    const stimmen = [], silben = [];
+    const silben = [];
     let taktAnfaenge = [], ende = 0;
-
     [...doc.querySelectorAll('part')].forEach((teil, si) => {
         let div = 1, t = 0;
-        const noten = [], anfaenge = [];
+        const anfaenge = [];
         for (const takt of teil.querySelectorAll(':scope > measure')) {
             anfaenge.push(t);
             for (const e of takt.children) {
@@ -45,126 +43,30 @@ function partiturLesen(xmlText) {
                 if (e.tagName === 'attributes') {
                     const d = e.querySelector('divisions');
                     if (d) div = +d.textContent;
-                } else if (e.tagName === 'direction' || e.tagName === 'sound') {
-                    const s = e.tagName === 'sound' ? e : e.querySelector('sound[tempo]');
-                    if (tempo == null && s?.getAttribute('tempo')) tempo = +s.getAttribute('tempo');
-                    const pm = e.querySelector('per-minute');
-                    if (tempo == null && pm && +pm.textContent) tempo = +pm.textContent;
                 } else if (e.tagName === 'backup') {
                     t -= dauer();
                 } else if (e.tagName === 'forward') {
                     t += dauer();
                 } else if (e.tagName === 'note') {
-                    if (e.querySelector(':scope > grace')) continue;
-                    // Akkordnoten innerhalb einer Stimme (Divisi): nur die erste Note zählt
-                    if (e.querySelector(':scope > chord')) continue;
+                    if (e.querySelector(':scope > grace') || e.querySelector(':scope > chord')) continue;
                     const d = dauer();
                     const stimme = e.querySelector(':scope > voice')?.textContent.trim();
                     if (stimme && stimme !== '1') { t += d; continue; }
-                    const p = e.querySelector(':scope > pitch');
-                    if (p) {
-                        const midi = 12 * (+p.querySelector('octave').textContent + 1)
-                            + SCHRITT[p.querySelector('step').textContent.trim()]
-                            + +(p.querySelector('alter')?.textContent || 0);
-                        const ties = [...e.querySelectorAll(':scope > tie')].map(x => x.getAttribute('type'));
-                        const vorige = noten[noten.length - 1];
-                        if (ties.includes('stop') && vorige && vorige.midi === midi && Math.abs(vorige.ende - t) < 1e-6) {
-                            vorige.ende = t + d;     // Haltebogen: Note verlängern
-                        } else {
-                            noten.push({ midi, start: t, ende: t + d });
-                        }
-                        const ly = e.querySelector(':scope > lyric');
-                        const text = ly?.querySelector('text')?.textContent.trim();
-                        if (text) silben.push({ t, stimme: si, text, syl: ly.querySelector('syllabic')?.textContent || 'single' });
-                    }
+                    const ly = e.querySelector(':scope > lyric');
+                    const text = ly?.querySelector('text')?.textContent.trim();
+                    if (text) silben.push({ t, stimme: si, text, syl: ly.querySelector('syllabic')?.textContent || 'single' });
                     t += d;
                 }
             }
         }
-        if (si === 0) { taktAnfaenge = anfaenge; ende = t; }
+        if (si === 0) taktAnfaenge = anfaenge;
         ende = Math.max(ende, t);
-        stimmen.push(noten);
     });
-    return { titel, namen, stimmen, silben, taktAnfaenge, ende, tempo: tempo || 80 };
+    return { titel, silben, taktAnfaenge, ende };
 }
-
-/* ---------- Klänge bilden ---------- */
 
 let P = null;        // Partitur
 let LEIT = [];       // Leitsilben: je Zeitpunkt die Silbe der obersten Stimme mit Text
-
-/** Je Stimme der Ton, der im Abschnitt [a, b) am längsten klingt (oder null). */
-function satzIn(a, b) {
-    const schwelle = Math.min(0.5, (b - a) * 0.25);
-    return P.stimmen.map(noten => {
-        let best = null, bestDauer = 0;
-        for (const n of noten) {
-            if (n.ende <= a) continue;
-            if (n.start >= b) break;
-            const ueber = Math.min(b, n.ende) - Math.max(a, n.start);
-            if (ueber > bestDauer) { bestDauer = ueber; best = n.midi; }
-        }
-        return bestDauer >= schwelle ? best : null;
-    });
-}
-
-/** Grenzen → Abschnitte im Bereich [von, bis), gleiche Nachbarn zusammengelegt, Stille an den Vorgänger. */
-function abschnitte(grenzen, von = 0, bis = P.ende) {
-    const g = [...new Set(grenzen.filter(x => x >= von - 1e-6 && x < bis - 1e-6).map(x => +x.toFixed(4)))].sort((x, y) => x - y);
-    if (!g.length || g[0] > von + 1e-6) g.unshift(von);
-    const aus = [];
-    for (let i = 0; i < g.length; i++) {
-        const a = g[i], b = i + 1 < g.length ? g[i + 1] : bis;
-        const satz = satzIn(a, b);
-        if (satz.every(x => x == null)) { if (aus.length) aus[aus.length - 1].ende = b; continue; }
-        const schluessel = satz.join(',');
-        const vor = aus[aus.length - 1];
-        if (vor && vor.schluessel === schluessel) { vor.ende = b; continue; }
-        aus.push({ start: a, ende: b, satz, schluessel });
-    }
-    return aus;
-}
-
-function halbtaktGitter() {
-    const g = [];
-    P.taktAnfaenge.forEach((a, i) => {
-        const b = i + 1 < P.taktAnfaenge.length ? P.taktAnfaenge[i + 1] : P.ende;
-        g.push(a, a + (b - a) / 2);
-    });
-    return g;
-}
-
-const SATZZEICHEN = /[,.;:!?]$/;
-
-const ARTEN = {
-    klang: {
-        name: 'Klang',
-        bilden: () => abschnitte(P.stimmen.flat().flatMap(n => [n.start, n.ende])),
-    },
-    halbtakt: { name: 'Halbtakt', bilden: () => abschnitte(halbtaktGitter()) },
-    takt: { name: 'Takt', bilden: () => abschnitte(P.taktAnfaenge) },
-    wort: {
-        name: 'Wort',
-        bilden: () => abschnitte([0, ...LEIT.filter(s => s.syl === 'single' || s.syl === 'begin').map(s => s.t)]),
-    },
-    phrase: {
-        name: 'Phrase',
-        bilden: () => {
-            // Phrase beginnt nach einem Satzzeichen; zu kurze Stücke (unter 2 Vierteln, z.B. „Herr,") hängen am nächsten
-            const anfaenge = [0];
-            LEIT.forEach((s, i) => { if (i > 0 && SATZZEICHEN.test(LEIT[i - 1].text)) anfaenge.push(s.t); });
-            const gefiltert = anfaenge.filter((t, i) => i === 0 || t - anfaenge[i - 1] >= 2);
-            const gitter = halbtaktGitter();
-            const aus = [];
-            gefiltert.forEach((a, i) => {
-                const b = i + 1 < gefiltert.length ? gefiltert[i + 1] : P.ende;
-                const teile = abschnitte([a, ...gitter], a, b);
-                if (teile.length) aus.push({ start: teile[0].start, ende: b, satz: teile[0].satz, teile });
-            });
-            return aus;
-        },
-    },
-};
 
 function leitsilbenBilden() {
     const jeZeit = new Map();
@@ -187,17 +89,68 @@ function textIn(a, b) {
     return s.replace(/-(?=\S)/g, '').trim();
 }
 
-function stelle(t) {
+const taktBeginn = n => P.taktAnfaenge[n - 1];
+const taktEnde = n => (n < P.taktAnfaenge.length ? P.taktAnfaenge[n] : P.ende);
+
+/** "18:3" → Position in Vierteln */
+function stellePos(s) {
+    const [takt, schlag] = s.split(':').map(Number);
+    return taktBeginn(takt) + (schlag || 1) - 1;
+}
+
+function stelleVon(pos) {
     let i = 0;
-    while (i + 1 < P.taktAnfaenge.length && P.taktAnfaenge[i + 1] <= t + 1e-6) i++;
-    const schlag = t - P.taktAnfaenge[i] + 1;
-    return { takt: i + 1, schlag: Math.round(schlag * 2) / 2 };
+    while (i + 1 < P.taktAnfaenge.length && P.taktAnfaenge[i + 1] <= pos + 1e-6) i++;
+    return { takt: i + 1, schlag: Math.floor(pos - P.taktAnfaenge[i] + 1e-6) + 1 };
+}
+
+/* ---------- Akkordsymbole → Töne ---------- */
+
+const GRUNDTON = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, H: 11, B: 10 };   // deutsch: H = h, B = b
+const ART = {
+    '': [0, 4, 7], 'm': [0, 3, 7], '7': [0, 4, 7, 10], 'm7': [0, 3, 7, 10], 'maj7': [0, 4, 7, 11],
+    '6': [0, 4, 7, 9], 'm6': [0, 3, 7, 9], 'sus4': [0, 5, 7], 'sus2': [0, 2, 7], 'dim': [0, 3, 6],
+};
+
+function akkordLesen(sym) {
+    const m = /^([A-H])(#|b)?(.*)$/.exec(sym.trim());
+    if (!m || !(m[3] in ART)) return null;
+    const grund = (GRUNDTON[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12;
+    return { grund, toene: ART[m[3]].map(x => (grund + x) % 12) };
+}
+
+let letzteLage = [57, 60, 64];   // Oberstimmen des vorigen Akkords, für weiche Stimmführung
+
+/** Bass-Grundton (E2 bis Es3) plus Oberstimmen in enger Lage (G3 bis Bb4), möglichst nah am vorigen Akkord. */
+function lageFuer(sym) {
+    const a = akkordLesen(sym);
+    if (!a) return null;
+    let bass = 40 + ((a.grund - 4 + 12) % 12);
+    const optionen = a.toene.map(pc => [55, 67].map(o => o + ((pc - o % 12 + 12) % 12)).filter(m => m <= 70));
+    let beste = null, besteKosten = Infinity;
+    const durch = (i, wahl) => {
+        if (i === optionen.length) {
+            const s = [...wahl].sort((x, y) => x - y);
+            if (s[s.length - 1] - s[0] > 12) return;
+            const mitte = s.reduce((x, y) => x + y, 0) / s.length;
+            const vorMitte = letzteLage.reduce((x, y) => x + y, 0) / letzteLage.length;
+            let k = Math.abs(mitte - vorMitte) * 2;
+            for (const m of s) k += Math.min(...letzteLage.map(v => Math.abs(v - m)));
+            if (k < besteKosten) { besteKosten = k; beste = s; }
+            return;
+        }
+        for (const m of optionen[i]) durch(i + 1, [...wahl, m]);
+    };
+    durch(0, []);
+    if (!beste) beste = a.toene.map(pc => 60 + ((pc - 0 + 12) % 12)).sort((x, y) => x - y);
+    letzteLage = beste;
+    return { bass, oben: beste };
 }
 
 /* ---------- Klangerzeugung (WebAudio, ohne Samples) ---------- */
 
-let ctx = null, ausgang = null, tonfilter = null, bassBus = null, wachQuelle = null;
-const klingend = new Map();          // Schlüssel "stimme:midi" → { stop }
+let ctx = null, ausgang = null, lage = null, tonfilter = null, bassBus = null, wachQuelle = null, orgelWelle = null;
+const klingend = new Map();          // Schlüssel → { stop }
 
 function impuls(sek) {
     const len = Math.floor(ctx.sampleRate * sek), buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -208,7 +161,6 @@ function impuls(sek) {
     return buf;
 }
 
-let orgelWelle = null;
 function audioStart() {
     if (ctx) { if (ctx.state !== 'running') ctx.resume(); return; }
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* iOS < 17 */ }
@@ -217,15 +169,18 @@ function audioStart() {
     komp.threshold.value = -16; komp.ratio.value = 3; komp.attack.value = 0.02; komp.release.value = 0.3;
     ausgang = ctx.createGain();
     ausgang.connect(komp).connect(ctx.destination);
+    // lage: Gesamtpegel der Akkorde, die Nachhut blendet hierüber aus
+    lage = ctx.createGain();
+    lage.connect(ausgang);
     tonfilter = ctx.createBiquadFilter();
     tonfilter.type = 'lowpass'; tonfilter.Q.value = 0.4;
-    tonfilter.connect(ausgang);
+    tonfilter.connect(lage);
     // etwas Raum, damit es nicht trocken aus der Box kommt
     const hall = ctx.createConvolver(), nass = ctx.createGain();
     hall.buffer = impuls(2.4); nass.gain.value = 0.28;
-    tonfilter.connect(hall).connect(nass).connect(ausgang);
+    tonfilter.connect(hall).connect(nass).connect(lage);
     bassBus = ctx.createGain();
-    bassBus.connect(ausgang);
+    bassBus.connect(lage);
     // Orgel: Grundton, Oktave, Quinte darüber, Superoktave (wie gezogene Flötenregister 8', 4', 2 2/3', 2')
     const re = new Float32Array([0, 1, 0.5, 0.22, 0.16, 0.05, 0.04]);
     orgelWelle = ctx.createPeriodicWave(re.map(() => 0), re);
@@ -254,15 +209,19 @@ function wachSetzen() {
     }
 }
 
-const STIMMPEGEL = [0.75, 1, 1, 1];   // Sopran etwas zurück, die Melodie singt der Chor
+function haltenAb(p, wann) {
+    if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(wann);
+    else { p.cancelScheduledValues(wann); p.setValueAtTime(p.value, wann); }
+}
 
-function tonAn(midi, stimme, wann) {
+/** art: 'oben' | 'grund' (Bass-Grundton) | 'sub' (Tiefbass eine Oktave darunter) */
+function tonAn(midi, art, wann, weich) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     const g = ctx.createGain();
     g.gain.value = 0;
     const oszis = [];
     const orgel = E.klang === 'orgel';
-    if (stimme === 'bass') {
+    if (art === 'sub') {
         const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
         o.connect(g); oszis.push(o);
         g.connect(bassBus);
@@ -281,134 +240,337 @@ function tonAn(midi, stimme, wann) {
         nf.connect(g);
         g.connect(tonfilter);
     }
-    const ziel = stimme === 'bass' ? 0.5 : 0.11 * STIMMPEGEL[stimme];
-    const anstieg = orgel || stimme === 'bass' ? 0.04 : 0.15;
+    const ziel = art === 'sub' ? 0.5 : art === 'grund' ? 0.12 : 0.1;
+    const anstieg = weich ? 0.35 : (orgel || art === 'sub' ? 0.03 : 0.12);
     oszis.forEach(o => o.start(wann));
     g.gain.setTargetAtTime(ziel, wann, anstieg);
     return {
         stop(wannAus, abkling) {
-            const p = g.gain;
-            if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(wannAus);
-            else { p.cancelScheduledValues(wannAus); p.setValueAtTime(p.value, wannAus); }
-            p.setTargetAtTime(0, wannAus, abkling / 3);
+            haltenAb(g.gain, wannAus);
+            g.gain.setTargetAtTime(0, wannAus, abkling / 3);
             oszis.forEach(o => o.stop(wannAus + abkling * 2 + 0.1));
         },
     };
 }
 
-/** Spielt einen Satz (Array je Stimme). Gleiche Töne derselben Stimme klingen ohne Neuanschlag weiter. */
-function satzSpielen(satz, wann = ctx.currentTime) {
-    const soll = new Map();
-    satz.forEach((m, i) => { if (m != null) soll.set(i + ':' + m, [m, i]); });
-    const tiefster = [...satz].reverse().find(m => m != null);
-    if (tiefster != null) soll.set('bass:' + (tiefster - 12), [tiefster - 12, 'bass']);
+let akkordJetzt = '';
+
+/** Spielt ein Akkordsymbol. Töne, die schon klingen, klingen ohne Neuanschlag weiter. */
+function akkordSpielen(sym, wann, weich) {
+    akkordJetzt = sym;
     const abkling = E.klang === 'orgel' ? 0.25 : 0.6;
+    if (sym === '-') { alleAus(wann, 0.4); return; }
+    const l = lageFuer(sym);
+    if (!l) return;
+    const soll = new Map();
+    soll.set('g:' + l.bass, [l.bass, 'grund']);
+    soll.set('s:' + (l.bass - 12), [l.bass - 12, 'sub']);
+    l.oben.forEach(m => soll.set('o:' + m, [m, 'oben']));
     for (const [k, ton] of klingend) if (!soll.has(k)) { ton.stop(wann, abkling); klingend.delete(k); }
-    for (const [k, [m, s]] of soll) if (!klingend.has(k)) klingend.set(k, tonAn(m, s, wann));
+    for (const [k, [m, art]] of soll) if (!klingend.has(k)) klingend.set(k, tonAn(m, art, wann, weich));
 }
 
-function ausklingen(sek = 2.5) {
-    zeitplanLeeren();
-    if (!ctx) return;
-    for (const ton of klingend.values()) ton.stop(ctx.currentTime, sek);
+function alleAus(wann, sek) {
+    for (const ton of klingend.values()) ton.stop(wann, sek);
     klingend.clear();
 }
 
-/* ---------- Ablauf ---------- */
+/* ---------- Pauke (Wirbel in den Takt 18 hinein, Schlag auf der 1) ---------- */
 
-let liste = [];      // Klänge der gewählten Art
-let pos = -1;        // Index des klingenden Klangs, -1 = vor dem Anfang
-let still = true;    // nach "Aus" oder am Anfang
-let zeitplan = [];
+const PAUKE_HZ = 55;   // großes A
+let wirbel = null;     // { ab, bis, naechster } in Sekunden
 
-function zeitplanLeeren() { zeitplan.forEach(clearTimeout); zeitplan = []; }
+function paukenSchlag(wann, staerke) {
+    const g = ctx.createGain(), o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(PAUKE_HZ * 1.5, wann);
+    o.frequency.exponentialRampToValueAtTime(PAUKE_HZ, wann + 0.08);
+    g.gain.setValueAtTime(0, wann);
+    g.gain.linearRampToValueAtTime(staerke, wann + 0.005);
+    g.gain.setTargetAtTime(0, wann + 0.01, staerke > 0.3 ? 0.9 : 0.25);
+    o.connect(g).connect(ausgang);
+    o.start(wann); o.stop(wann + 4);
+    // Fellgeräusch: kurzes, tief gefiltertes Rauschen
+    const n = ctx.createBufferSource(), nb = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+    const d = nb.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    n.buffer = nb;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 220; bp.Q.value = 1.2;
+    const ng = ctx.createGain(); ng.gain.value = staerke * 0.6;
+    n.connect(bp).connect(ng).connect(ausgang);
+    n.start(wann);
+}
 
-function spielen(i) {
-    if (i < 0 || i >= liste.length) return;
+function wirbelPlanen(bis) {
+    if (!wirbel) return;
+    while (wirbel.naechster < bis) {
+        const t = wirbel.naechster;
+        const anteil = Math.min(1, (t - wirbel.ab) / Math.max(0.3, wirbel.dauer));
+        paukenSchlag(t, (0.04 + 0.3 * anteil * anteil) * (0.85 + Math.random() * 0.3));
+        wirbel.naechster += 1 / 14;
+    }
+}
+
+/* ---------- Ablauf: Ereignisse und Uhr ---------- */
+
+let A = null;            // Ablauf aus JSON
+let EV = [];             // Ereignisse, sortiert nach Position
+let ix = 0;              // nächstes auszuführendes Ereignis
+const U = { laeuft: false, s0: 0, t0: 0, bpm: 85 };   // Uhr: Position s0 (Viertel) zur Zeit t0 (ctx-Sekunden)
+let letzterTipp = null;  // { pos, t }
+let nachhut = false;
+let fertig = false;
+
+function ereignisseBilden() {
+    const jePos = new Map();
+    const ev = pos => {
+        const k = pos.toFixed(4);
+        if (!jePos.has(k)) jePos.set(k, { pos });
+        return jePos.get(k);
+    };
+    P.taktAnfaenge.forEach((p, i) => { const e = ev(p); e.takt = i + 1; e.tippstelle = true; });
+    for (const [s, sym] of A.akkorde) { const e = ev(stellePos(s)); e.akkord = sym; e.tippstelle = true; }
+    for (const [s, o] of Object.entries(A.stellen || {})) {
+        const e = ev(stellePos(s));
+        if (o.warten) e.warten = true;
+        if (o.tempo) e.tempo = o.tempo;
+        if (o.pauke) { e.paukenSchlag = true; ev(stellePos(o.pauke)).wirbelAb = true; }
+    }
+    const schluss = ev(P.ende); schluss.ende = true; schluss.warten = true;
+    EV = [...jePos.values()].sort((a, b) => a.pos - b.pos);
+}
+
+// Die Uhr läuft in Echtzeit (performance.now), nicht in der Audiozeit: die steht beim ersten Tipp noch,
+// bis das Audiogerät anläuft, und würde das erste Tempo verfälschen.
+const jetzt = () => performance.now() / 1000;
+const audioZeit = t => Math.max(ctx.currentTime, ctx.currentTime + (t - jetzt()));
+const uhrPos = t => (U.laeuft ? U.s0 + (t - U.t0) * U.bpm / 60 : U.s0);
+const zeitVon = pos => U.t0 + (pos - U.s0) * 60 / U.bpm;
+
+function uhrSetzen(pos, t, bpm = U.bpm) { U.s0 = pos; U.t0 = t; U.bpm = bpm; }
+
+function lageVoll(t) {
+    nachhut = false;
+    haltenAb(lage.gain, t);
+    lage.gain.setTargetAtTime(1, t, 0.03);
+}
+
+/** Nachhut: weich herein, dann bis zum nächsten Tipp ausblenden. */
+function lageNachhut(t) {
+    nachhut = true;
+    const takt = 4 * 60 / U.bpm;
+    haltenAb(lage.gain, t);
+    lage.gain.setTargetAtTime(0.45, t, 0.25);
+    lage.gain.setTargetAtTime(0.0, t + takt * 0.5, takt * 0.7);
+}
+
+/** Führt ein Ereignis zur Zeit t aus. weich = Nachhut (kein Tipp an dieser Stelle). */
+function ausfuehren(e, t, weich) {
+    const ta = audioZeit(t);
+    if (e.tempo) { uhrSetzen(e.pos, t, U.bpm * e.tempo); }
+    if (e.wirbelAb) wirbel = { ab: ta, naechster: ta, dauer: (zeitVon(naechstePos(e, 'paukenSchlag')) - t) };
+    if (e.paukenSchlag && wirbel) { wirbel = null; paukenSchlag(ta, 0.9); }
+    if (e.akkord) akkordSpielen(e.akkord, ta, weich);
+    if (e.takt && weich) lageNachhut(ta);
+}
+
+function naechstePos(e, feld) {
+    const f = EV.find(x => x.pos > e.pos && x[feld]);
+    return f ? f.pos : e.pos + 2;
+}
+
+/** Läuft alle 20 ms: führt fällige Ereignisse aus, hält an Wartestellen. */
+function takt() {
+    if (!ctx) return;
+    const t = jetzt();
+    if (U.laeuft) {
+        const horizont = uhrPos(t + 0.06);
+        while (ix < EV.length && EV[ix].pos <= horizont + 1e-6) {
+            const e = EV[ix];
+            if (e.warten) {
+                // anhalten: Uhr steht auf der Wartestelle, Akkord (und Wirbel) halten
+                uhrSetzen(e.pos, t);
+                U.laeuft = false;
+                zeigen();
+                break;
+            }
+            if (e.takt) {
+                // Taktanfang ohne Tipp: noch kurz auf einen späten Tipp warten, dann weich als Nachhut
+                const gnade = (A.fenster && A.fenster.gnade) ?? 0.5;
+                if (horizont < e.pos + gnade - 1e-6) break;
+                ausfuehren(e, Math.max(t, zeitVon(e.pos + gnade)), true);
+            } else {
+                ausfuehren(e, Math.max(t, zeitVon(e.pos)), nachhut);
+            }
+            ix++;
+        }
+    }
+    wirbelPlanen(ctx.currentTime + 0.1);
+}
+setInterval(takt, 20);
+
+/** Der eine Tipp. zeit = Zeitstempel des Ereignisses (Sekunden, performance-Uhr), sonst jetzt. */
+function tippen(zeit) {
+    if (!P) return;
+    // Zeit vor dem Audiostart nehmen: das Anlegen des Audiogeräts beim ersten Tipp dauert
+    const t = zeit > 0 && zeit <= jetzt() ? zeit : jetzt();
     audioStart();
     wachhalten();
-    zeitplanLeeren();
-    pos = i; still = false;
-    const k = liste[i];
-    satzSpielen(k.satz);
-    if (k.teile) {
-        // Phrase: Klänge darin im Tempo nachschieben, der letzte hält
-        const spv = 60 / (E.tempo || P.tempo);
-        k.teile.slice(1).forEach(teil => {
-            zeitplan.push(setTimeout(() => satzSpielen(teil.satz), (teil.start - k.start) * spv * 1000));
-        });
+    if (fertig) { neuAnfang(); return; }
+    if (!U.laeuft) {
+        // Uhr steht (Anfang, Wartestelle, nach Sprung): Tipp startet genau hier
+        const e = EV[ix];
+        if (e && e.ende) { schluss(t); return; }
+        einrasten(U.s0, t, false);
+        return;
+    }
+    const p = uhrPos(t);
+    const f = { frueh: 0.75, spaet: 1, ...A.fenster };
+    let beste = null;
+    for (const e of EV) {
+        if (!e.tippstelle && !e.warten) continue;
+        if (letzterTipp && e.pos <= letzterTipp.pos + 1e-6) continue;
+        const d = e.pos - p;                  // > 0: Tipp kommt vor der Stelle
+        if (d > f.frueh || -d > f.spaet) continue;
+        if (!beste || Math.abs(d) < Math.abs(beste.pos - p)) beste = e;
+    }
+    TIPPS.push({ uhr: +p.toFixed(2), stelle: beste ? +beste.pos.toFixed(2) : null, bpm: Math.round(U.bpm) });
+    if (beste) {
+        if (beste.ende) { schluss(t); return; }
+        einrasten(beste.pos, t, true);
+    } else {
+        // viel zu früh oder zwischen den Stellen: "ja genau, mach weiter"
+        bestaetigt = t;
+        if (nachhut) lageVoll(audioZeit(t));
     }
     zeigen();
 }
 
-function weiter() {
-    if (!liste.length) return;
-    if (pos + 1 >= liste.length) { ausklingen(); still = true; zeigen('Ende'); return; }
-    spielen(pos + 1);
+let bestaetigt = -1;
+const TIPPS = [];   // Protokoll zum Auswerten nach einer Probe: Uhrstand, Stelle, Tempo
+
+/** Tipp gilt für die Stelle pos: Tempo nachführen, fällige Ereignisse sofort, Uhr neu ansetzen. */
+function einrasten(pos, t, tempoMessen) {
+    if (tempoMessen && letzterTipp) {
+        const viertel = pos - letzterTipp.pos, sek = t - letzterTipp.t;
+        if (viertel >= 0.9 && sek > 0.25) {
+            const neu = viertel * 60 / sek;
+            if (neu > U.bpm * 0.6 && neu < U.bpm * 1.6) {
+                // musikalisches Mittel: ein ganzer Takt zählt halb, kurze Abstände (Wackeln) und lange Lücken weniger
+                const w = viertel <= 8 ? Math.min(0.5, viertel / 8) : 0.25;
+                U.bpm = U.bpm * (1 - w) + neu * w;
+            }
+        }
+    }
+    // übersprungene Ereignisse: nur ihr letzter Akkord zählt, Tempo-Faktoren gelten trotzdem
+    let akkord = null;
+    while (ix < EV.length && EV[ix].pos < pos - 1e-6) {
+        const e = EV[ix++];
+        if (e.akkord) akkord = e.akkord;
+        if (e.tempo) U.bpm *= e.tempo;
+        if (e.wirbelAb) wirbel = null;
+    }
+    uhrSetzen(pos, t);
+    U.laeuft = true;
+    const e = EV[ix];
+    if (e && Math.abs(e.pos - pos) < 1e-6) {
+        if (!e.akkord && akkord) akkordSpielen(akkord, audioZeit(t), false);
+        ausfuehren(e, t, false);
+        ix++;
+    } else if (akkord) {
+        akkordSpielen(akkord, audioZeit(t), false);
+    }
+    letzterTipp = { pos, t };
+    lageVoll(audioZeit(t));
+    zeigen();
 }
 
+function schluss(t) {
+    wirbel = null;
+    alleAus(audioZeit(t), 3);
+    U.laeuft = false;
+    fertig = true;
+    zeigen();
+}
+
+function neuAnfang() {
+    springen(1);
+}
+
+/** Zu Takt n springen: dort steht die Uhr, der Akkord an dieser Stelle klingt, der nächste Tipp startet. */
+function springen(n, tempoBehalten = false) {
+    if (!P) return;
+    audioStart();
+    const t = jetzt(), ta = ctx.currentTime;
+    fertig = false; wirbel = null;
+    const pos = taktBeginn(n);
+    ix = EV.findIndex(e => e.pos >= pos - 1e-6);
+    if (!tempoBehalten) {
+        // Tempo bis hierher aus den Faktoren
+        U.bpm = E.tempo || A.tempo;
+        for (const e of EV) if (e.pos < pos - 1e-6 && e.tempo) U.bpm *= e.tempo;
+    }
+    const vorher = [...EV].reverse().find(e => e.pos <= pos + 1e-6 && e.akkord);
+    if (vorher && vorher.akkord !== '-' && n > 1) akkordSpielen(vorher.akkord, ta, false); else alleAus(ta, 0.8);
+    uhrSetzen(pos, t);
+    U.laeuft = false;
+    letzterTipp = null;
+    lageVoll(ta);
+    zeigen();
+}
+
+/** Zurück: an den Anfang des laufenden Taktes, ist der gerade erst begonnen, einen Takt davor. */
 function zurueck() {
-    if (!liste.length) return;
-    spielen(Math.max(0, pos - 1));
+    if (!P) return;
+    const p = uhrPos(jetzt());
+    const n = stelleVon(p).takt;
+    springen(p - taktBeginn(n) > 1 ? n : Math.max(1, n - 1), true);
 }
 
 /* ---------- Anzeige ---------- */
 
-function artenZeigen() {
-    const nav = $('arten');
-    nav.innerHTML = '';
-    for (const [key, art] of Object.entries(ARTEN)) {
-        const b = document.createElement('button');
-        b.setAttribute('aria-pressed', String(E.art === key));
-        b.innerHTML = `${art.name}<small>${art.liste.length} Tipps</small>`;
-        b.addEventListener('click', () => artWaehlen(key));
-        nav.appendChild(b);
-    }
+function akkordeImTakt(n) {
+    const a = taktBeginn(n), b = taktEnde(n);
+    return A.akkorde.filter(([s]) => { const p = stellePos(s); return p >= a - 1e-6 && p < b - 1e-6; })
+        .map(([s, sym]) => (sym === '-' ? 'Pause' : sym)).join(' ');
 }
 
-function artWaehlen(key) {
-    // Stelle über den Wechsel retten: neuer Index = letzter Klang, der vor der jetzigen Stelle beginnt
-    const t = pos >= 0 ? liste[pos].start : -1;
-    E.art = key; sichern();
-    liste = ARTEN[key].liste;
-    pos = t < 0 ? -1 : liste.reduce((best, k, i) => (k.start <= t + 1e-6 ? i : best), 0);
-    artenZeigen();
-    streifenZeigen();
-    zeigen();
+function zeigen() {
+    if (!P) return;
+    const t = jetzt();
+    const p = Math.min(uhrPos(t), P.ende - 1e-3);
+    const st = stelleVon(p);
+    $('stelle').textContent = `Takt ${st.takt}` + (U.laeuft ? `, Schlag ${st.schlag}` : '');
+    $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
+    let zustand = U.laeuft ? (nachhut ? 'Nachhut' : 'läuft') : 'wartet auf Tipp';
+    if (fertig) zustand = 'Ende';
+    if (!ctx || (!U.laeuft && ix === 0)) zustand = 'bereit';
+    if (bestaetigt > 0 && t - bestaetigt < 0.6) zustand = 'ja, weiter';
+    $('zustand').textContent = zustand;
+    $('zustand').dataset.art = nachhut ? 'nachhut' : (U.laeuft ? 'laeuft' : 'wartet');
+    $('akkord').textContent = akkordJetzt && akkordJetzt !== '-' && !fertig ? akkordJetzt : '';
+    $('jetzt').textContent = textIn(taktBeginn(st.takt), taktEnde(st.takt));
+    const n = st.takt + 1;
+    $('dann').innerHTML = n <= P.taktAnfaenge.length
+        ? `dann <b>${n}</b> <b class="ak">${akkordeImTakt(n)}</b> ${textIn(taktBeginn(n), taktEnde(n))}` : 'Schluss';
+    [...$('streifen').children].forEach((b, i) => b.classList.toggle('an', i === st.takt - 1));
+    if (st.takt !== zeigen.takt) {
+        zeigen.takt = st.takt;
+        $('streifen').children[st.takt - 1]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    }
 }
+setInterval(() => { if (U.laeuft || nachhut) zeigen(); }, 100);
 
 function streifenZeigen() {
     const s = $('streifen');
     s.innerHTML = '';
-    liste.forEach((k, i) => {
+    P.taktAnfaenge.forEach((_, i) => {
         const b = document.createElement('button');
-        b.innerHTML = `<span class="t">${stelle(k.start).takt}</span>${textIn(k.start, k.ende) || '·'}`;
-        b.addEventListener('click', () => spielen(i));
+        b.innerHTML = `<span class="t">${i + 1}</span>${akkordeImTakt(i + 1) || '·'}`;
+        b.title = textIn(taktBeginn(i + 1), taktEnde(i + 1));
+        b.addEventListener('click', () => springen(i + 1));
         s.appendChild(b);
     });
-}
-
-function zeigen(hinweis) {
-    const k = liste[pos], n = liste[pos + 1];
-    if (pos < 0) {
-        $('stelle').textContent = 'bereit';
-        $('jetzt').textContent = '';
-    } else {
-        const st = stelle(k.start);
-        $('stelle').textContent = hinweis || (still ? 'ausgeklungen' : `Takt ${st.takt}` + (st.schlag > 1 ? `, Schlag ${st.schlag}` : ''));
-        $('jetzt').textContent = textIn(k.start, k.ende) || '…';
-    }
-    $('zaehler').textContent = `${pos + 1} / ${liste.length}`;
-    $('dann').innerHTML = n ? `dann <b>Takt ${stelle(n.start).takt}</b> ${textIn(n.start, n.ende)}` : (pos >= 0 ? 'Schluss' : '');
-    [...$('streifen').children].forEach((b, i) => b.classList.toggle('an', i === pos));
-    const an = $('streifen').children[Math.max(0, pos)];
-    if (an) an.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-}
-
-function meldung(text) {
-    const m = $('meldung');
-    m.textContent = text; m.hidden = false;
-    setTimeout(() => { m.hidden = true; }, 2500);
 }
 
 /* ---------- Bildschirm wach halten ---------- */
@@ -419,7 +581,7 @@ async function wachhalten() {
     try { sperre = await navigator.wakeLock.request('screen'); sperre.addEventListener('release', () => { sperre = null; }); }
     catch (e) { /* nur über https */ }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !still) wachhalten(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && U.laeuft) wachhalten(); });
 
 /* ---------- Bedienung ---------- */
 
@@ -431,14 +593,14 @@ function knopf(el, fn) {
         if (hilfe || e.button > 0) return;
         e.preventDefault();
         el.classList.add('druck');
-        fn();
+        fn(e.timeStamp / 1000);
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, () => el.classList.remove('druck')));
     el.addEventListener('click', e => { if (!hilfe && e.detail === 0) fn(); });
 }
-knopf($('weiter'), weiter);
+knopf($('weiter'), tippen);
 knopf($('zurueck'), zurueck);
-$('ausKnopf').addEventListener('click', () => { ausklingen(); still = true; zeigen(); });
+$('ausKnopf').addEventListener('click', () => { if (ctx) schluss(jetzt()); });
 
 function einstellungenAuf(auf) {
     $('einstellungen').hidden = !auf;
@@ -446,7 +608,7 @@ function einstellungenAuf(auf) {
 }
 $('zahnrad').addEventListener('click', () => einstellungenAuf($('einstellungen').hidden));
 $('zu').addEventListener('click', () => einstellungenAuf(false));
-$('vonVorn').addEventListener('click', () => { ausklingen(0.8); pos = -1; still = true; zeigen(); einstellungenAuf(false); });
+$('vonVorn').addEventListener('click', () => { springen(1); einstellungenAuf(false); });
 
 function regler(id, feld, anzeige = v => v) {
     const r = $(id), out = r.parentElement.querySelector('output');
@@ -460,11 +622,9 @@ regler('waerme', 'waerme');
 $('wach').checked = E.wach;
 $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern(); wachSetzen(); });
 
-// Klangfarbe: Orgel oder Fläche, als Zeile in den Einstellungen
+// Klangfarbe: Orgel oder Fläche
 (() => {
-    const zeile = document.createElement('div');
-    zeile.className = 'zeile';
-    zeile.dataset.hilfe = 'Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Fläche: weicher Synthesizer-Teppich, setzt langsamer ein.';
+    const zeile = $('klangwahl');
     for (const [key, name] of [['orgel', 'Orgel'], ['flaeche', 'Fläche']]) {
         const b = document.createElement('button');
         b.textContent = name;
@@ -472,12 +632,11 @@ $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern
         b.addEventListener('click', () => {
             E.klang = key; sichern();
             [...zeile.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-            // laufenden Klang in der neuen Farbe neu anschlagen
-            if (ctx && !still && pos >= 0) { ausklingen(0.2); still = false; satzSpielen(liste[pos].satz); }
+            // laufenden Akkord in der neuen Farbe neu anschlagen
+            if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
         });
         zeile.appendChild(b);
     }
-    $('einstellungen').insertBefore(zeile, $('einstellungen').firstChild);
 })();
 
 addEventListener('keydown', e => {
@@ -485,15 +644,15 @@ addEventListener('keydown', e => {
         e.preventDefault();
         if (hilfe) hilfeModus(false);
         else if (!$('einstellungen').hidden) einstellungenAuf(false);
-        else { ausklingen(); still = true; zeigen(); }
+        else if (ctx) schluss(jetzt());
         return;
     }
-    if (hilfe || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (hilfe || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') return;
-    if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key)) { e.preventDefault(); weiter(); }
+    if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key)) { e.preventDefault(); tippen(e.timeStamp / 1000); }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); zurueck(); }
-    else if (e.key === ' ' && (document.activeElement === document.body || !document.activeElement)) { e.preventDefault(); weiter(); }
+    else if (e.key === ' ' && (document.activeElement === document.body || !document.activeElement)) { e.preventDefault(); tippen(e.timeStamp / 1000); }
 });
 
 /* ---------- Hilfemodus ---------- */
@@ -522,14 +681,18 @@ document.addEventListener('click', e => {
 /* ---------- Start ---------- */
 
 (async () => {
-    const lied = new URLSearchParams(location.search).get('lied') || 'Bereit.musicxml';
+    const q = new URLSearchParams(location.search);
+    const lied = q.get('lied') || 'Bereit.musicxml';
+    const ablauf = q.get('ablauf') || lied.replace(/\.musicxml$/i, '.ablauf.json');
     try {
-        const r = await fetch(lied);
-        if (!r.ok) throw new Error(r.status);
-        P = partiturLesen(await r.text());
+        const [rx, ra] = await Promise.all([fetch(lied, { cache: 'no-cache' }), fetch(ablauf, { cache: 'no-cache' })]);
+        if (!rx.ok) throw new Error(lied + ': ' + rx.status);
+        if (!ra.ok) throw new Error(ablauf + ': ' + ra.status);
+        P = partiturLesen(await rx.text());
+        A = await ra.json();
     } catch (e) {
-        $('jetzt').textContent = 'Noten nicht geladen';
-        $('dann').textContent = lied + ' (' + e.message + ')';
+        $('jetzt').textContent = 'nicht geladen';
+        $('dann').textContent = e.message;
         return;
     }
     let titel = P.titel || lied.replace(/\.musicxml$/i, '');
@@ -537,12 +700,10 @@ document.addEventListener('click', e => {
     $('titel').textContent = titel + ' · Auftritt';
     document.title = titel + ' · Auftritt';
     leitsilbenBilden();
-    for (const art of Object.values(ARTEN)) art.liste = art.bilden();
-    if (!ARTEN[E.art]) E.art = VORGABE.art;
-    liste = ARTEN[E.art].liste;
-    regler('tempo', 'tempo', v => v + '');
-    if (!E.tempo) { E.tempo = P.tempo; $('tempo').value = P.tempo; $('tempo').parentElement.querySelector('output').textContent = P.tempo; }
-    artenZeigen();
+    ereignisseBilden();
+    regler('tempo', 'tempo');
+    if (!E.tempo) { E.tempo = A.tempo; $('tempo').value = A.tempo; $('tempo').parentElement.querySelector('output').textContent = A.tempo; }
+    U.bpm = E.tempo;
     streifenZeigen();
     zeigen();
 })();
