@@ -222,8 +222,8 @@ function haltenAb(p, wann) {
     else { p.cancelScheduledValues(wann); p.setValueAtTime(p.value, wann); }
 }
 
-/** art: 'oben' | 'grund' (Bass-Grundton) | 'sub' (Tiefbass eine Oktave darunter) */
-function tonAn(midi, art, wann, weich) {
+/** art: 'oben' | 'grund' (Bass-Grundton) | 'sub' (Tiefbass eine Oktave darunter); anstieg: feste Einschwingzeit */
+function tonAn(midi, art, wann, weich, anstieg = null) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     const g = ctx.createGain();
     g.gain.value = 0;
@@ -249,7 +249,7 @@ function tonAn(midi, art, wann, weich) {
         g.connect(tonfilter);
     }
     const ziel = art === 'sub' ? 0.5 : art === 'grund' ? 0.12 : 0.1;
-    const anstieg = weich ? 0.35 : (orgel || art === 'sub' ? 0.03 : 0.12);
+    anstieg ??= weich ? 0.35 : (orgel || art === 'sub' ? 0.03 : 0.12);
     oszis.forEach(o => o.start(wann));
     g.gain.setTargetAtTime(ziel, wann, anstieg);
     return {
@@ -582,7 +582,8 @@ function stimmton() {
     audioStart();
     const ta = ctx.currentTime;
     springen(1);
-    stimmTon = tonAn(57, 'oben', ta + 0.15, true);   // a (A3), Tenor-Lage, Frauen hören es eine Oktave tiefer
+    // a (A3), Tenor-Lage, Frauen hören es eine Oktave tiefer; sofort und mit kurzem Einschwingen (Gate)
+    stimmTon = tonAn(57, 'oben', ta, false, 0.008);
     $('aKnopf').setAttribute('aria-pressed', 'true');
     zeigen();
 }
@@ -713,6 +714,8 @@ function knopf(el, fn) {
     el.addEventListener('click', e => { if (!hilfe && e.detail === 0) fn(); });
 }
 knopf($('weiter'), tippen);
+// Audiogerät schon bei der ersten Berührung irgendwo anlegen: sonst kostet das Anlaufen den ersten Ton
+document.addEventListener('pointerdown', () => audioStart(), { capture: true, once: true });
 knopf($('zurueck'), zurueck);
 // A als Gate: Ton beim Aufsetzen an, beim Loslassen aus; der Finger darf dabei vom Knopf rutschen
 $('aKnopf').addEventListener('pointerdown', e => {
