@@ -58,8 +58,10 @@ header h1 { font-size: 22px; margin: 0 auto 0 0; font-weight: 600; white-space: 
 #streifen button .t { color: var(--leise); margin-right: 4px; }
 #streifen button.an { background: var(--warm-tief); border-color: var(--warm); }
 
-#tasten { display: grid; grid-template-columns: 1fr 3fr; gap: 10px; height: 42vh; min-height: 180px; padding-block: 8px 10px; }
-#zurueck { font-size: 26px; }
+#tasten { display: grid; grid-template-columns: 1fr 3fr; grid-template-rows: 1fr 1fr; gap: 10px; height: 42vh; min-height: 180px; padding-block: 8px 10px; }
+#zurueck { font-size: 26px; grid-column: 1; grid-row: 2; }
+#aKnopf { font-size: 40px; font-weight: 700; grid-column: 1; grid-row: 1; }
+#weiter { grid-column: 2; grid-row: 1 / 3; }
 #weiter { font-size: 48px; font-weight: 700; background: #3a2c18; border-color: var(--warm); }
 #weiter:active, #weiter.druck { background: var(--warm-tief); }
 
@@ -123,8 +125,9 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="streifen" data-hilfe="Alle Takte mit ihren Akkorden. Antippen springt dorthin, der Akkord klingt, der nächste Tipp startet von dieser Stelle."></div>
 
 <div id="tasten">
+    <button id="aKnopf" aria-pressed="false" data-hilfe="Stopp: alles hört auf, ein leiser Stimmton a klingt, die Begleitung steht wieder am Anfang (Seele). Der erste Tipp auf weiter startet und nimmt den Stimmton weg. Nochmal A: Stimmton aus. Tastatur: a.">A</button>
     <button id="zurueck" data-hilfe="An den Anfang des Taktes, kurz nach dem Taktanfang einen Takt davor. Dort wartet die Begleitung auf den nächsten Tipp. Tastatur: Pfeil links, Bild hoch.">◀<br>zurück</button>
-    <button id="weiter" data-hilfe="Jeden Takt einmal auf die Eins tippen. Akkorde mitten im Takt kommen von selbst im Tipp-Tempo. Fehlt ein Tipp, kommt der Takt weich und blendet aus. Ein Tipp viel zu früh heißt nur: ja, weiter. Tastatur und Fußtaster: Leertaste, Pfeil rechts, Bild runter.">weiter</button>
+    <button id="weiter" data-hilfe="Erster Tipp auf Seele (2:1) startet, der zweite auf fangen (3:1) gibt das Tempo. Danach auf Kerker (4:4), 6:1, 8:1, 9:1, 10:3, 11:3, 13:1, 14:1, ab Takt 15 jeden Takt auf die Eins. Alles dazwischen kommt von selbst im Tipp-Tempo. Fehlt ein Tipp, kommt die Stelle weich und blendet aus. Ein Tipp viel zu früh heißt nur: ja, weiter. Tastatur und Fußtaster: Leertaste, Pfeil rechts, Bild runter.">weiter</button>
 </div>
 
 <section id="einstellungen" hidden aria-label="Einstellungen">

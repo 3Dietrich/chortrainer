@@ -1,10 +1,13 @@
 {
-  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus). Jeder Taktanfang ist eine Tippstelle; Akkorde mitten im Takt laufen im Tipp-Tempo von selbst. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (in Vierteln): frueh/spaet = so weit vor/nach einer Stelle rastet ein Tipp noch ein, gnade = so lange wartet ein Taktanfang auf seinen Tipp, bevor die Nachhut kommt.",
+  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus). anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (in Vierteln): frueh/spaet = so weit vor/nach einer Stelle rastet ein Tipp noch ein, gnade = so lange wartet ein Taktanfang auf seinen Tipp, bevor die Nachhut kommt.",
   "lied": "Bereit.musicxml",
   "tempo": 85,
+  "anfang": "2:1",
+  "tippstellen": ["2:1", "3:1", "4:4", "6:1", "8:1", "9:1", "10:3", "11:3", "13:1", "14:1"],
+  "taktweise_ab": 15,
   "fenster": { "frueh": 0.75, "spaet": 1.0, "gnade": 0.5 },
   "akkorde": [
-    ["1:3", "Am"],
+    ["2:1", "Am"],
     ["5:1", "Em"],
     ["6:1", "Dm6"],
     ["8:1", "Am"],
