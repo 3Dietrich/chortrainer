@@ -24,7 +24,7 @@ const SPEICHER = 'begleitung-einstellungen';
 // modus: 'stellen' = DDs Stellen aus dem Ablauf, 'takte' = jede Eins, 'halbe' = Eins und Drei (2/4)
 // waerme = Stereo-Chorus, hoehen = Tiefpass (hieß früher Wärme)
 // stimme: aus welcher Stimme der Text kommt ('' = Textstimme des Ablaufs); spiel: 'akkord' oder 'bass' (nur Bass)
-const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 35, hoehen: 55, modus: 'stellen', stimme: '', spiel: 'akkord' };
+const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'stellen', stimme: '', spiel: 'akkord' };
 let E = { ...VORGABE };
 try {
     const alt = JSON.parse(localStorage.getItem(SPEICHER) || '{}');
