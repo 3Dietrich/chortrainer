@@ -12,7 +12,8 @@
  * - Tipp viel zu früh: kein echtes weiter, sondern "ja genau, mach weiter" (Nachhut wieder voll).
  * - Kommt wieder ein Tipp im Takt, geht es von dort normal weiter.
  * Tempo: Mittel aus den Tipp-Abständen, dazu Faktoren aus dem Ablauf (Takt 18 zieht an, Schluss langsamer).
- * Eine Uhr läuft im Tipp-Tempo mit; jeder Tipp rastet auf die nächste Tippstelle der Uhr ein.
+ * Eine Uhr läuft im Tipp-Tempo mit und läuft nie über eine Tippstelle hinweg: kommt der Tipp nicht, hält sie dort
+ * kurz an (Chor ist langsamer), erst dann kommt die Nachhut. Jeder Tipp setzt Uhr und Tempo neu (@dd 20261105).
  *
  * Aufruf: begleitung.html?lied=Bereit.musicxml (Ablauf: Bereit.ablauf.json daneben).
  */
@@ -326,6 +327,9 @@ let nachhut = false;
 let fertig = false;
 let anfang = 0;          // Position, an der die Begleitung bereitsteht
 let stimmTon = null;     // klingender Stimmton (Taste A)
+let halt = null;         // { e, bis }: Uhr hält an einer Tippstelle und wartet kurz auf einen späten Tipp
+let verpasst = null;     // zuletzt ohne Tipp (als Nachhut) ausgeführte Tippstelle
+const fenster = () => ({ frueh: 0.3, spaet: 0.5, gnade: 0.3, ...A.fenster });   // Anteile der Lücke
 
 function ereignisseBilden() {
     const jePos = new Map();
@@ -350,6 +354,9 @@ function ereignisseBilden() {
     }
     const schluss = ev(P.ende); schluss.ende = true; schluss.warten = true;
     EV = [...jePos.values()].sort((a, b) => a.pos - b.pos);
+    // Lücke: Abstand zur vorigen Tippstelle (in Vierteln), Maß für die Fenster
+    let vorige = anfang;
+    for (const e of EV) if (e.tippstelle || e.warten) { e.luecke = Math.max(1, e.pos - vorige); vorige = e.pos; }
 }
 
 // Die Uhr läuft in Echtzeit (performance.now), nicht in der Audiozeit: die steht beim ersten Tipp noch,
@@ -391,29 +398,45 @@ function naechstePos(e, feld) {
     return f ? f.pos : e.pos + 2;
 }
 
-/** Läuft alle 20 ms: führt fällige Ereignisse aus, hält an Wartestellen. */
+/** Läuft alle 20 ms: führt fällige Ereignisse aus, hält an Tipp- und Wartestellen. */
 function takt() {
     if (!ctx) return;
     const t = jetzt();
-    if (U.laeuft) {
+    if (halt) {
+        if (t >= halt.bis) {
+            // kein Tipp gekommen: die Stelle kommt weich (Nachhut), die Uhr läuft von hier weiter
+            const e = halt.e;
+            halt = null;
+            uhrSetzen(e.pos, t);
+            U.laeuft = true;
+            ausfuehren(e, t, true);
+            verpasst = e;
+            ix++;
+            zeigen();
+        }
+    } else if (U.laeuft) {
         const horizont = uhrPos(t + 0.06);
         while (ix < EV.length && EV[ix].pos <= horizont + 1e-6) {
             const e = EV[ix];
             if (e.warten) {
                 // anhalten: Uhr steht auf der Wartestelle, Akkord (und Wirbel) halten
+                if (uhrPos(t) < e.pos - 1e-6) break;
                 uhrSetzen(e.pos, t);
                 U.laeuft = false;
                 zeigen();
                 break;
             }
             if (e.tippstelle) {
-                // Tippstelle ohne Tipp: noch kurz auf einen späten Tipp warten, dann weich als Nachhut
-                const gnade = (A.fenster && A.fenster.gnade) ?? 0.5;
-                if (horizont < e.pos + gnade - 1e-6) break;
-                ausfuehren(e, Math.max(t, zeitVon(e.pos + gnade)), true);
-            } else {
-                ausfuehren(e, Math.max(t, zeitVon(e.pos)), nachhut);
+                // Tippstelle ohne Tipp: Uhr hält hier, der Chor ist vielleicht nur langsamer
+                if (uhrPos(t) < e.pos - 1e-6) break;
+                uhrSetzen(e.pos, t);
+                U.laeuft = false;
+                halt = { e, bis: t + fenster().gnade * e.luecke * 60 / U.bpm };
+                e.erreicht = t;
+                zeigen();
+                break;
             }
+            ausfuehren(e, Math.max(t, zeitVon(e.pos)), nachhut);
             ix++;
         }
     }
@@ -430,6 +453,15 @@ function tippen(zeit) {
     wachhalten();
     stimmtonAus(audioZeit(t));
     if (fertig) { neuAnfang(); return; }
+    if (halt) {
+        // später Tipp, Uhr hielt schon an der Stelle: der Chor ist langsamer
+        const e = halt.e;
+        halt = null;
+        TIPPS.push({ uhr: +e.pos.toFixed(2), stelle: +e.pos.toFixed(2), spaet: true, bpm: Math.round(U.bpm) });
+        if (e.ende) { schluss(t); return; }
+        einrasten(e.pos, t, true);
+        return;
+    }
     if (!U.laeuft) {
         // Uhr steht (Anfang, Wartestelle, nach Sprung): Tipp startet genau hier
         const e = EV[ix];
@@ -437,22 +469,19 @@ function tippen(zeit) {
         einrasten(U.s0, t, !!(e && e.anlauf && Math.abs(e.pos - U.s0) < 1e-6));
         return;
     }
-    const p = uhrPos(t);
-    const f = { frueh: 0.75, spaet: 1, ...A.fenster };
-    let beste = null;
-    for (const e of EV) {
-        if (!e.tippstelle && !e.warten) continue;
-        if (letzterTipp && e.pos <= letzterTipp.pos + 1e-6) continue;
-        const d = e.pos - p;                  // > 0: Tipp kommt vor der Stelle
-        if (d > f.frueh || -d > f.spaet) continue;
-        if (!beste || Math.abs(d) < Math.abs(beste.pos - p)) beste = e;
-    }
-    TIPPS.push({ uhr: +p.toFixed(2), stelle: beste ? +beste.pos.toFixed(2) : null, bpm: Math.round(U.bpm) });
-    if (beste) {
-        if (beste.ende) { schluss(t); return; }
-        einrasten(beste.pos, t, true);
+    // nach einer Nachhut hinkt die Uhr um die Haltezeit hinterher: entschieden wird nach der Uhr ohne Halt
+    const p = verpasst ? verpasst.pos + (t - verpasst.erreicht) * U.bpm / 60 : uhrPos(t);
+    const f = fenster();
+    const naechste = EV.slice(ix).find(e => e.tippstelle || e.warten);
+    let ziel = null;
+    if (naechste && naechste.pos - p <= f.frueh * naechste.luecke) ziel = naechste;          // etwas früh
+    else if (verpasst && naechste && p - verpasst.pos <= f.spaet * (naechste.pos - verpasst.pos)) ziel = verpasst;   // spät nach Nachhut
+    TIPPS.push({ uhr: +p.toFixed(2), stelle: ziel ? +ziel.pos.toFixed(2) : null, bpm: Math.round(U.bpm) });
+    if (ziel) {
+        if (ziel.ende) { schluss(t); return; }
+        einrasten(ziel.pos, t, true);
     } else {
-        // viel zu früh oder zwischen den Stellen: "ja genau, mach weiter"
+        // viel zu früh: "ja genau, mach weiter"
         bestaetigt = t;
         if (nachhut) lageVoll(audioZeit(t));
     }
@@ -464,6 +493,16 @@ const TIPPS = [];   // Protokoll zum Auswerten nach einer Probe: Uhrstand, Stell
 
 /** Tipp gilt für die Stelle pos: Tempo nachführen, fällige Ereignisse sofort, Uhr neu ansetzen. */
 function einrasten(pos, t, tempoMessen) {
+    // Stelle schon als Nachhut gespielt (später Tipp): was die Uhr danach schon ausgeführt hat, zurücknehmen
+    const i = EV.findIndex(x => Math.abs(x.pos - pos) < 1e-6);
+    const zurueckgenommen = i >= 0 && i < ix;
+    if (zurueckgenommen) {
+        for (let k = i + 1; k < ix; k++) if (EV[k].tempo) U.bpm /= EV[k].tempo;
+        ix = i + 1;
+        const ak = EV.slice(0, i + 1).reverse().find(x => x.akkord);
+        if (ak && ak.akkord !== akkordJetzt) akkordSpielen(ak.akkord, audioZeit(t), false);
+    }
+    verpasst = null;
     if (tempoMessen && letzterTipp) {
         const viertel = pos - letzterTipp.pos, sek = t - letzterTipp.t;
         const anlauf = EV.some(x => x.anlauf && Math.abs(x.pos - pos) < 1e-6);
@@ -471,13 +510,20 @@ function einrasten(pos, t, tempoMessen) {
             // zweiter Tipp nach dem Anfang: das Tempo kommt ganz aus diesem Abstand
             U.bpm = Math.min(160, Math.max(40, viertel * 60 / sek));
         } else if (viertel >= 0.9 && sek > 0.25) {
-            const neu = viertel * 60 / sek;
-            if (neu > U.bpm * 0.6 && neu < U.bpm * 1.6) {
-                // musikalisches Mittel: ein ganzer Takt zählt halb, kurze Abstände (Wackeln) und lange Lücken weniger
-                const w = viertel <= 8 ? Math.min(0.5, viertel / 8) : 0.25;
-                U.bpm = U.bpm * (1 - w) + neu * w;
-            }
+            // gemessenes Tempo, begrenzt auf einen Sprung von höchstens 0,6 bis 1,6
+            const neu = Math.min(U.bpm * 1.6, Math.max(U.bpm * 0.6, viertel * 60 / sek));
+            // musikalisches Mittel: ein Takt zählt zu zwei Dritteln, kurze Abstände (Wackeln) und lange Lücken weniger
+            const w = viertel <= 8 ? Math.min(0.65, Math.max(0.2, viertel / 6)) : 0.3;
+            U.bpm = U.bpm * (1 - w) + neu * w;
         }
+    }
+    if (zurueckgenommen) {
+        uhrSetzen(pos, t);
+        U.laeuft = true;
+        letzterTipp = { pos, t };
+        lageVoll(audioZeit(t));
+        zeigen();
+        return;
     }
     // übersprungene Ereignisse: nur ihr letzter Akkord zählt, Tempo-Faktoren gelten trotzdem
     let akkord = null;
@@ -503,7 +549,7 @@ function einrasten(pos, t, tempoMessen) {
 }
 
 function schluss(t) {
-    wirbel = null;
+    wirbel = null; halt = null;
     alleAus(audioZeit(t), 3);
     U.laeuft = false;
     fertig = true;
@@ -545,7 +591,7 @@ function springen(n, tempoBehalten = false) {
     if (!P) return;
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
-    fertig = false; wirbel = null;
+    fertig = false; wirbel = null; halt = null; verpasst = null;
     const pos = Math.max(taktBeginn(n), anfang);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
     if (!tempoBehalten) {
@@ -582,16 +628,17 @@ function zeigen() {
     if (!P) return;
     const t = jetzt();
     const p = Math.min(uhrPos(t), P.ende - 1e-3);
+    const laeuft = U.laeuft || !!halt;
     const st = stelleVon(p);
-    $('stelle').textContent = `Takt ${st.takt}` + (U.laeuft || st.schlag > 1 ? `, Schlag ${st.schlag}` : '');
+    $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `, Schlag ${st.schlag}` : '');
     $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
-    let zustand = U.laeuft ? (nachhut ? 'Nachhut' : 'läuft') : 'wartet auf Tipp';
+    let zustand = halt ? 'hört hin' : U.laeuft ? (nachhut ? 'Nachhut' : 'läuft') : 'wartet auf Tipp';
     if (fertig) zustand = 'Ende';
     if (!U.laeuft && !letzterTipp && Math.abs(U.s0 - anfang) < 1e-6) zustand = 'bereit';
     if (stimmTon) zustand = 'Stimmton a';
     if (bestaetigt > 0 && t - bestaetigt < 0.6) zustand = 'ja, weiter';
     $('zustand').textContent = zustand;
-    $('zustand').dataset.art = nachhut ? 'nachhut' : (U.laeuft ? 'laeuft' : 'wartet');
+    $('zustand').dataset.art = nachhut ? 'nachhut' : (laeuft ? 'laeuft' : 'wartet');
     $('akkord').textContent = akkordJetzt && akkordJetzt !== '-' && !fertig ? akkordJetzt : '';
     $('jetzt').textContent = textIn(taktBeginn(st.takt), taktEnde(st.takt));
     const n = st.takt + 1;
@@ -603,7 +650,7 @@ function zeigen() {
         $('streifen').children[st.takt - 1]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
 }
-setInterval(() => { if (U.laeuft || nachhut) zeigen(); }, 100);
+setInterval(() => { if (U.laeuft || nachhut || halt) zeigen(); }, 100);
 
 function streifenZeigen() {
     const s = $('streifen');
