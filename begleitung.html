@@ -44,6 +44,8 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #zustand { padding: 4px 10px; border-radius: 10px; background: var(--flaeche); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #zustand[data-art="laeuft"] { background: #2f4a2a; }
 .rund { width: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 22px; font-weight: 700; flex: none; }
+/* Zahnrad-Zeichen größer, der Knopf bleibt gleich (@dd 20261105) */
+#zahnrad { font-size: 34px; line-height: 1; }
 
 #anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 4px 8px; }
 #akkord { grid-row: 1 / 3; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
@@ -149,6 +151,21 @@ input[type=range] { width: 100%; height: 52px; accent-color: var(--warm); }
 input[type=checkbox] { width: 32px; height: 32px; accent-color: var(--warm); }
 #einstellungen .zeile { display: flex; gap: 10px; flex-wrap: wrap; }
 #einstellungen .zeile button { flex: 1; }
+/* Browser/Tablet (@dd 20261105): Einstellungen als schlanke Karte rechts unten statt über die ganze Breite */
+@media (min-width: 700px) {
+    #einstellungen { inset: auto max(12px, env(safe-area-inset-right, 0)) 12px auto; width: min(480px, calc(100vw - 24px));
+        border: 2px solid var(--linie); border-radius: 16px; padding: 12px 16px 14px; gap: 6px; font-size: 17px;
+        max-height: calc(100vh - 90px); box-shadow: 0 8px 32px #0009; }
+    #einstellungen .kopfzeile { top: -12px; margin-top: -12px; padding: 10px 0 6px; }
+    #einstellungen h2 { font-size: 19px; }
+    #einstellungen .gruppe { gap: 4px; }
+    #einstellungen .gruppe .name { font-size: 15px; }
+    #einstellungen .zeile { gap: 6px; }
+    #einstellungen button { min-height: 42px; padding: 4px 10px; border-radius: 11px; }
+    #einstellungen .rund { width: 42px; min-height: 42px; font-size: 19px; }
+    #einstellungen label { grid-template-columns: 6.2em 1fr 2.4em; min-height: 40px; gap: 8px; }
+    #einstellungen input[type=range] { height: 40px; }
+}
 
 /* Hilfemodus (Standard @dd): Ringe um erklärbare Elemente, Klick zeigt Hilfe statt Funktion */
 body.hilfemodus [data-hilfe] { outline: 3px dashed var(--fokus); outline-offset: 3px; transition: outline-color .2s; }
