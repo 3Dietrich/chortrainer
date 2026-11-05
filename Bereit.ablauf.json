@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus). anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp noch ein, gnade = so lange hält die Uhr an einer Stelle und wartet auf einen späten Tipp, bevor die Nachhut kommt, spaet = so weit nach einer Nachhut-Stelle zählt ein Tipp noch als später Tipp für sie.",
+  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus), \"A1\" = nur der Ton a in Oktaven. anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp noch ein, gnade = so lange hält die Uhr an einer Stelle und wartet auf einen späten Tipp, bevor die Nachhut kommt, spaet = so weit nach einer Nachhut-Stelle zählt ein Tipp noch als später Tipp für sie.",
   "lied": "Bereit.musicxml",
   "tempo": 85,
   "anfang": "2:1",
@@ -9,7 +9,8 @@
   "akkorde": [
     ["2:1", "Am"],
     ["5:1", "Em"],
-    ["6:1", "Dm6"],
+    ["6:1", "Dm7"],
+    ["6:2", "Dm6"],
     ["8:1", "Am"],
     ["9:1", "F#m"],
     ["10:3", "Am"],
@@ -49,7 +50,7 @@
     ["35:3", "-"],
     ["36:1", "F"],
     ["36:3", "Gsus2"],
-    ["37:1", "Am"]
+    ["37:1", "A1"]
   ],
   "stellen": {
     "18:1": { "warten": true, "pauke": "17:3", "tempo": 1.12 },

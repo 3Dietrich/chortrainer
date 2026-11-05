@@ -24,7 +24,8 @@ const $ = id => document.getElementById(id);
 /* ---------- Einstellungen (nur Bequemlichkeit pro Gerät, alles geht auch ohne Speicher) ---------- */
 
 const SPEICHER = 'begleitung-einstellungen';
-const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 45, tempo: 0, wach: true };
+// modus: 'stellen' = Tippstellen aus dem Ablauf (Plan @dd), 'takte' = jeder Taktanfang ab dem Anfang
+const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 45, tempo: 0, wach: true, modus: 'stellen' };
 let E = { ...VORGABE };
 try { Object.assign(E, JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch (e) { /* privat/gesperrt */ }
 function sichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(E)); } catch (e) { /* egal */ } }
@@ -115,6 +116,7 @@ const GRUNDTON = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, H: 11, B: 10 };   // deut
 const ART = {
     '': [0, 4, 7], 'm': [0, 3, 7], '7': [0, 4, 7, 10], 'm7': [0, 3, 7, 10], 'maj7': [0, 4, 7, 11],
     '6': [0, 4, 7, 9], 'm6': [0, 3, 7, 9], 'sus4': [0, 5, 7], 'sus2': [0, 2, 7], 'dim': [0, 3, 6],
+    '1': [0],   // nur der Grundton (in Oktaven), z.B. "A1" am Schluss
 };
 
 function akkordLesen(sym) {
@@ -146,7 +148,8 @@ function lageFuer(sym) {
         }
         for (const m of optionen[i]) durch(i + 1, [...wahl, m]);
     };
-    durch(0, []);
+    if (a.toene.length === 1) beste = [55, 67].map(o => o + ((a.grund - o % 12 + 12) % 12));
+    else durch(0, []);
     if (!beste) beste = a.toene.map(pc => 60 + ((pc - 0 + 12) % 12)).sort((x, y) => x - y);
     letzteLage = beste;
     return { bass, oben: beste };
@@ -326,6 +329,7 @@ let letzterTipp = null;  // { pos, t }
 let nachhut = false;
 let fertig = false;
 let anfang = 0;          // Position, an der die Begleitung bereitsteht
+let SEG = [];            // Positionen der Tippstellen ab dem Anfang
 let stimmTon = null;     // klingender Stimmton (Taste A)
 let halt = null;         // { e, bis }: Uhr hält an einer Tippstelle und wartet kurz auf einen späten Tipp
 let verpasst = null;     // zuletzt ohne Tipp (als Nachhut) ausgeführte Tippstelle
@@ -338,12 +342,14 @@ function ereignisseBilden() {
         if (!jePos.has(k)) jePos.set(k, { pos });
         return jePos.get(k);
     };
-    const liste = Array.isArray(A.tippstellen);
-    P.taktAnfaenge.forEach((p, i) => { const e = ev(p); e.takt = i + 1; e.tippstelle = !liste || i + 1 >= (A.taktweise_ab || Infinity); });
-    for (const [s, sym] of A.akkorde) { const e = ev(stellePos(s)); e.akkord = sym; if (!liste) e.tippstelle = true; }
-    if (liste) for (const s of A.tippstellen) ev(stellePos(s)).tippstelle = true;
     // vor dem Anfang singen nur die Stimmen; die erste Tippstelle danach wartet und misst das Tempo
     anfang = A.anfang ? stellePos(A.anfang) : 0;
+    const liste = E.modus !== 'takte' && Array.isArray(A.tippstellen);
+    const abTakt = liste ? (A.taktweise_ab || Infinity) : stelleVon(anfang).takt;
+    P.taktAnfaenge.forEach((p, i) => { const e = ev(p); e.takt = i + 1; e.tippstelle = i + 1 >= abTakt; });
+    for (const [s, sym] of A.akkorde) ev(stellePos(s)).akkord = sym;
+    if (liste) for (const s of A.tippstellen) ev(stellePos(s)).tippstelle = true;
+    ev(anfang).tippstelle = true;
     const erste = [...jePos.values()].filter(e => e.tippstelle && e.pos > anfang + 1e-6).sort((a, b) => a.pos - b.pos)[0];
     if (erste) { erste.anlauf = true; erste.warten = true; }
     for (const [s, o] of Object.entries(A.stellen || {})) {
@@ -357,6 +363,8 @@ function ereignisseBilden() {
     // Lücke: Abstand zur vorigen Tippstelle (in Vierteln), Maß für die Fenster
     let vorige = anfang;
     for (const e of EV) if (e.tippstelle || e.warten) { e.luecke = Math.max(1, e.pos - vorige); vorige = e.pos; }
+    // Abschnitte für Anzeige, Streifen und zurück: von Tippstelle zu Tippstelle
+    SEG = EV.filter(e => (e.tippstelle || e.warten) && !e.ende && e.pos >= anfang - 1e-6).map(e => e.pos);
 }
 
 // Die Uhr läuft in Echtzeit (performance.now), nicht in der Audiozeit: die steht beim ersten Tipp noch,
@@ -587,12 +595,14 @@ function stimmtonAus(ta) {
 }
 
 /** Zu Takt n springen: dort steht die Uhr, der Akkord an dieser Stelle klingt, der nächste Tipp startet. */
-function springen(n, tempoBehalten = false) {
+function springen(n, tempoBehalten = false) { springenAuf(taktBeginn(n), tempoBehalten); }
+
+function springenAuf(ziel, tempoBehalten = false) {
     if (!P) return;
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
     fertig = false; wirbel = null; halt = null; verpasst = null;
-    const pos = Math.max(taktBeginn(n), anfang);
+    const pos = Math.max(ziel, anfang);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
     if (!tempoBehalten) {
         // Tempo bis hierher aus den Faktoren
@@ -608,20 +618,29 @@ function springen(n, tempoBehalten = false) {
     zeigen();
 }
 
-/** Zurück: an den Anfang des laufenden Taktes, ist der gerade erst begonnen, einen Takt davor. */
+/** Zurück: an den Anfang des laufenden Abschnitts, ist der gerade erst begonnen, einen Abschnitt davor. */
 function zurueck() {
     if (!P) return;
     const p = uhrPos(jetzt());
-    const n = stelleVon(p).takt;
-    springen(p - taktBeginn(n) > 1 ? n : Math.max(1, n - 1), true);
+    const i = segIndex(p);
+    springenAuf(p - SEG[i] > 1 ? SEG[i] : SEG[Math.max(0, i - 1)], true);
 }
 
 /* ---------- Anzeige ---------- */
 
-function akkordeImTakt(n) {
-    const a = taktBeginn(n), b = taktEnde(n);
+const segIndex = p => { let i = 0; while (i + 1 < SEG.length && SEG[i + 1] <= p + 1e-6) i++; return i; };
+const segEnde = i => (i + 1 < SEG.length ? SEG[i + 1] : P.ende);
+const anzeigeName = sym => (sym === '-' ? 'Pause' : sym.endsWith('1') ? 'nur ' + sym.slice(0, -1) : sym);
+
+/** Name eines Abschnitts: im Taktmodus die Taktzahl, sonst Takt:Schlag */
+function segName(pos) {
+    const st = stelleVon(pos);
+    return E.modus === 'takte' ? String(st.takt) : `${st.takt}:${st.schlag}`;
+}
+
+function akkordeIn(a, b) {
     return A.akkorde.filter(([s]) => { const p = stellePos(s); return p >= a - 1e-6 && p < b - 1e-6; })
-        .map(([s, sym]) => (sym === '-' ? 'Pause' : sym)).join(' ');
+        .map(([, sym]) => anzeigeName(sym)).join(' ');
 }
 
 function zeigen() {
@@ -639,15 +658,15 @@ function zeigen() {
     if (bestaetigt > 0 && t - bestaetigt < 0.6) zustand = 'ja, weiter';
     $('zustand').textContent = zustand;
     $('zustand').dataset.art = nachhut ? 'nachhut' : (laeuft ? 'laeuft' : 'wartet');
-    $('akkord').textContent = akkordJetzt && akkordJetzt !== '-' && !fertig ? akkordJetzt : '';
-    $('jetzt').textContent = textIn(taktBeginn(st.takt), taktEnde(st.takt));
-    const n = st.takt + 1;
-    $('dann').innerHTML = n <= P.taktAnfaenge.length
-        ? `dann <b>${n}</b> <b class="ak">${akkordeImTakt(n)}</b> ${textIn(taktBeginn(n), taktEnde(n))}` : 'Schluss';
-    [...$('streifen').children].forEach((b, i) => b.classList.toggle('an', i === st.takt - 1));
-    if (st.takt !== zeigen.takt) {
-        zeigen.takt = st.takt;
-        $('streifen').children[st.takt - 1]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    $('akkord').textContent = akkordJetzt && akkordJetzt !== '-' && !fertig ? anzeigeName(akkordJetzt) : '';
+    const i = segIndex(p);
+    $('jetzt').textContent = textIn(SEG[i], segEnde(i));
+    $('dann').innerHTML = i + 1 < SEG.length
+        ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textIn(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
+    [...$('streifen').children].forEach((b, k) => b.classList.toggle('an', k === i));
+    if (i !== zeigen.seg) {
+        zeigen.seg = i;
+        $('streifen').children[i]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     }
 }
 setInterval(() => { if (U.laeuft || nachhut || halt) zeigen(); }, 100);
@@ -655,11 +674,15 @@ setInterval(() => { if (U.laeuft || nachhut || halt) zeigen(); }, 100);
 function streifenZeigen() {
     const s = $('streifen');
     s.innerHTML = '';
-    P.taktAnfaenge.forEach((_, i) => {
+    SEG.forEach((pos, i) => {
         const b = document.createElement('button');
-        b.innerHTML = `<span class="t">${i + 1}</span>${akkordeImTakt(i + 1) || '·'}`;
-        b.title = textIn(taktBeginn(i + 1), taktEnde(i + 1));
-        b.addEventListener('click', () => springen(i + 1));
+        const text = textIn(pos, segEnde(i)), ak = akkordeIn(pos, segEnde(i));
+        // Taktmodus: Akkorde des Taktes; Stellenmodus: das erste Wort, auf das getippt wird
+        const inhalt = E.modus === 'takte' ? (ak || '·') : (text.split(' ')[0] || '·');
+        b.innerHTML = `<span class="t">${segName(pos)}</span>${inhalt}`;
+        b.title = (ak ? ak + ': ' : '') + text;
+        b.tabIndex = -1;
+        b.addEventListener('click', () => springenAuf(pos));
         s.appendChild(b);
     });
 }
@@ -729,6 +752,28 @@ regler('waerme', 'waerme');
 $('wach').checked = E.wach;
 $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern(); wachSetzen(); });
 
+// Tippen: deine Stellen oder jeder Takt (zum Ausprobieren, @dd 20261105)
+(() => {
+    const zeile = $('moduswahl');
+    for (const [key, name] of [['stellen', 'deine Stellen'], ['takte', 'jeder Takt']]) {
+        const b = document.createElement('button');
+        b.textContent = name;
+        b.setAttribute('aria-pressed', String(E.modus === key));
+        b.addEventListener('click', () => {
+            E.modus = key; sichern();
+            [...zeile.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+            if (!A) return;
+            if (ctx) alleAus(ctx.currentTime, 0.5);
+            fertig = false; halt = null; verpasst = null; wirbel = null; nachhut = false; akkordJetzt = '';
+            ereignisseBilden();
+            anfangStellen();
+            streifenZeigen();
+            zeigen();
+        });
+        zeile.appendChild(b);
+    }
+})();
+
 // Klangfarbe: Orgel oder Fläche
 (() => {
     const zeile = $('klangwahl');
@@ -745,6 +790,28 @@ $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern
         zeile.appendChild(b);
     }
 })();
+
+/** Leertaste: läuft die Begleitung, stoppt sie; steht sie, startet sie (am Anfang bzw. dort, wo gestoppt wurde). */
+let gestopptBei = null;
+function startStopp(zeit) {
+    if (!P) return;
+    const t = zeit > 0 && zeit <= jetzt() ? zeit : jetzt();
+    audioStart();
+    if (letzterTipp && !fertig) {
+        gestopptBei = SEG[segIndex(uhrPos(t))];
+        schluss(t);
+        return;
+    }
+    if (fertig) { springenAuf(gestopptBei ?? anfang); gestopptBei = null; }
+    tippen(t);
+}
+// in der Fangphase, damit kein Knopf und kein Haken mit Fokus die Leertaste bekommt
+addEventListener('keydown', e => {
+    if (e.key !== ' ') return;
+    e.preventDefault(); e.stopPropagation();
+    if (!hilfe && !e.repeat) startStopp(e.timeStamp / 1000);
+}, true);
+addEventListener('keyup', e => { if (e.key === ' ') { e.preventDefault(); e.stopPropagation(); } }, true);
 
 addEventListener('keyup', e => {
     if ((e.key === 'a' || e.key === 'A') && ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
@@ -763,7 +830,6 @@ addEventListener('keydown', e => {
     if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key)) { e.preventDefault(); tippen(e.timeStamp / 1000); }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); zurueck(); }
     else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); stimmton(); }
-    else if (e.key === ' ' && (document.activeElement === document.body || !document.activeElement)) { e.preventDefault(); tippen(e.timeStamp / 1000); }
 });
 
 /* ---------- Hilfemodus ---------- */
