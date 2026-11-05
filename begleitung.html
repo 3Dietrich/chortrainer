@@ -54,7 +54,7 @@ header h1 { font-size: 22px; margin: 0 auto 0 0; font-weight: 600; white-space: 
 #dann .ak { color: var(--warm); }
 
 #streifen { display: flex; gap: 6px; overflow-x: auto; padding-block: 6px; scrollbar-width: none; }
-#streifen button { flex: none; min-height: 48px; font-size: 16px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#streifen button { flex: none; min-height: 48px; touch-action: pan-x; -webkit-touch-callout: none; font-size: 16px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #streifen button .t { color: var(--leise); margin-right: 4px; }
 #streifen button.an { background: var(--warm-tief); border-color: var(--warm); }
 /* Wort im Streifen: Tippsilbe kräftig, der Rest des Wortes zurückgenommen, auch auf der aktiven Stelle */
@@ -64,10 +64,10 @@ header h1 { font-size: 22px; margin: 0 auto 0 0; font-weight: 600; white-space: 
 #streifen button.an b { color: #fff; }
 #streifen button.an .t { color: #f3dcb8; }
 
-#tasten { display: grid; grid-template-columns: 1fr 3fr; grid-template-rows: 1fr 1fr; gap: 10px; height: 42vh; min-height: 180px; padding-block: 8px 10px; }
-#zurueck { font-size: 26px; grid-column: 1; grid-row: 2; }
-#aKnopf { font-size: 40px; font-weight: 700; grid-column: 1; grid-row: 1; }
-#weiter { grid-column: 2; grid-row: 1 / 3; }
+/* Tasten (@dd 20261105): A klein, Stopp daneben, weiter halb so hoch wie vorher */
+#tasten { display: grid; grid-template-columns: 1fr 1fr 3fr; gap: 10px; height: 21vh; min-height: 110px; padding-block: 8px 10px; }
+#aKnopf { font-size: 30px; font-weight: 700; }
+#stoppKnopf { font-size: 22px; }
 #weiter { font-size: 48px; font-weight: 700; background: #3a2c18; border-color: var(--warm); }
 #weiter:active, #weiter.druck { background: var(--warm-tief); }
 
@@ -82,7 +82,7 @@ header, #status, #streifen, #tasten { flex: none; }
     header, #status { grid-column: 1 / -1; }
     #anzeige { grid-column: 1; grid-row: 3; }
     #streifen { grid-column: 1; grid-row: 4; }
-    #tasten { grid-column: 2; grid-row: 3 / 5; height: auto; min-height: 0; grid-template-columns: 1fr 2fr; }
+    #tasten { grid-column: 2; grid-row: 3 / 5; height: auto; min-height: 0; grid-template-columns: 1fr 1fr 2fr; }
 }
 
 #einstellungen {
@@ -128,11 +128,11 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div id="dann"></div>
 </main>
 
-<div id="streifen" data-hilfe="Alle Takte mit ihren Akkorden. Antippen springt dorthin, der Akkord klingt, der nächste Tipp startet von dieser Stelle."></div>
+<div id="streifen" data-hilfe="Die Tippstellen. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier."></div>
 
 <div id="tasten">
     <button id="aKnopf" aria-pressed="false" data-hilfe="Stopp: alles hört auf, die Begleitung steht wieder am Anfang (Seele). Solange A gedrückt ist, klingt leise der Stimmton a, loslassen: Ton aus. Tastatur: a halten.">A</button>
-    <button id="zurueck" data-hilfe="An den Anfang des Taktes, kurz nach dem Taktanfang einen Takt davor. Dort wartet die Begleitung auf den nächsten Tipp. Tastatur: Pfeil links, Bild hoch.">◀<br>zurück</button>
+    <button id="stoppKnopf" data-hilfe="Stopp: der Klang klingt kurz aus, die Begleitung bleibt an der Stelle. weiter startet von dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">■<br>Stopp</button>
     <button id="weiter" data-hilfe="Erster Tipp auf Seele (2:1) startet, der zweite auf fangen (3:1) gibt das Tempo. Danach je nach Einstellung auf deine Stellen oder auf jede Eins (der Streifen zeigt, welche). Alles dazwischen kommt von selbst im Tipp-Tempo. Fehlt ein Tipp, wartet die Begleitung kurz, dann kommt die Stelle weich und blendet aus. Leertaste: Start und Stopp. Fußtaster: Pfeil rechts, Bild runter. Ein Tipp viel zu früh heißt nur: ja, weiter. Tastatur und Fußtaster: Leertaste, Pfeil rechts, Bild runter.">weiter</button>
 </div>
 

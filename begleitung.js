@@ -375,6 +375,7 @@ let fertig = false;
 let anfang = 0;          // Position, an der die Begleitung bereitsteht
 let SEG = [];            // Positionen der Tippstellen ab dem Anfang
 let stimmTon = null;     // klingender Stimmton (Taste A)
+let gestopptBei = null;   // Stelle, an der gestoppt wurde (Leertaste, Stopp-Taste): dort geht es weiter
 let hinhoeren = false;   // nach dem ersten Tipp: Uhr steht, bis der zweite Tipp das Metrum vorgibt
 let halt = null;         // { e, bis }: Uhr hält an einer Tippstelle und wartet kurz auf einen späten Tipp
 let verpasst = null;     // zuletzt ohne Tipp (als Nachhut) ausgeführte Tippstelle
@@ -514,7 +515,11 @@ function tippen(zeit) {
     audioStart();
     wachhalten();
     stimmtonAus(audioZeit(t));
-    if (fertig) { neuAnfang(); return; }
+    if (fertig && gestopptBei != null) {
+        // nach Stopp (Leertaste, Stopp-Taste): an der gestoppten Stelle neu starten
+        springenAuf(gestopptBei, false, false);
+        gestopptBei = null;
+    } else if (fertig) { neuAnfang(); return; }
     if (halt) {
         // später Tipp, Uhr hielt schon an der Stelle: der Chor ist langsamer
         const e = halt.e;
@@ -671,7 +676,7 @@ function akkordBei(pos) {
 
 function springen(n, tempoBehalten = false) { springenAuf(taktBeginn(n), tempoBehalten); }
 
-function springenAuf(ziel, tempoBehalten = false) {
+function springenAuf(ziel, tempoBehalten = false, anspielen = true) {
     if (!P) return;
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
@@ -685,7 +690,8 @@ function springenAuf(ziel, tempoBehalten = false) {
     }
     // Stelle antippen: der Akkord, der dort gilt, klingt eine Halbe an (@dd 20261105), weiter startet von hier
     const a = akkordBei(pos);
-    if (a && ziel > 0) akkordSpielen(a, ta, false, 2); else alleAus(ta, 0.8);
+    if (!anspielen) { /* Klang macht der Aufrufer (Streifen: solange der Finger liegt) */ }
+    else if (a && ziel > 0) akkordSpielen(a, ta, false, 2); else alleAus(ta, 0.8);
     uhrSetzen(pos, t);
     U.laeuft = false;
     letzterTipp = null;
@@ -757,7 +763,25 @@ function streifenZeigen() {
         b.innerHTML = `<span class="t">${segName(pos)}</span>${inhalt}`;
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
-        b.addEventListener('click', () => springenAuf(pos));
+        // Gate (@dd 20261105): der Akkord der Stelle klingt, solange der Finger liegt; beim Loslassen steht
+        // die Begleitung dort. Wird daraus ein Wischen (Streifen scrollen), nur der Klang aus, kein Sprung.
+        let an = false;
+        b.addEventListener('pointerdown', e => {
+            if (hilfe || e.button > 0) return;
+            audioStart();
+            const a = akkordBei(pos);
+            if (a) { akkordSpielen(a, ctx.currentTime, false, 64); an = true; }
+        });
+        b.addEventListener('pointerup', () => {
+            if (hilfe) return;
+            springenAuf(pos, false, false);
+            if (ctx) alleAus(ctx.currentTime, 0.15);
+            an = false;
+        });
+        ['pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => {
+            if (an && ctx) alleAus(ctx.currentTime, 0.15);
+            an = false;
+        }));
         s.appendChild(b);
     });
 }
@@ -790,7 +814,7 @@ function knopf(el, fn) {
 knopf($('weiter'), tippen);
 // Audiogerät schon bei der ersten Berührung irgendwo anlegen: sonst kostet das Anlaufen den ersten Ton
 document.addEventListener('pointerdown', () => audioStart(), { capture: true, once: true });
-knopf($('zurueck'), zurueck);
+knopf($('stoppKnopf'), zeit => { if (ctx && letzterTipp && !fertig) startStopp(zeit); else if (ctx) alleAus(ctx.currentTime, 0.3); });
 // A als Gate: Ton beim Aufsetzen an, beim Loslassen aus; der Finger darf dabei vom Knopf rutschen
 $('aKnopf').addEventListener('pointerdown', e => {
     if (hilfe || e.button > 0) return;
@@ -869,7 +893,6 @@ $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern
 })();
 
 /** Leertaste: läuft die Begleitung, stoppt sie; steht sie, startet sie (am Anfang bzw. dort, wo gestoppt wurde). */
-let gestopptBei = null;
 function startStopp(zeit) {
     if (!P) return;
     const t = zeit > 0 && zeit <= jetzt() ? zeit : jetzt();
@@ -879,7 +902,6 @@ function startStopp(zeit) {
         schluss(t);
         return;
     }
-    if (fertig) { springenAuf(gestopptBei ?? anfang); gestopptBei = null; }
     tippen(t);
 }
 // in der Fangphase, damit kein Knopf und kein Haken mit Fokus die Leertaste bekommt
