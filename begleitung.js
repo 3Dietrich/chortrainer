@@ -747,7 +747,7 @@ function zeigen() {
     [...$('streifen').children].forEach((b, k) => b.classList.toggle('an', k === i));
     if (i !== zeigen.seg) {
         zeigen.seg = i;
-        $('streifen').children[i]?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+        $('streifen').children[i]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 }
 setInterval(() => { if (U.laeuft || nachhut || halt) zeigen(); }, 100);
@@ -759,8 +759,10 @@ function streifenZeigen() {
         const b = document.createElement('button');
         const text = textIn(pos, segEnde(i)), ak = akkordeIn(pos, segEnde(i));
         // Taktmodus: Akkorde des Taktes; Stellenmodus: das erste Wort, auf das getippt wird
-        const inhalt = E.modus === 'takte' ? (ak || '·') : (wortAn(pos, segEnde(i)) || '·');
-        b.innerHTML = `<span class="t">${segName(pos)}</span>${inhalt}`;
+        // Pad: oben Stelle (im Stellenmodus mit Akkord), darunter das Wort mit fetter Tippsilbe bzw. die Akkorde
+        const oben = E.modus === 'takte' ? segName(pos) : segName(pos) + (ak ? ' · ' + ak : '');
+        const unten = E.modus === 'takte' ? (ak || '·') : (wortAn(pos, segEnde(i)) || '·');
+        b.innerHTML = `<span class="t">${oben}</span><span class="w">${unten}</span>`;
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
         // Gate (@dd 20261105): der Akkord der Stelle klingt, solange der Finger liegt; beim Loslassen steht
@@ -831,7 +833,6 @@ $('aKnopf').addEventListener('click', e => {
     stimmton();
     setTimeout(() => { if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); } }, 1500);
 });
-$('ausKnopf').addEventListener('click', () => { if (ctx) schluss(jetzt()); });
 
 function einstellungenAuf(auf) {
     $('einstellungen').hidden = !auf;
@@ -973,7 +974,7 @@ document.addEventListener('click', e => {
     }
     let titel = P.titel || lied.replace(/\.musicxml$/i, '');
     titel = titel.charAt(0).toUpperCase() + titel.slice(1);
-    $('titel').textContent = titel + ' · Begleitung';
+    $('titel').textContent = titel;
     document.title = titel + ' · Begleitung';
     leitsilbenBilden();
     ereignisseBilden();
