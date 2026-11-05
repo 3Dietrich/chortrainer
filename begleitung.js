@@ -3,7 +3,8 @@
  *
  * Ablauf (Akkorde, Sonderstellen) steht in <Lied>.ablauf.json, Text und Takte kommen aus der MusicXML.
  * Plan von @dd:
- * - Taste A: alles stoppt, ein leiser Stimmton a klingt, die Begleitung steht wieder am Anfang (@dd 20261105).
+ * - Taste A: alles stoppt, solange sie gedrückt ist klingt ein leiser Stimmton a, die Begleitung steht wieder
+ *   am Anfang (@dd 20261105).
  * - Anfang (z.B. 2:1 "Seele"): davor singen nur die Stimmen. Der erste Tipp startet, der zweite gibt das Tempo.
  * - Getippt wird an den Tippstellen aus dem Ablauf, ab taktweise_ab jeden Takt. Alles dazwischen läuft
  *   im Tipp-Tempo von selbst.
@@ -521,12 +522,11 @@ function anfangStellen() {
     letzterTipp = null;
 }
 
-/** Taste A: alles stoppen, zurück an den Anfang, leiser Stimmton a. Nochmal A: Stimmton aus. */
+/** Taste A drücken: alles stoppen, zurück an den Anfang, leiser Stimmton a, solange gedrückt (Gate). */
 function stimmton() {
-    if (!P) return;
+    if (!P || stimmTon) return;
     audioStart();
     const ta = ctx.currentTime;
-    if (stimmTon) { stimmtonAus(ta); zeigen(); return; }
     springen(1);
     stimmTon = tonAn(57, 'oben', ta + 0.15, true);   // a (A3), Tenor-Lage, Frauen hören es eine Oktave tiefer
     $('aKnopf').setAttribute('aria-pressed', 'true');
@@ -644,7 +644,22 @@ function knopf(el, fn) {
 }
 knopf($('weiter'), tippen);
 knopf($('zurueck'), zurueck);
-knopf($('aKnopf'), stimmton);
+// A als Gate: Ton beim Aufsetzen an, beim Loslassen aus; der Finger darf dabei vom Knopf rutschen
+$('aKnopf').addEventListener('pointerdown', e => {
+    if (hilfe || e.button > 0) return;
+    e.preventDefault();
+    $('aKnopf').setPointerCapture?.(e.pointerId);
+    stimmton();
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => $('aKnopf').addEventListener(t, () => {
+    if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
+}));
+// Tastatur (Enter/Leertaste auf dem fokussierten Knopf): kurzer Ton, ein Gate gibt es dort nicht
+$('aKnopf').addEventListener('click', e => {
+    if (hilfe || e.detail !== 0) return;
+    stimmton();
+    setTimeout(() => { if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); } }, 1500);
+});
 $('ausKnopf').addEventListener('click', () => { if (ctx) schluss(jetzt()); });
 
 function einstellungenAuf(auf) {
@@ -684,6 +699,9 @@ $('wach').addEventListener('change', () => { E.wach = $('wach').checked; sichern
     }
 })();
 
+addEventListener('keyup', e => {
+    if ((e.key === 'a' || e.key === 'A') && ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
+});
 addEventListener('keydown', e => {
     if (e.key === 'Escape') {
         e.preventDefault();
