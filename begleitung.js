@@ -444,6 +444,11 @@ function ausfuehren(e, t, weich) {
     if (e.wirbelAb) wirbel = { ab: ta, naechster: ta, dauer: (zeitVon(naechstePos(e, 'paukenSchlag')) - t) };
     if (e.paukenSchlag && wirbel) { wirbel = null; paukenSchlag(ta, 0.9); }
     if (e.akkord) akkordSpielen(e.akkord, ta, weich, e.dauer);
+    else if (e.tippstelle) {
+        // Tippstelle ohne eigenen Wechsel (z.B. 20:1, 22:1): der geltende Akkord schlägt neu an, er ist sonst schon ausgeklungen
+        const a = akkordBei(e.pos);
+        if (a) akkordSpielen(a, ta, weich);
+    }
     if (e.ausblenden) { alleAus(ta, e.ausblenden); akkordJetzt = ''; }
     if (e.tippstelle && weich) lageNachhut(ta);
 }
