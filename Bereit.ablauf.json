@@ -1,12 +1,23 @@
 {
-  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus), \"A1\" = nur der Ton a in Oktaven. Dritte Zahl = Notenwert in Vierteln (danach kurz ab), sonst klingt der Akkord nach zwei Vierteln langsam aus und ist nach einem Takt weg. textstimme: aus ihr kommt der angezeigte Text. anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. ausblenden: ab hier in so vielen Sekunden ausblenden. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp noch ein, gnade = so lange hält die Uhr an einer Stelle und wartet auf einen späten Tipp, bevor die Nachhut kommt, spaet = so weit nach einer Nachhut-Stelle zählt ein Tipp noch als später Tipp für sie.",
+  "_hinweis": "Ablauf für begleitung.html (@dd 20261105). Stelle = \"Takt:Schlag\" (Schlag darf Dezimalstellen haben, z.B. \"9:4.5\"). anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen); der zweite Tipp gilt für die nächste Tippstelle und gibt das Metrum. tippstellen (Modus DDs): Stellen zum Tippen, als \"Takt:Schlag\" oder {\"stelle\": \"9:4\", \"stimme\": \"Alt\"} (stimme = aus welcher Stimme das angezeigte Wort kommt). raster (Modus DDs): ab Takt \"ab\" ist alle \"schlaege\" Viertel eine Tippstelle (4 = jede Eins, 2 = Eins und Drei). Klang: Akkorde laufen nach einem Tipp nur innerhalb desselben Taktes von selbst weiter; ohne Tipp bleibt es still, die Anzeige schätzt die Stelle weiter. akkorde: [Stelle, Symbol, Notenwert in Vierteln (optional, danach kurz ab; sonst nach zwei Vierteln langsam aus, nach einem Takt weg)]. Akkord \"-\" = Pause, \"A1\" = nur der Ton a in Oktaven. stellen: warten = die Begleitung hält dort, bis getippt wird; tempo = Faktor auf das Tempo ab dort; pauke = Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp ein, spaet = so weit danach (Anteil der Lücke zur nächsten). textstimme: aus ihr kommt der angezeigte Text, wo eine Stelle keine eigene stimme hat.",
   "lied": "Bereit.musicxml",
   "textstimme": "Tenor",
   "tempo": 85,
   "anfang": "2:1",
-  "tippstellen": ["2:1", "3:1", "4:4", "6:1", "8:1", "9:1", "10:3", "11:3", "13:1", "14:1"],
-  "taktweise_ab": 15,
-  "fenster": { "frueh": 0.3, "spaet": 0.5, "gnade": 0.3 },
+  "tippstellen": [
+    "2:1",
+    "3:1",
+    "4:4",
+    "6:1",
+    "8:1",
+    "9:1",
+    "10:3",
+    "11:3",
+    "13:1",
+    "14:1"
+  ],
+  "raster": {"ab": 15, "schlaege": 4},
+  "fenster": {"frueh": 0.3, "spaet": 0.5},
   "akkorde": [
     ["2:1", "Am"],
     ["4:4", "Em"],
@@ -53,8 +64,8 @@
     ["37:1", "A1", 3]
   ],
   "stellen": {
-    "18:1": { "warten": true, "pauke": "17:3", "tempo": 1.12 },
-    "36:1": { "warten": true, "tempo": 0.88 },
-    "37:1": { "tempo": 0.9 }
+    "18:1": {"warten": true, "pauke": "17:3", "tempo": 1.12},
+    "36:1": {"warten": true, "tempo": 0.88},
+    "37:1": {"tempo": 0.9}
   }
 }

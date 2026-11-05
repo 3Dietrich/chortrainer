@@ -43,7 +43,6 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #tempoAnz { color: var(--leise); white-space: nowrap; }
 #zustand { padding: 4px 10px; border-radius: 10px; background: var(--flaeche); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #zustand[data-art="laeuft"] { background: #2f4a2a; }
-#zustand[data-art="nachhut"] { background: #5a3a1a; }
 .rund { width: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 22px; font-weight: 700; flex: none; }
 
 #anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 4px 8px; }
@@ -122,6 +121,20 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     padding: 16px max(16px, env(safe-area-inset-right, 0)) calc(16px + env(safe-area-inset-bottom, 0)) max(16px, env(safe-area-inset-left, 0));
     display: grid; gap: 10px; max-height: 80vh; overflow-y: auto; z-index: 5;
 }
+#einstellungen .kopfzeile { position: sticky; top: -16px; margin: -16px 0 0; padding: 12px 0 8px; background: var(--flaeche);
+    display: flex; gap: 10px; align-items: center; z-index: 1; }
+#einstellungen h2 { font-size: 22px; margin: 0 auto 0 0; }
+#einstellungen .gruppe { display: grid; gap: 6px; }
+#einstellungen .gruppe .name { color: var(--leise); font-size: 17px; }
+#akkord.blass { opacity: 0.4; }
+#zustand[data-art="schaetzt"] { background: #4a3f22; }
+#anleitung { position: fixed; inset: 0; z-index: 20; background: #000a; display: grid; place-items: center; padding: 16px; }
+#anleitung .karte { background: var(--flaeche); border: 2px solid var(--linie); border-radius: 16px; padding: 18px 20px;
+    max-width: 34em; max-height: calc(100vh - 32px); overflow-y: auto; font-size: 19px; line-height: 1.4; }
+#anleitung h2 { margin: 0 0 8px; font-size: 24px; color: var(--warm); }
+#anleitung ol { padding-left: 1.3em; margin: 8px 0; }
+#anleitung li { margin-bottom: 6px; }
+#anleitung button { width: 100%; margin-top: 8px; font-size: 22px; font-weight: 700; background: var(--warm-tief); border-color: var(--warm); }
 #einstellungen label { display: grid; grid-template-columns: 7.5em 1fr 3.2em; align-items: center; gap: 10px; min-height: 52px; }
 #einstellungen label.haken { grid-template-columns: 52px 1fr; }
 #einstellungen output { text-align: right; color: var(--leise); }
@@ -144,10 +157,10 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <body>
 <header>
     <h1 id="titel">Begleitung</h1>
-    <div id="status" data-hilfe="Tempo, wie es aus deinen Tipps gemittelt wird, und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, wartet kurz (dein Tipp fehlt noch), Nachhut (Tipp fehlte, die Begleitung blendet aus), wartet auf Tipp (Wartestelle), ja weiter (Tipp viel zu früh), Ende.">
+    <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), ja weiter (Tipp weit weg von jeder Stelle), Ende.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
     </div>
-    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen (deine Stellen oder jeder Takt), Klang, Lautstärke, Tiefbass, Wärme, Anfangstempo, Box wach halten, von vorn.">⚙</button>
+    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (DDs, Takt, 2/4), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Anleitung.">⚙</button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
@@ -163,22 +176,45 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="tasten">
     <button id="aKnopf" aria-pressed="false" data-hilfe="Stopp: alles hört auf, die Begleitung steht wieder am Anfang (Seele). Solange A gedrückt ist, klingt leise der Stimmton a, loslassen: Ton aus. Tastatur: a halten.">A</button>
     <button id="stoppKnopf" data-hilfe="Stopp: der Klang klingt kurz aus, die Begleitung bleibt an der Stelle. weiter startet von dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">■<br>Stopp</button>
-    <button id="weiter" data-hilfe="Erster Tipp auf Seele (2:1) startet, der zweite auf fangen (3:1) gibt das Tempo. Danach je nach Einstellung auf deine Stellen oder auf jede Eins (der Streifen zeigt, welche). Alles dazwischen kommt von selbst im Tipp-Tempo. Fehlt ein Tipp, wartet die Begleitung kurz, dann kommt die Stelle weich und blendet aus. Leertaste: Start und Stopp. Fußtaster: Pfeil rechts, Bild runter. Ein Tipp viel zu früh heißt nur: ja, weiter.">weiter</button>
+    <button id="weiter" data-hilfe="Erster Tipp startet (bei Seele), der zweite einen Takt bzw. 2/4 später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
 </div>
 
 <section id="einstellungen" hidden aria-label="Einstellungen">
-    <div id="moduswahl" class="zeile" data-hilfe="Wo getippt wird. Deine Stellen: Seele 2:1, fangen 3:1, Kerker 4:4, 6:1, 8:1, 9:1, 10:3, 11:3, 13:1, 14:1, ab Takt 15 jeder Takt. Jeder Takt: ab Takt 2 auf jede Eins. Umschalten stellt auf den Anfang."></div>
-    <div id="klangwahl" class="zeile" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Fläche: weicher Synthesizer-Teppich, setzt langsamer ein."></div>
+    <div class="kopfzeile">
+        <h2>Einstellungen</h2>
+        <button id="anleitungKnopf" data-hilfe="Erklärt, wie die Begleitung funktioniert.">So geht's</button>
+        <button id="zu" class="rund" aria-label="Einstellungen schließen" data-hilfe="Schließt die Einstellungen (auch Esc).">✕</button>
+    </div>
+    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. Umschalten stellt auf den Anfang.">
+        <span class="name">Tippen auf</span><div id="moduswahl" class="zeile"></div>
+    </div>
+    <div class="gruppe" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Strings: weicher Streicherteppich mit Vibrato.">
+        <span class="name">Klang</span><div id="klangwahl" class="zeile"></div>
+    </div>
     <label data-hilfe="Gesamtlautstärke der Begleitung.">Lautstärke <input id="lautstaerke" type="range" min="0" max="100"><output></output></label>
     <label data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger.">Tiefbass <input id="tiefbass" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher.">Wärme <input id="waerme" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Tempo, mit dem die Uhr beim ersten Tipp anfängt. Danach führen deine Tipps das Tempo.">Anfang ♩ <input id="tempo" type="range" min="50" max="130"><output></output></label>
-    <label class="haken" data-hilfe="Spielt einen unhörbar leisen Dauerton, damit eine Bluetooth-Box nach Stille nicht einschläft und den weichen Einsatz verschluckt."><input id="wach" type="checkbox"> Box wach halten</label>
-    <div class="zeile">
-        <button id="vonVorn" data-hilfe="Zurück an den Anfang, ohne etwas zu spielen.">von vorn</button>
-        <button id="zu">fertig</button>
-    </div>
+    <label data-hilfe="Stereo-Chorus: macht den Klang breiter und lebendiger. Links aus.">Wärme <input id="waerme" type="range" min="0" max="100"><output></output></label>
+    <label data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher.">Höhen <input id="hoehen" type="range" min="0" max="100"><output></output></label>
 </section>
+
+<div id="anleitung" role="dialog" aria-modal="true" aria-labelledby="anleitungTitel" hidden>
+    <div class="karte">
+        <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
+        <p>Du singst, die Seite spielt dazu die Akkorde. Du gibst mit <b>weiter</b> den Takt vor, sie folgt dir.</p>
+        <ol>
+            <li><b>A</b> gedrückt halten: der Ton a klingt, alles steht wieder am Anfang.</li>
+            <li>Erster Tipp auf <b>weiter</b> (bei „Seele“): der erste Akkord klingt, die Seite hört hin.</li>
+            <li>Zweiter Tipp einen Takt später (bei <b>2/4</b> einen halben Takt): daraus kommt das Tempo, es steht sofort oben.</li>
+            <li>Weiter tippen auf die Stellen, die die Pads zeigen (die fette Silbe). Akkorde im selben Takt kommen von selbst.</li>
+            <li>Tippst du nicht, bleibt es still. Die Seite schätzt weiter, wo du bist („schätzt“, Akkord blass), dein nächster Tipp rastet dort ein. Ein Tipp weit weg von jeder Stelle heißt nur „ja, weiter“.</li>
+        </ol>
+        <p><b>Pad</b> gedrückt halten: sein Akkord klingt, loslassen: die Begleitung steht dort, weiter startet von da.<br>
+           <b>Stopp</b> oder Leertaste: anhalten, weiter macht an der Stelle weiter.<br>
+           ⚙ <b>Tippen auf</b>: DDs (eigene Stellen), Takt (jede Eins) oder 2/4 (Eins und Drei).<br>
+           <b>?</b> zeigt zu jedem Knopf eine Erklärung.</p>
+        <button id="anleitungZu">Los geht's</button>
+    </div>
+</div>
 
 <div id="blase" hidden></div>
 <div id="meldung" hidden></div>
