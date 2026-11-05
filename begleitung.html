@@ -65,6 +65,12 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen button b { color: var(--text); font-weight: 800; font-size: 1.12em; }
 #streifen button.an b { color: #fff; }
 #streifen button.an .t { color: #f3dcb8; }
+/* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
+.fremd { color: #8fc1dc; }
+#streifen button .fremd { color: #6f9db6; }
+#streifen button .fremd b { color: #bfe2f5; }
+#streifen button.an .fremd { color: #d3ecf9; }
+#streifen button.an .fremd b { color: #fff; }
 
 /* Tasten: A klein, Stopp daneben, weiter breit; nie breiter als der Bildschirm */
 #tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;

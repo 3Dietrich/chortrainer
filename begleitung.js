@@ -83,8 +83,9 @@ const stimmeIndex = n => (n ? P.stimmen.findIndex(x => x.toLowerCase() === Strin
 
 function leitsilbenBilden() {
     // Rang: zuerst die Textstimme aus dem Ablauf (für @dd der Tenor, er singt danach), dann von oben nach unten
-    const bevorzugt = stimmeIndex(E.stimme || (A && A.textstimme));
-    const rang = s => (s.stimme === bevorzugt ? -1 : s.stimme);
+    // Rang: Meine Stimme, dann die Textstimme des Ablaufs (Tenor, singt von Anfang an), dann von oben nach unten
+    const meine = stimmeIndex(E.stimme), text = stimmeIndex(A && A.textstimme);
+    const rang = s => (s.stimme === meine ? -2 : s.stimme === text ? -1 : s.stimme);
     const jeZeit = new Map();
     for (const s of P.silben) {
         const k = s.t.toFixed(4);
@@ -117,6 +118,23 @@ function wortAn(pos, bis, stimme = -1) {
         if (eigene[k + 1] && eigene[k + 1].t - x.t > 5) break;
     }
     return teile.join('-');
+}
+
+/**
+ * Text von a bis b als HTML: Silben, die nicht aus „Meine Stimme“ kommen (sie singt dort nicht), in anderer
+ * Farbe (@dd 20261105: der Text soll für alle Stimmen von Anfang an dastehen, deutlich sichtbar).
+ */
+function textHtml(a, b) {
+    const meine = stimmeIndex(E.stimme);
+    const silben = LEIT.filter(x => x.t >= a - 1e-6 && x.t < b - 1e-6);
+    let h = '';
+    silben.forEach((x, k) => {
+        const anhang = x.syl === 'middle' || x.syl === 'end';
+        const offen = (x.syl === 'begin' || x.syl === 'middle') && k === silben.length - 1;
+        const txt = x.text.replace(/[<>&]/g, '') + (offen ? '-' : '');
+        h += (anhang || !h ? '' : ' ') + (meine >= 0 && x.stimme !== meine ? `<span class="fremd">${txt}</span>` : txt);
+    });
+    return h;
 }
 
 function textIn(a, b) {
@@ -750,9 +768,9 @@ function zeigen() {
     $('akkord').textContent = ak && ak !== '-' && !fertig ? anzeigeName(ak) : '';
     $('akkord').classList.toggle('blass', schaetzt);
     const i = segIndex(p);
-    $('jetzt').textContent = textIn(SEG[i], segEnde(i));
+    $('jetzt').innerHTML = textHtml(SEG[i], segEnde(i));
     $('dann').innerHTML = i + 1 < SEG.length
-        ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textIn(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
+        ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textHtml(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
     [...$('streifen').children].forEach((b, k) => b.classList.toggle('an', k === i));
     if (i !== zeigen.seg) {
         zeigen.seg = i;
@@ -773,7 +791,10 @@ function streifenZeigen() {
         const ev = EV.find(e => Math.abs(e.pos - pos) < 1e-6);
         const oben = segName(pos) + (ak ? ' · ' + ak : '');
         const si = E.stimme ? stimmeIndex(E.stimme) : (ev && ev.stimme != null ? ev.stimme : stimmeIndex(A.textstimme));
-        const unten = wortAn(pos, segEnde(i), si) || '·';
+        // singt die eigene Stimme hier nicht: das Wort der anderen, andersfarbig
+        const eigen = wortAn(pos, segEnde(i), si);
+        const fremd = !eigen && (wortAn(pos, segEnde(i), stimmeIndex(A.textstimme)) || wortAn(pos, segEnde(i)));
+        const unten = eigen || (fremd ? `<span class="fremd">${fremd}</span>` : '·');
         b.innerHTML = `<span class="t">${oben}</span><span class="w">${unten}</span>`;
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
