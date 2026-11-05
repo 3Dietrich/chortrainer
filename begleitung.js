@@ -1,5 +1,5 @@
 /*
- * Auftritt: live begleiten mit einer Taste (@dd 20261104).
+ * Begleitung: live begleiten mit einer Taste (@dd 20261104).
  *
  * Ablauf (Akkorde, Sonderstellen) steht in <Lied>.ablauf.json, Text und Takte kommen aus der MusicXML.
  * Plan von @dd:
@@ -10,7 +10,7 @@
  * Tempo: Mittel aus den Tipp-Abständen, dazu Faktoren aus dem Ablauf (Takt 18 zieht an, Schluss langsamer).
  * Eine Uhr läuft im Tipp-Tempo mit; jeder Tipp rastet auf die nächste Tippstelle der Uhr ein.
  *
- * Aufruf: auftritt.html?lied=Bereit.musicxml (Ablauf: Bereit.ablauf.json daneben).
+ * Aufruf: begleitung.html?lied=Bereit.musicxml (Ablauf: Bereit.ablauf.json daneben).
  */
 'use strict';
 
@@ -18,7 +18,7 @@ const $ = id => document.getElementById(id);
 
 /* ---------- Einstellungen (nur Bequemlichkeit pro Gerät, alles geht auch ohne Speicher) ---------- */
 
-const SPEICHER = 'auftritt-einstellungen';
+const SPEICHER = 'begleitung-einstellungen';
 const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 45, tempo: 0, wach: true };
 let E = { ...VORGABE };
 try { Object.assign(E, JSON.parse(localStorage.getItem(SPEICHER) || '{}')); } catch (e) { /* privat/gesperrt */ }
@@ -697,8 +697,8 @@ document.addEventListener('click', e => {
     }
     let titel = P.titel || lied.replace(/\.musicxml$/i, '');
     titel = titel.charAt(0).toUpperCase() + titel.slice(1);
-    $('titel').textContent = titel + ' · Auftritt';
-    document.title = titel + ' · Auftritt';
+    $('titel').textContent = titel + ' · Begleitung';
+    document.title = titel + ' · Begleitung';
     leitsilbenBilden();
     ereignisseBilden();
     regler('tempo', 'tempo');

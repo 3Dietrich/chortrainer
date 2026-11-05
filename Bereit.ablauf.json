@@ -1,5 +1,5 @@
 {
-  "_hinweis": "Ablauf für auftritt.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus). Jeder Taktanfang ist eine Tippstelle; Akkorde mitten im Takt laufen im Tipp-Tempo von selbst. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (in Vierteln): frueh/spaet = so weit vor/nach einer Stelle rastet ein Tipp noch ein, gnade = so lange wartet ein Taktanfang auf seinen Tipp, bevor die Nachhut kommt.",
+  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus). Jeder Taktanfang ist eine Tippstelle; Akkorde mitten im Takt laufen im Tipp-Tempo von selbst. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. fenster (in Vierteln): frueh/spaet = so weit vor/nach einer Stelle rastet ein Tipp noch ein, gnade = so lange wartet ein Taktanfang auf seinen Tipp, bevor die Nachhut kommt.",
   "lied": "Bereit.musicxml",
   "tempo": 85,
   "fenster": { "frueh": 0.75, "spaet": 1.0, "gnade": 0.5 },

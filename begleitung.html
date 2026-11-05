@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1b1712">
-<title>Auftritt</title>
+<title>Begleitung</title>
 <link rel="icon" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
-/* Auftritt: live begleiten mit weiter/zurück. Dunkel, damit das Display im Kirchenraum nicht blendet. */
+/* Begleitung: live begleiten mit weiter/zurück. Dunkel, damit das Display im Kirchenraum nicht blendet. */
 :root {
     --grund: #1b1712; --flaeche: #2a241c; --linie: #4a4034;
     --text: #f3e9da; --leise: #b3a48e; --warm: #e8a64a; --warm-tief: #8a5a1c;
@@ -103,7 +103,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </head>
 <body>
 <header>
-    <h1 id="titel">Auftritt</h1>
+    <h1 id="titel">Begleitung</h1>
     <button id="ausKnopf" data-hilfe="Beendet: der Klang klingt langsam aus (auch Esc). Der nächste Tipp stellt auf den Anfang.">Aus</button>
     <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Klang, Lautstärke, Tiefbass, Wärme, Anfangstempo, Box wach halten, von vorn.">⚙</button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
@@ -142,6 +142,6 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 
 <div id="blase" hidden></div>
 <div id="meldung" hidden></div>
-<script src="auftritt.js"></script>
+<script src="begleitung.js"></script>
 </body>
 </html>
