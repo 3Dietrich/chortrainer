@@ -1,6 +1,7 @@
 {
-  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus), \"A1\" = nur der Ton a in Oktaven. anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. ausblenden: ab hier in so vielen Sekunden ausblenden. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp noch ein, gnade = so lange hält die Uhr an einer Stelle und wartet auf einen späten Tipp, bevor die Nachhut kommt, spaet = so weit nach einer Nachhut-Stelle zählt ein Tipp noch als später Tipp für sie.",
+  "_hinweis": "Ablauf für begleitung.html (@dd 20261104). Stelle = \"Takt:Schlag\". Akkord \"-\" = Pause (Begleitung klingt aus), \"A1\" = nur der Ton a in Oktaven. Dritte Zahl = Notenwert in Vierteln (danach kurz ab), sonst klingt der Akkord nach zwei Vierteln langsam aus und ist nach einem Takt weg. textstimme: aus ihr kommt der angezeigte Text. anfang: hier steht die Begleitung bereit, der erste Tipp startet dort (davor singen nur die Stimmen). tippstellen: hier wird getippt; ab taktweise_ab jeder Taktanfang. Alles dazwischen läuft im Tipp-Tempo von selbst. Die erste Tippstelle nach dem Anfang wartet auf ihren Tipp und misst daraus das Tempo. warten: die Begleitung hält an dieser Stelle, bis getippt wird. tempo: Faktor auf das Tempo ab dieser Stelle. pauke: Wirbel ab der genannten Stelle bis hierher, hier der Schlag. ausblenden: ab hier in so vielen Sekunden ausblenden. fenster (Anteile der Lücke zur vorigen Tippstelle): frueh = so weit vor einer Stelle rastet ein Tipp noch ein, gnade = so lange hält die Uhr an einer Stelle und wartet auf einen späten Tipp, bevor die Nachhut kommt, spaet = so weit nach einer Nachhut-Stelle zählt ein Tipp noch als später Tipp für sie.",
   "lied": "Bereit.musicxml",
+  "textstimme": "Tenor",
   "tempo": 85,
   "anfang": "2:1",
   "tippstellen": ["2:1", "3:1", "4:4", "6:1", "8:1", "9:1", "10:3", "11:3", "13:1", "14:1"],
@@ -46,16 +47,14 @@
     ["33:1", "F"],
     ["33:3", "G"],
     ["34:1", "F#m"],
-    ["35:1", "Dm"],
-    ["35:4", "-"],
-    ["36:1", "F"],
-    ["36:3", "Gsus2"],
-    ["37:1", "A1"]
+    ["35:1", "Dm", 3],
+    ["36:1", "F", 2],
+    ["36:3", "Gsus2", 2],
+    ["37:1", "A1", 3]
   ],
   "stellen": {
     "18:1": { "warten": true, "pauke": "17:3", "tempo": 1.12 },
     "36:1": { "warten": true, "tempo": 0.88 },
-    "37:1": { "tempo": 0.9 },
-    "37:3": { "ausblenden": 2.5 }
+    "37:1": { "tempo": 0.9 }
   }
 }

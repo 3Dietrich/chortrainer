@@ -70,22 +70,43 @@ function partiturLesen(xmlText) {
         if (si === 0) taktAnfaenge = anfaenge;
         ende = Math.max(ende, t);
     });
-    return { titel, silben, taktAnfaenge, ende };
+    const stimmen = [...doc.querySelectorAll('part-list score-part')].map(sp => (sp.querySelector('part-name')?.textContent || '').trim());
+    return { titel, silben, taktAnfaenge, ende, stimmen };
 }
 
 let P = null;        // Partitur
 let LEIT = [];       // Leitsilben: je Zeitpunkt die Silbe der obersten Stimme mit Text
 
 function leitsilbenBilden() {
+    // Rang: zuerst die Textstimme aus dem Ablauf (für @dd der Tenor, er singt danach), dann von oben nach unten
+    const bevorzugt = A && A.textstimme ? P.stimmen.findIndex(n => n.toLowerCase() === A.textstimme.toLowerCase()) : -1;
+    const rang = s => (s.stimme === bevorzugt ? -1 : s.stimme);
     const jeZeit = new Map();
     for (const s of P.silben) {
         const k = s.t.toFixed(4);
-        if (!jeZeit.has(k) || jeZeit.get(k).stimme > s.stimme) jeZeit.set(k, s);
+        if (!jeZeit.has(k) || rang(jeZeit.get(k)) > rang(s)) jeZeit.set(k, s);
     }
     LEIT = [...jeZeit.values()].sort((a, b) => a.t - b.t);
 }
 
 /** Text der Leitstimme im Abschnitt, Silben eines Wortes zusammengezogen. */
+/** Das ganze Wort, in dem die erste Silbe ab pos liegt (in ihrer eigenen Stimme), mit Silbenstrichen; die Silbe an pos fett. */
+function wortAn(pos, bis) {
+    const x0 = LEIT.find(x => x.t >= pos - 1e-6);
+    if (!x0 || x0.t >= bis - 1e-6) return '';
+    const eigene = P.silben.filter(x => x.stimme === x0.stimme).sort((a, b) => a.t - b.t);
+    let i = eigene.indexOf(x0);
+    const hier = i;
+    while (i > 0 && (eigene[i].syl === 'middle' || eigene[i].syl === 'end')) i--;
+    const teile = [];
+    for (let k = i; k < eigene.length; k++) {
+        const x = eigene[k], txt = x.text.replace(/[<>&]/g, '');
+        teile.push(k === hier && x.syl !== 'single' ? `<b>${txt}</b>` : txt);
+        if (x.syl === 'single' || x.syl === 'end' || k - i > 6) break;
+    }
+    return teile.join('-');
+}
+
 function textIn(a, b) {
     let s = '';
     for (const x of LEIT) {
@@ -255,6 +276,15 @@ function tonAn(midi, art, wann, weich, anstieg = null) {
     oszis.forEach(o => o.start(wann));
     g.gain.setTargetAtTime(ziel, wann, anstieg);
     return {
+        /** neuer Akkord mit diesem Ton: wieder auf volle Stärke (er war vielleicht schon am Ausklingen) */
+        frisch(wannNeu, weichNeu) {
+            haltenAb(g.gain, wannNeu);
+            g.gain.setTargetAtTime(ziel, wannNeu, weichNeu ? 0.35 : anstieg);
+        },
+        /** ab wannAus langsam ausklingen, Zeitkonstante tc */
+        ausklingen(wannAus, tc) {
+            g.gain.setTargetAtTime(0, wannAus, tc);
+        },
         stop(wannAus, abkling) {
             haltenAb(g.gain, wannAus);
             g.gain.setTargetAtTime(0, wannAus, abkling / 3);
@@ -266,9 +296,14 @@ function tonAn(midi, art, wann, weich, anstieg = null) {
 let akkordJetzt = '';
 
 /** Spielt ein Akkordsymbol. Töne, die schon klingen, klingen ohne Neuanschlag weiter. */
-function akkordSpielen(sym, wann, weich) {
+/**
+ * dauer (Viertel): fester Notenwert, danach kurz ab. Ohne dauer klingt der Akkord nach zwei Vierteln langsam
+ * aus und ist nach einem 4/4-Takt weg (@dd 20261105: "Noten halten ist blöd").
+ */
+function akkordSpielen(sym, wann, weich, dauer = null) {
     akkordJetzt = sym;
     const abkling = E.klang === 'orgel' ? 0.25 : 0.6;
+    const viertel = 60 / U.bpm;
     if (sym === '-') { alleAus(wann, 0.4); return; }
     const l = lageFuer(sym);
     if (!l) return;
@@ -277,7 +312,14 @@ function akkordSpielen(sym, wann, weich) {
     soll.set('s:' + (l.bass - 12), [l.bass - 12, 'sub']);
     l.oben.forEach(m => soll.set('o:' + m, [m, 'oben']));
     for (const [k, ton] of klingend) if (!soll.has(k)) { ton.stop(wann, abkling); klingend.delete(k); }
-    for (const [k, [m, art]] of soll) if (!klingend.has(k)) klingend.set(k, tonAn(m, art, wann, weich));
+    for (const [k, [m, art]] of soll) {
+        if (klingend.has(k)) klingend.get(k).frisch(wann, weich);
+        else klingend.set(k, tonAn(m, art, wann, weich));
+    }
+    for (const ton of klingend.values()) {
+        if (dauer) ton.ausklingen(wann + dauer * viertel, Math.max(0.08, abkling / 3));
+        else ton.ausklingen(wann + 2 * viertel, 0.5 * viertel);   // nach 4 Vierteln bei etwa -35 dB
+    }
 }
 
 function alleAus(wann, sek) {
@@ -350,7 +392,7 @@ function ereignisseBilden() {
     const liste = E.modus !== 'takte' && Array.isArray(A.tippstellen);
     const abTakt = liste ? (A.taktweise_ab || Infinity) : stelleVon(anfang).takt;
     P.taktAnfaenge.forEach((p, i) => { const e = ev(p); e.takt = i + 1; e.tippstelle = i + 1 >= abTakt; });
-    for (const [s, sym] of A.akkorde) ev(stellePos(s)).akkord = sym;
+    for (const [s, sym, dauer] of A.akkorde) { const e = ev(stellePos(s)); e.akkord = sym; if (dauer) e.dauer = dauer; }
     if (liste) for (const s of A.tippstellen) ev(stellePos(s)).tippstelle = true;
     ev(anfang).tippstelle = true;
     const erste = [...jePos.values()].filter(e => e.tippstelle && e.pos > anfang + 1e-6).sort((a, b) => a.pos - b.pos)[0];
@@ -401,7 +443,7 @@ function ausfuehren(e, t, weich) {
     if (e.tempo) { uhrSetzen(e.pos, t, U.bpm * e.tempo); }
     if (e.wirbelAb) wirbel = { ab: ta, naechster: ta, dauer: (zeitVon(naechstePos(e, 'paukenSchlag')) - t) };
     if (e.paukenSchlag && wirbel) { wirbel = null; paukenSchlag(ta, 0.9); }
-    if (e.akkord) akkordSpielen(e.akkord, ta, weich);
+    if (e.akkord) akkordSpielen(e.akkord, ta, weich, e.dauer);
     if (e.ausblenden) { alleAus(ta, e.ausblenden); akkordJetzt = ''; }
     if (e.tippstelle && weich) lageNachhut(ta);
 }
@@ -434,8 +476,8 @@ function takt() {
             if (e.warten) {
                 // anhalten: Uhr steht auf der Wartestelle, Akkord (und Wirbel) halten
                 if (uhrPos(t) < e.pos - 1e-6) break;
-                // Schluss, und nichts klingt mehr (schon ausgeblendet): fertig, ohne auf einen Tipp zu warten
-                if (e.ende && klingend.size === 0) { schluss(t); break; }
+                // Schluss: alles ist ausgeklungen, fertig ohne weiteren Tipp
+                if (e.ende) { schluss(t); break; }
                 uhrSetzen(e.pos, t);
                 U.laeuft = false;
                 zeigen();
@@ -559,6 +601,7 @@ function einrasten(pos, t, tempoMessen) {
         if (e.tempo) U.bpm *= e.tempo;
         if (e.wirbelAb) wirbel = null;
     }
+    if (!letzterTipp && !akkord) akkord = akkordBei(pos);   // Start mitten im Lied
     uhrSetzen(pos, t);
     U.laeuft = true;
     const e = EV[ix];
@@ -615,6 +658,12 @@ function stimmtonAus(ta) {
 }
 
 /** Zu Takt n springen: dort steht die Uhr, der Akkord an dieser Stelle klingt, der nächste Tipp startet. */
+/** Akkord, der an pos gilt (letzter Wechsel bis dorthin), ohne Pause */
+function akkordBei(pos) {
+    const e = [...EV].reverse().find(x => x.pos <= pos + 1e-6 && x.akkord);
+    return e && e.akkord !== '-' ? e.akkord : null;
+}
+
 function springen(n, tempoBehalten = false) { springenAuf(taktBeginn(n), tempoBehalten); }
 
 function springenAuf(ziel, tempoBehalten = false) {
@@ -629,8 +678,9 @@ function springenAuf(ziel, tempoBehalten = false) {
         U.bpm = E.tempo || A.tempo;
         for (const e of EV) if (e.pos < pos - 1e-6 && e.tempo) U.bpm *= e.tempo;
     }
-    const vorher = [...EV].reverse().find(e => e.pos <= pos + 1e-6 && e.akkord);
-    if (vorher && vorher.akkord !== '-' && pos > anfang + 1e-6) akkordSpielen(vorher.akkord, ta, false); else alleAus(ta, 0.8);
+    // Stelle antippen: der Akkord, der dort gilt, klingt eine Halbe an (@dd 20261105), weiter startet von hier
+    const a = akkordBei(pos);
+    if (a && ziel > 0) akkordSpielen(a, ta, false, 2); else alleAus(ta, 0.8);
     uhrSetzen(pos, t);
     U.laeuft = false;
     letzterTipp = null;
@@ -698,7 +748,7 @@ function streifenZeigen() {
         const b = document.createElement('button');
         const text = textIn(pos, segEnde(i)), ak = akkordeIn(pos, segEnde(i));
         // Taktmodus: Akkorde des Taktes; Stellenmodus: das erste Wort, auf das getippt wird
-        const inhalt = E.modus === 'takte' ? (ak || '·') : (text.split(' ')[0] || '·');
+        const inhalt = E.modus === 'takte' ? (ak || '·') : (wortAn(pos, segEnde(i)) || '·');
         b.innerHTML = `<span class="t">${segName(pos)}</span>${inhalt}`;
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
