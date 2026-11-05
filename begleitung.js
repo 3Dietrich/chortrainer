@@ -23,7 +23,8 @@ const $ = id => document.getElementById(id);
 const SPEICHER = 'begleitung-einstellungen';
 // modus: 'stellen' = DDs Stellen aus dem Ablauf, 'takte' = jede Eins, 'halbe' = Eins und Drei (2/4)
 // waerme = Stereo-Chorus, hoehen = Tiefpass (hieß früher Wärme)
-const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 35, hoehen: 55, modus: 'stellen' };
+// stimme: aus welcher Stimme der Text kommt ('' = Textstimme des Ablaufs); spiel: 'akkord' oder 'bass' (nur Bass)
+const VORGABE = { klang: 'orgel', lautstaerke: 70, tiefbass: 50, waerme: 35, hoehen: 55, modus: 'stellen', stimme: '', spiel: 'akkord' };
 let E = { ...VORGABE };
 try {
     const alt = JSON.parse(localStorage.getItem(SPEICHER) || '{}');
@@ -78,9 +79,11 @@ function partiturLesen(xmlText) {
 let P = null;        // Partitur
 let LEIT = [];       // Leitsilben: je Zeitpunkt die Silbe der obersten Stimme mit Text
 
+const stimmeIndex = n => (n ? P.stimmen.findIndex(x => x.toLowerCase() === String(n).toLowerCase()) : -1);
+
 function leitsilbenBilden() {
     // Rang: zuerst die Textstimme aus dem Ablauf (für @dd der Tenor, er singt danach), dann von oben nach unten
-    const bevorzugt = A && A.textstimme ? P.stimmen.findIndex(n => n.toLowerCase() === A.textstimme.toLowerCase()) : -1;
+    const bevorzugt = stimmeIndex(E.stimme || (A && A.textstimme));
     const rang = s => (s.stimme === bevorzugt ? -1 : s.stimme);
     const jeZeit = new Map();
     for (const s of P.silben) {
@@ -93,19 +96,25 @@ function leitsilbenBilden() {
 /** Text der Leitstimme im Abschnitt, Silben eines Wortes zusammengezogen. */
 /** Das ganze Wort, in dem die erste Silbe ab pos liegt (in ihrer eigenen Stimme), mit Silbenstrichen; die Silbe an pos fett. */
 function wortAn(pos, bis, stimme = -1) {
-    const x0 = stimme >= 0
-        ? P.silben.filter(x => x.stimme === stimme && x.t >= pos - 1e-6).sort((a, b) => a.t - b.t)[0]
+    // eigene Stimme: die Silbe genau hier, sonst die, die dort noch klingt (bis ein Takt davor), sonst die nächste
+    const eigen = stimme >= 0 ? P.silben.filter(x => x.stimme === stimme).sort((a, b) => a.t - b.t) : null;
+    const x0 = eigen
+        ? (eigen.find(x => Math.abs(x.t - pos) < 1e-6) || [...eigen].reverse().find(x => x.t < pos && x.t > pos - 4)
+            || eigen.find(x => x.t >= pos - 1e-6))
         : LEIT.find(x => x.t >= pos - 1e-6);
     if (!x0 || x0.t >= bis - 1e-6) return '';
+    const gehalten = x0.t < pos - 1e-6;
     const eigene = P.silben.filter(x => x.stimme === x0.stimme).sort((a, b) => a.t - b.t);
     let i = eigene.indexOf(x0);
     const hier = i;
-    while (i > 0 && (eigene[i].syl === 'middle' || eigene[i].syl === 'end')) i--;
+    // Wortgrenze auch bei langer Lücke (z.B. Summen „mh“ vor „su-che“ im Bass)
+    while (i > 0 && (eigene[i].syl === 'middle' || eigene[i].syl === 'end') && eigene[i].t - eigene[i - 1].t <= 5) i--;
     const teile = [];
     for (let k = i; k < eigene.length; k++) {
         const x = eigene[k], txt = x.text.replace(/[<>&]/g, '');
-        teile.push(k === hier && x.syl !== 'single' ? `<b>${txt}</b>` : txt);
+        teile.push(k === hier && (x.syl !== 'single' || gehalten) ? `<b>${txt}</b>` : txt);
         if (x.syl === 'single' || x.syl === 'end' || k - i > 6) break;
+        if (eigene[k + 1] && eigene[k + 1].t - x.t > 5) break;
     }
     return teile.join('-');
 }
@@ -155,7 +164,14 @@ function akkordLesen(sym) {
 let letzteLage = [57, 60, 64];   // Oberstimmen des vorigen Akkords, für weiche Stimmführung
 
 /** Bass-Grundton (E2 bis Es3) plus Oberstimmen in enger Lage (G3 bis Bb4), möglichst nah am vorigen Akkord. */
-function lageFuer(sym) {
+/** Notenname mit Oktave (deutsch: H = h, B = b; auch C#4, Eb3) als MIDI-Nummer */
+function notenNummer(n) {
+    const m = /^([A-H])(#|b)?(-?\d)$/.exec(n.trim());
+    if (!m) return null;
+    return 12 * (+m[3] + 1) + GRUNDTON[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+}
+
+function lageFuer(sym, fest = null) {
     const a = akkordLesen(sym);
     if (!a) return null;
     let bass = 40 + ((a.grund - 4 + 12) % 12);
@@ -174,7 +190,8 @@ function lageFuer(sym) {
         }
         for (const m of optionen[i]) durch(i + 1, [...wahl, m]);
     };
-    if (a.toene.length === 1) beste = [55, 67].map(o => o + ((a.grund - o % 12 + 12) % 12));
+    if (fest) beste = fest.split(/\s+/).map(notenNummer).filter(x => x != null).sort((x, y) => x - y);
+    else if (a.toene.length === 1) beste = [55, 67].map(o => o + ((a.grund - o % 12 + 12) % 12));
     else durch(0, []);
     if (!beste) beste = a.toene.map(pc => 60 + ((pc - 0 + 12) % 12)).sort((x, y) => x - y);
     letzteLage = beste;
@@ -317,17 +334,18 @@ let akkordJetzt = '';
  * dauer (Viertel): fester Notenwert, danach kurz ab. Ohne dauer klingt der Akkord nach zwei Vierteln langsam
  * aus und ist nach einem 4/4-Takt weg (@dd 20261105: "Noten halten ist blöd").
  */
-function akkordSpielen(sym, wann, weich, dauer = null) {
+function akkordSpielen(sym, wann, weich, dauer = null, fest = null) {
     akkordJetzt = sym;
     const abkling = E.klang === 'orgel' ? 0.25 : 0.6;
     const viertel = 60 / U.bpm;
     if (sym === '-') { alleAus(wann, 0.4); return; }
-    const l = lageFuer(sym);
+    const l = lageFuer(sym, fest);
     if (!l) return;
     const soll = new Map();
     soll.set('g:' + l.bass, [l.bass, 'grund']);
     soll.set('s:' + (l.bass - 12), [l.bass - 12, 'sub']);
-    l.oben.forEach(m => soll.set('o:' + m, [m, 'oben']));
+    // nur Bass (@dd 20261105): Grundton und Tiefbass, ohne die oberen Töne
+    if (E.spiel !== 'bass') l.oben.forEach(m => soll.set('o:' + m, [m, 'oben']));
     for (const [k, ton] of klingend) if (!soll.has(k)) { ton.stop(wann, abkling); klingend.delete(k); }
     for (const [k, [m, art]] of soll) {
         if (klingend.has(k)) klingend.get(k).frisch(wann, weich);
@@ -415,7 +433,11 @@ function ereignisseBilden() {
     anfang = A.anfang ? stellePos(A.anfang) : 0;
     const anfangsTakt = stelleVon(anfang).takt;
     P.taktAnfaenge.forEach((p, i) => { ev(p).takt = i + 1; });
-    for (const [s, sym, dauer] of A.akkorde) { const e = ev(stellePos(s)); e.akkord = sym; if (dauer) e.dauer = dauer; }
+    for (const [s, sym, dauer, lage] of A.akkorde) {
+        const e = ev(stellePos(s)); e.akkord = sym;
+        if (dauer) e.dauer = dauer;
+        if (lage) e.lage = lage;
+    }
     // Tippstellen je Modus: DDs = Stellen und Raster aus dem Ablauf, Takt = jede Eins, 2/4 = Eins und Drei
     if (E.modus === 'takte') rasterStellen(anfangsTakt, 4).forEach(p => { ev(p).tippstelle = true; });
     else if (E.modus === 'halbe') rasterStellen(anfangsTakt, 2).forEach(p => { ev(p).tippstelle = true; });
@@ -468,7 +490,7 @@ function ausfuehren(e, t, getippt) {
     const ta = audioZeit(t);
     if (e.wirbelAb) wirbel = { ab: ta, naechster: ta, dauer: (zeitVon(naechstePos(e, 'paukenSchlag')) - t) };
     if (e.paukenSchlag && wirbel) { wirbel = null; paukenSchlag(ta, 0.9); }
-    if (e.akkord) akkordSpielen(e.akkord, ta, false, e.dauer);
+    if (e.akkord) akkordSpielen(e.akkord, ta, false, e.dauer, e.lage);
     else if (e.tippstelle && getippt) {
         // Tipp an einer Stelle ohne eigenen Wechsel (z.B. 20:1, 22:1): der geltende Akkord schlägt neu an
         const a = akkordBei(e.pos);
@@ -750,7 +772,8 @@ function streifenZeigen() {
         // in jedem Modus mit Text (@dd 20261105); die Stimme des Wortes aus dem Ablauf, sonst die Textstimme
         const ev = EV.find(e => Math.abs(e.pos - pos) < 1e-6);
         const oben = segName(pos) + (ak ? ' · ' + ak : '');
-        const unten = wortAn(pos, segEnde(i), ev && ev.stimme != null ? ev.stimme : -1) || '·';
+        const si = E.stimme ? stimmeIndex(E.stimme) : (ev && ev.stimme != null ? ev.stimme : stimmeIndex(A.textstimme));
+        const unten = wortAn(pos, segEnde(i), si) || '·';
         b.innerHTML = `<span class="t">${oben}</span><span class="w">${unten}</span>`;
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
@@ -873,6 +896,30 @@ regler('hoehen', 'hoehen');
     }
 })();
 
+// Meine Stimme: aus ihr kommen Text und Wörter auf den Pads (Alt singt in Takt 10 und 13-14 anderen Text)
+// Spielt: Akkord mit Bass oder nur Bass
+function wahlZeile(id, feld, optionen, nachher) {
+    const zeile = $(id);
+    for (const [key, name] of optionen) {
+        const b = document.createElement('button');
+        b.textContent = name;
+        b.setAttribute('aria-pressed', String(E[feld] === key));
+        b.addEventListener('click', () => {
+            E[feld] = key; sichern();
+            [...zeile.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+            nachher();
+        });
+        zeile.appendChild(b);
+    }
+}
+function stimmwahlBauen() {
+    if (!E.stimme) E.stimme = A.textstimme || P.stimmen[0];
+    wahlZeile('stimmwahl', 'stimme', P.stimmen.map(n => [n, n]), () => { leitsilbenBilden(); streifenZeigen(); zeigen(); });
+}
+wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], () => {
+    if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
+});
+
 // Klangfarbe: Orgel oder Strings
 (() => {
     const zeile = $('klangwahl');
@@ -977,6 +1024,7 @@ document.addEventListener('click', e => {
     leitsilbenBilden();
     ereignisseBilden();
     anfangStellen();
+    stimmwahlBauen();
     streifenZeigen();
     zeigen();
 })();

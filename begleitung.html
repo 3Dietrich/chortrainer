@@ -130,11 +130,12 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #zustand[data-art="schaetzt"] { background: #4a3f22; }
 #anleitung { position: fixed; inset: 0; z-index: 20; background: #000a; display: grid; place-items: center; padding: 16px; }
 #anleitung .karte { background: var(--flaeche); border: 2px solid var(--linie); border-radius: 16px; padding: 18px 20px;
-    max-width: 34em; max-height: calc(100vh - 32px); overflow-y: auto; font-size: 19px; line-height: 1.4; }
-#anleitung h2 { margin: 0 0 8px; font-size: 24px; color: var(--warm); }
+    max-width: 26em; max-height: calc(100vh - 32px); overflow-y: auto; font-size: clamp(22px, 6vw, 28px); line-height: 1.45; }
+#anleitung h2 { margin: 0 0 10px; font-size: 1.15em; color: var(--warm); }
+#anleitung p { margin: 8px 0; }
 #anleitung ol { padding-left: 1.3em; margin: 8px 0; }
-#anleitung li { margin-bottom: 6px; }
-#anleitung button { width: 100%; margin-top: 8px; font-size: 22px; font-weight: 700; background: var(--warm-tief); border-color: var(--warm); }
+#anleitung li { margin-bottom: 8px; }
+#anleitung button { width: 100%; min-height: 64px; margin-top: 10px; font-size: 1em; font-weight: 700; background: var(--warm-tief); border-color: var(--warm); }
 #einstellungen label { display: grid; grid-template-columns: 7.5em 1fr 3.2em; align-items: center; gap: 10px; min-height: 52px; }
 #einstellungen label.haken { grid-template-columns: 52px 1fr; }
 #einstellungen output { text-align: right; color: var(--leise); }
@@ -188,6 +189,12 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. Umschalten stellt auf den Anfang.">
         <span class="name">Tippen auf</span><div id="moduswahl" class="zeile"></div>
     </div>
+    <div class="gruppe" data-hilfe="Deine Stimme: aus ihr kommen der Text und die Wörter auf den Pads. Der Alt singt in Takt 10 und 13 bis 14 anderen Text als Tenor und Bass.">
+        <span class="name">Meine Stimme</span><div id="stimmwahl" class="zeile"></div>
+    </div>
+    <div class="gruppe" data-hilfe="Akkord: volle Akkorde mit Bass. Nur Bass: nur der Grundton unten, zum Üben ohne Akkord.">
+        <span class="name">Spielt</span><div id="spielwahl" class="zeile"></div>
+    </div>
     <div class="gruppe" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Strings: weicher Streicherteppich mit Vibrato.">
         <span class="name">Klang</span><div id="klangwahl" class="zeile"></div>
     </div>
@@ -200,18 +207,13 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="anleitung" role="dialog" aria-modal="true" aria-labelledby="anleitungTitel" hidden>
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
-        <p>Du singst, die Seite spielt dazu die Akkorde. Du gibst mit <b>weiter</b> den Takt vor, sie folgt dir.</p>
         <ol>
-            <li><b>A</b> gedrückt halten: der Ton a klingt, alles steht wieder am Anfang.</li>
-            <li>Erster Tipp auf <b>weiter</b> (bei „Seele“): der erste Akkord klingt, die Seite hört hin.</li>
-            <li>Zweiter Tipp einen Takt später (bei <b>2/4</b> einen halben Takt): daraus kommt das Tempo, es steht sofort oben.</li>
-            <li>Weiter tippen auf die Stellen, die die Pads zeigen (die fette Silbe). Akkorde im selben Takt kommen von selbst.</li>
-            <li>Tippst du nicht, bleibt es still. Die Seite schätzt weiter, wo du bist („schätzt“, Akkord blass), dein nächster Tipp rastet dort ein. Ein Tipp weit weg von jeder Stelle heißt nur „ja, weiter“.</li>
+            <li><b>A</b> halten: Ton a</li>
+            <li><b>weiter</b> tippen, wenn ihr anfangt</li>
+            <li>einen Takt später nochmal: das gibt das Tempo</li>
+            <li>dann immer auf die <b>dicke Silbe</b> tippen</li>
         </ol>
-        <p><b>Pad</b> gedrückt halten: sein Akkord klingt, loslassen: die Begleitung steht dort, weiter startet von da.<br>
-           <b>Stopp</b> oder Leertaste: anhalten, weiter macht an der Stelle weiter.<br>
-           ⚙ <b>Tippen auf</b>: DDs (eigene Stellen), Takt (jede Eins) oder 2/4 (Eins und Drei).<br>
-           <b>?</b> zeigt zu jedem Knopf eine Erklärung.</p>
+        <p>Kein Tipp: es bleibt still.</p>
         <button id="anleitungZu">Los geht's</button>
     </div>
 </div>
