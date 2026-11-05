@@ -5,7 +5,9 @@
  * Plan von @dd:
  * - Taste A: alles stoppt, solange sie gedrückt ist klingt ein leiser Stimmton a, die Begleitung steht wieder
  *   am Anfang (@dd 20261105).
- * - Anfang (z.B. 2:1 "Seele"): davor singen nur die Stimmen. Der erste Tipp startet, der zweite gibt das Tempo.
+ * - Anfang (z.B. 2:1 "Seele"): davor singen nur die Stimmen. Der erste Tipp startet den Klang, dann hört die
+ *   Begleitung hin: der zweite Tipp gilt immer für die nächste Tippstelle, der Abstand gibt das Metrum vor.
+ *   Das gilt nach jedem Start (Anfang, Sprung, Leertaste).
  * - Getippt wird an den Tippstellen aus dem Ablauf, ab taktweise_ab jeden Takt. Alles dazwischen läuft
  *   im Tipp-Tempo von selbst.
  * - Tipp ausgelassen: der nächste Takt kommt weich herein und blendet bis zum nächsten Tipp aus (Nachhut).
@@ -331,6 +333,7 @@ let fertig = false;
 let anfang = 0;          // Position, an der die Begleitung bereitsteht
 let SEG = [];            // Positionen der Tippstellen ab dem Anfang
 let stimmTon = null;     // klingender Stimmton (Taste A)
+let hinhoeren = false;   // nach dem ersten Tipp: Uhr steht, bis der zweite Tipp das Metrum vorgibt
 let halt = null;         // { e, bis }: Uhr hält an einer Tippstelle und wartet kurz auf einen späten Tipp
 let verpasst = null;     // zuletzt ohne Tipp (als Nachhut) ausgeführte Tippstelle
 const fenster = () => ({ frueh: 0.3, spaet: 0.5, gnade: 0.3, ...A.fenster });   // Anteile der Lücke
@@ -474,7 +477,18 @@ function tippen(zeit) {
         // Uhr steht (Anfang, Wartestelle, nach Sprung): Tipp startet genau hier
         const e = EV[ix];
         if (e && e.ende) { schluss(t); return; }
+        if (hinhoeren) {
+            // zweiter Tipp nach dem Start: gilt immer für die nächste Tippstelle, der Abstand ist das Metrum
+            hinhoeren = false;
+            const n = EV.slice(ix).find(x => (x.tippstelle || x.warten) && x.pos > U.s0 + 1e-6);
+            TIPPS.push({ uhr: +U.s0.toFixed(2), stelle: n ? +n.pos.toFixed(2) : null, metrum: true });
+            if (!n || n.ende) { schluss(t); return; }
+            einrasten(n.pos, t, 'voll');
+            return;
+        }
+        const start = !letzterTipp;
         einrasten(U.s0, t, !!(e && e.anlauf && Math.abs(e.pos - U.s0) < 1e-6));
+        if (start) { U.laeuft = false; hinhoeren = true; zeigen(); }
         return;
     }
     // nach einer Nachhut hinkt die Uhr um die Haltezeit hinterher: entschieden wird nach der Uhr ohne Halt
@@ -513,9 +527,9 @@ function einrasten(pos, t, tempoMessen) {
     verpasst = null;
     if (tempoMessen && letzterTipp) {
         const viertel = pos - letzterTipp.pos, sek = t - letzterTipp.t;
-        const anlauf = EV.some(x => x.anlauf && Math.abs(x.pos - pos) < 1e-6);
+        const anlauf = tempoMessen === 'voll' || EV.some(x => x.anlauf && Math.abs(x.pos - pos) < 1e-6);
         if (anlauf && viertel >= 0.9 && sek > 0.25) {
-            // zweiter Tipp nach dem Anfang: das Tempo kommt ganz aus diesem Abstand
+            // zweiter Tipp nach dem Start: das Tempo kommt ganz aus diesem Abstand
             U.bpm = Math.min(160, Math.max(40, viertel * 60 / sek));
         } else if (viertel >= 0.9 && sek > 0.25) {
             // gemessenes Tempo, begrenzt auf einen Sprung von höchstens 0,6 bis 1,6
@@ -557,7 +571,7 @@ function einrasten(pos, t, tempoMessen) {
 }
 
 function schluss(t) {
-    wirbel = null; halt = null;
+    wirbel = null; halt = null; hinhoeren = false;
     alleAus(audioZeit(t), 3);
     U.laeuft = false;
     fertig = true;
@@ -574,6 +588,7 @@ function anfangStellen() {
     uhrSetzen(anfang, jetzt());
     U.laeuft = false;
     letzterTipp = null;
+    hinhoeren = false;
 }
 
 /** Taste A drücken: alles stoppen, zurück an den Anfang, leiser Stimmton a, solange gedrückt (Gate). */
@@ -602,7 +617,7 @@ function springenAuf(ziel, tempoBehalten = false) {
     if (!P) return;
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
-    fertig = false; wirbel = null; halt = null; verpasst = null;
+    fertig = false; wirbel = null; halt = null; verpasst = null; hinhoeren = false;
     const pos = Math.max(ziel, anfang);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
     if (!tempoBehalten) {
@@ -648,11 +663,11 @@ function zeigen() {
     if (!P) return;
     const t = jetzt();
     const p = Math.min(uhrPos(t), P.ende - 1e-3);
-    const laeuft = U.laeuft || !!halt;
+    const laeuft = U.laeuft || !!halt || hinhoeren;
     const st = stelleVon(p);
     $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `, Schlag ${st.schlag}` : '');
     $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
-    let zustand = halt ? 'hört hin' : U.laeuft ? (nachhut ? 'Nachhut' : 'läuft') : 'wartet auf Tipp';
+    let zustand = hinhoeren ? 'hört hin' : halt ? 'wartet kurz' : U.laeuft ? (nachhut ? 'Nachhut' : 'läuft') : 'wartet auf Tipp';
     if (fertig) zustand = 'Ende';
     if (!U.laeuft && !letzterTipp && Math.abs(U.s0 - anfang) < 1e-6) zustand = 'bereit';
     if (stimmTon) zustand = 'Stimmton a';
