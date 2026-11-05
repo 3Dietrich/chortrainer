@@ -359,6 +359,7 @@ function ereignisseBilden() {
         const e = ev(stellePos(s));
         if (o.warten) e.warten = true;
         if (o.tempo) e.tempo = o.tempo;
+        if (o.ausblenden) e.ausblenden = o.ausblenden;
         if (o.pauke) { e.paukenSchlag = true; ev(stellePos(o.pauke)).wirbelAb = true; }
     }
     const schluss = ev(P.ende); schluss.ende = true; schluss.warten = true;
@@ -401,6 +402,7 @@ function ausfuehren(e, t, weich) {
     if (e.wirbelAb) wirbel = { ab: ta, naechster: ta, dauer: (zeitVon(naechstePos(e, 'paukenSchlag')) - t) };
     if (e.paukenSchlag && wirbel) { wirbel = null; paukenSchlag(ta, 0.9); }
     if (e.akkord) akkordSpielen(e.akkord, ta, weich);
+    if (e.ausblenden) { alleAus(ta, e.ausblenden); akkordJetzt = ''; }
     if (e.tippstelle && weich) lageNachhut(ta);
 }
 
@@ -432,6 +434,8 @@ function takt() {
             if (e.warten) {
                 // anhalten: Uhr steht auf der Wartestelle, Akkord (und Wirbel) halten
                 if (uhrPos(t) < e.pos - 1e-6) break;
+                // Schluss, und nichts klingt mehr (schon ausgeblendet): fertig, ohne auf einen Tipp zu warten
+                if (e.ende && klingend.size === 0) { schluss(t); break; }
                 uhrSetzen(e.pos, t);
                 U.laeuft = false;
                 zeigen();
