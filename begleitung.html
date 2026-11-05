@@ -12,7 +12,7 @@
 /* Begleitung: live begleiten mit weiter/zurück. Dunkel, damit das Display im Kirchenraum nicht blendet. */
 :root {
     --grund: #1b1712; --flaeche: #2a241c; --linie: #4a4034;
-    --text: #f3e9da; --leise: #b3a48e; --warm: #e8a64a; --warm-tief: #8a5a1c;
+    --text: #f3e9da; --leise: #c6b8a2; --warm: #e8a64a; --warm-tief: #8a5a1c;
     --fokus: #ffd25a;
     color-scheme: dark;
 }
@@ -57,7 +57,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     grid-auto-rows: minmax(52px, 1fr); gap: 6px; padding-block: 4px; scrollbar-width: none; }
 #streifen button { min-height: 52px; padding: 4px 6px; touch-action: pan-y; -webkit-touch-callout: none; font-size: 17px; line-height: 1.15;
-    overflow: hidden; text-align: left; color: #857865; border-radius: 12px; }
+    overflow: hidden; text-align: left; color: #a8997f; border-radius: 12px; }
 #streifen button .t { display: block; font-size: 13px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #streifen button .w { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #streifen button.an { background: var(--warm-tief); border-color: var(--warm); color: #d9bd94; }
@@ -66,11 +66,11 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen button.an b { color: #fff; }
 #streifen button.an .t { color: #f3dcb8; }
 /* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
-.fremd { color: #8fc1dc; }
-#streifen button .fremd { color: #6f9db6; }
-#streifen button .fremd b { color: #bfe2f5; }
-#streifen button.an .fremd { color: #d3ecf9; }
-#streifen button.an .fremd b { color: #fff; }
+.fremd { color: #6a8a9e; }
+#streifen button .fremd { color: #587486; }
+#streifen button .fremd b { color: #86a7ba; }
+#streifen button.an .fremd { color: #b9d3e0; }
+#streifen button.an .fremd b { color: #e4f1f8; }
 
 /* Tasten: A klein, Stopp daneben, weiter breit; nie breiter als der Bildschirm */
 #tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
