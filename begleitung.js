@@ -171,10 +171,20 @@ function leitsilbenBilden() {
  * pos fett. Ergebnis { html, letzte } (letzte = Zeit der letzten Silbe des Wortes) oder null.
  * Hält die eigene Stimme an pos einen Ton, fragt der Aufrufer vorher stimmeAn() und zeigt „–“ (@dd 20261107).
  */
-function wortAn(pos, bis, stimme = -1) {
+function wortAn(pos, bis, stimme = -1, nurSilbe = false) {
     const eigen = stimme >= 0 ? P.silben.filter(x => x.stimme === stimme).sort((a, b) => a.t - b.t) : null;
     const x0 = (eigen || LEIT).find(x => x.t >= pos - 1e-6);
     if (!x0 || x0.t >= bis - 1e-6) return null;
+    // Viertel (@dd 20261107): schmale Pads, das ganze Wort passt nicht („Ge-b…“ viermal). Nur die Silbe dieses
+    // Schlags, mit Strichen davor/danach, wenn das Wort weitergeht: „Ge-“, „-bor-“, „-gen-“, „-heit“
+    if (nurSilbe) {
+        const txt = x0.text.replace(/[<>&]/g, '');
+        // Wortgrenze wie unten auch bei langer Lücke (Bass: Summen „mh“ ... „su-che“ ist kein Wort)
+        const reihe = P.silben.filter(x => x.stimme === x0.stimme).sort((a, b) => a.t - b.t), k = reihe.indexOf(x0);
+        const vor = (x0.syl === 'middle' || x0.syl === 'end') && k > 0 && x0.t - reihe[k - 1].t <= 5 ? '-' : '';
+        const nach = (x0.syl === 'begin' || x0.syl === 'middle') && reihe[k + 1] && reihe[k + 1].t - x0.t <= 5 ? '-' : '';
+        return { html: `${vor}<b>${txt}</b>${nach}`, letzte: x0.t };
+    }
     const eigene = P.silben.filter(x => x.stimme === x0.stimme).sort((a, b) => a.t - b.t);
     let i = eigene.indexOf(x0);
     const hier = i;
@@ -1038,7 +1048,8 @@ function zeigen() {
     const laeuft = U.laeuft || hinhoeren;
     const schaetzt = geschaetzt(p);
     const st = stelleVon(p);
-    $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `, Schlag ${st.schlag}` : '');
+        // kurz, damit es neben S A T B passt: „Takt 12:2“
+    $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `:${st.schlag}` : '');
     $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
     let zustand = hinhoeren ? 'hört hin' : U.laeuft ? (schaetzt ? 'schätzt' : 'läuft') : 'wartet auf Tipp';
     if (fertig) zustand = gestopptBei != null ? 'gestoppt' : 'Schluss';
@@ -1092,7 +1103,8 @@ function streifenZeigen() {
     PADS = [];
     // Viertel (@dd 20261107): alle Pads gleich groß und schmaler, eine Zeile = ein Takt (breit: zwei Takte)
     const schlaege = Math.round(taktEnde(Math.min(2, P.taktAnfaenge.length)) - taktBeginn(Math.min(2, P.taktAnfaenge.length))) || 4;
-    s.classList.toggle('viertel', E.modus === 'viertel');
+    const viertel = E.modus === 'viertel';
+    s.classList.toggle('viertel', viertel);
     s.style.setProperty('--schlaege', schlaege);
     s.style.setProperty('--schlaege2', schlaege * 2);
     SEG.forEach((pos, i) => {
@@ -1107,23 +1119,28 @@ function streifenZeigen() {
         // hält die eigene Stimme hier einen Ton: „–“ statt eines Wortes (@dd 20261107: sonst bringt es raus);
         // singt sie hier nicht: das Wort der anderen, andersfarbig. Darunter klein der weitere Text bis zur nächsten Stelle.
         const bis = segEnde(i);
-        let gross, klein = '';
+        let gross, klein = '', oben2 = null;   // oben2: ganzes Wort für die Anzeige oben (dort ist Platz)
         if (stimmeAn(pos, si) === 'halten') {
             gross = '<b>–</b>';
             klein = kleinText(pos, bis, si);
         } else {
-            const eigen = wortAn(pos, bis, si);
+            const eigen = wortAn(pos, bis, si, viertel);
             if (eigen) {
                 gross = eigen.html;
+                if (viertel) oben2 = wortAn(pos, bis, si).html;
                 klein = kleinText(Math.max(pos, eigen.letzte), bis, si);
             } else {
-                const fremd = wortAn(pos, bis, stimmeIndex(A.textstimme)) || wortAn(pos, bis);
+                // hält dort die Textstimme (Tenor) einen Ton, auch bei den anderen „–“ statt „·“
+                const ts = stimmeIndex(A.textstimme);
+                const fremd = stimmeAn(pos, ts) === 'halten' ? { html: '<b>–</b>' }
+                    : wortAn(pos, bis, ts, viertel) || wortAn(pos, bis, -1, viertel);
                 gross = fremd ? `<span class="fremd">${fremd.html}</span>` : '·';
+                if (viertel && fremd) { const w = fremd.html === '<b>–</b>' ? fremd : wortAn(pos, bis, ts) || wortAn(pos, bis); oben2 = `<span class="fremd">${w.html}</span>`; }
             }
         }
         // Pad, auf dem die eigene Stimme nicht singt: deutlich anders (kein Kartenkörper, blau, kursiv)
         if (!/^<b>–<\/b>$/.test(gross) && (gross === '·' || gross.startsWith('<span class="fremd">'))) b.classList.add('fremdpad');
-        PADS.push({ gross });
+        PADS.push({ gross: oben2 || gross });
         b.innerHTML = `<span class="t">${oben}</span><span class="w">${gross}</span>` + (klein ? `<span class="k">${klein}</span>` : '');
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
