@@ -840,7 +840,19 @@ function aKnopfZeigen() {
 }
 
 /**
- * Einstiegsknopf drücken (@dd 20261107): der Akkord der Einstiegsstelle tippt kurz an, der Ton der eigenen Stimme
+ * Akkord nur antippen: alle Töne mit 5 ms Einschwingen, nach sek (Vorgabe 0,1 s) in etwa 60 ms weg. Läuft neben den
+ * Akkorden der Begleitung her (nicht in „klingend“), damit der Einstiegston allein stehen bleibt.
+ */
+function akkordTupfer(sym, wann, sek = 0.1) {
+    const l = lageFuer(sym);
+    if (!l) return;
+    akkordJetzt = sym;
+    const toene = [[l.bass, 'grund'], [l.bass - 12, 'sub'], ...(E.spiel !== 'bass' ? l.oben.map(m => [m, 'oben']) : [])];
+    for (const [m, art] of toene) tonAn(m, art, wann, false, 0.005).stop(wann + sek, 0.06);
+}
+
+/**
+ * Einstiegsknopf drücken (@dd 20261107): der Akkord der Einstiegsstelle klingt nur 0,1 s an, der Ton der eigenen Stimme
  * bleibt liegen, solange gedrückt (Gate). Die Begleitung steht danach an dieser Stelle, weiter startet von dort.
  */
 function stimmton() {
@@ -852,7 +864,7 @@ function stimmton() {
     gestopptBei = null;
     alleAus(ta, 0.1);
     const { a, n } = aKnopfZeigen();
-    if (a) akkordSpielen(a, ta, false, 1.5);
+    if (a) akkordTupfer(a, ta);   // nur angetippt (@dd 20261107: 50-150 ms), der Ton der Stimme ist die Vorgabe
     // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme wie früher das a
     stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
     $('aKnopf').setAttribute('aria-pressed', 'true');
