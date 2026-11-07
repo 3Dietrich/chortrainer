@@ -624,6 +624,11 @@ let SEG = [];            // Positionen der Tippstellen ab dem Anfang
 let stimmTon = null;     // klingender Stimmton (Taste A)
 let gestopptBei = null;  // Stelle, an der gestoppt wurde (Leertaste, Stopp-Taste): dort geht es weiter
 let hinhoeren = false;   // nach dem ersten Tipp: Uhr steht, bis der zweite Tipp das Metrum vorgibt
+// „selbst weiter“ (@dd 20261107): läuft es glatt, erscheint ein Knopf; angetippt spielt die Begleitung ohne Tipps
+// bis zum Schluss (auch über Wartestellen). Tipps korrigieren weiter Stelle und Tempo, Stopp und Einstieg beenden es.
+let selbst = false;
+let glatt = 0;           // Tipps in Folge, die nah an ihrer Stelle lagen
+const GLATT_NOETIG = () => (E.modus === 'viertel' ? 6 : 3);
 const fenster = () => ({ frueh: 0.3, spaet: 0.5, ...A.fenster });   // Anteile der Lücke
 
 /** Tippstellen aus einem Raster: ab Takt ab alle schlaege Viertel */
@@ -708,6 +713,7 @@ const istEins = q => Math.abs(q - taktBeginn(stelleVon(q).takt)) < 1e-6;
 /** Bis wohin geklickt wird: bis zur nächsten erwarteten Tippstelle bzw. zum Ende des getippten Taktes.
  *  Kommt dort kein Tipp, schweigt auch das Metronom (wie die Akkorde). */
 function metroGrenze() {
+    if (selbst) return P.ende - 1e-3;
     const n = EV.find(e => (e.tippstelle || e.warten) && e.pos > letzterTipp.pos + 1e-6);
     return Math.min(P.ende - 1e-3, Math.max(n ? n.pos : 0, taktEnde(taktVon(letzterTipp.pos)) - 1e-3));
 }
@@ -759,7 +765,7 @@ function takt() {
         const horizont = uhrPos(t + 0.06);
         while (ix < EV.length && EV[ix].pos <= horizont + 1e-6) {
             const e = EV[ix];
-            if (e.warten) {
+            if (e.warten && !(selbst && !e.ende)) {
                 if (uhrPos(t) < e.pos - 1e-6) break;
                 if (e.ende) { schluss(t); break; }
                 // anhalten: Uhr steht auf der Wartestelle, bis getippt wird
@@ -769,7 +775,11 @@ function takt() {
                 break;
             }
             const tz = Math.max(t, zeitVon(e.pos));
-            if (letzterTipp && taktVon(e.pos) === taktVon(letzterTipp.pos)) ausfuehren(e, tz, false);
+            if (selbst) {
+                // Selbstlauf: alles erklingt; an jeder Eins ohne eigenen Wechsel schlägt der geltende Akkord neu an
+                ausfuehren(e, tz, false);
+                if (e.takt && !e.akkord) { const a = akkordBei(e.pos); if (a) akkordSpielen(a, audioZeit(tz), false); }
+            } else if (letzterTipp && taktVon(e.pos) === taktVon(letzterTipp.pos)) ausfuehren(e, tz, false);
             if (e.tempo) uhrSetzen(e.pos, tz, U.basis * faktorBis(e.pos));
             ix++;
         }
@@ -824,6 +834,8 @@ function tippen(zeit) {
         if (ok && (!ziel || Math.abs(d) < Math.abs(ziel.pos - p))) ziel = e;
     });
     TIPPS.push({ uhr: +p.toFixed(2), stelle: ziel ? +ziel.pos.toFixed(2) : null, bpm: Math.round(U.bpm) });
+    // glatt: der Tipp lag nah an seiner Stelle (höchstens ein Fünftel Viertel daneben)
+    glatt = ziel && Math.abs(ziel.pos - p) <= 0.2 ? glatt + 1 : 0;
     if (ziel) {
         if (ziel.ende) { schluss(t); return; }
         einrasten(ziel.pos, t, true);
@@ -879,7 +891,7 @@ function einrasten(pos, t, tempoMessen) {
 
 /** Ende des Laufs: am Liedschluss lang ausklingen, beim Stopp sofort still (@dd 20261107: Stopp muss beim Drücken reagieren) */
 function schluss(t, abkling = 3) {
-    wirbel = null; hinhoeren = false;
+    wirbel = null; hinhoeren = false; selbst = false; glatt = 0;
     alleAus(audioZeit(t), abkling);
     U.laeuft = false;
     fertig = true;
@@ -943,6 +955,7 @@ function akkordTupfer(sym, wann) {
  */
 function stimmton() {
     if (!P || stimmTon) return;
+    selbst = false; glatt = 0;
     audioStart();
     const ta = ctx.currentTime;
     const pos = einstieg();
@@ -977,7 +990,7 @@ function springenAuf(ziel, tempoBehalten = false, anspielen = true) {
     if (!P) return;
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
-    fertig = false; wirbel = null; hinhoeren = false;
+    fertig = false; wirbel = null; hinhoeren = false; selbst = false; glatt = 0;
     const pos = Math.max(ziel, 0);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
     if (!tempoBehalten) U.basis = tempoGrenzen(A.tempo);
@@ -1013,7 +1026,7 @@ function segName(pos) {
 
 /** Ist die Uhr schon an einer Tippstelle vorbei, ohne dass getippt wurde? Dann ist die Stelle geschätzt. */
 function geschaetzt(p) {
-    if (!U.laeuft || !letzterTipp) return false;
+    if (!U.laeuft || !letzterTipp || selbst) return false;
     const n = EV.find(e => (e.tippstelle || e.warten) && e.pos > letzterTipp.pos + 1e-6);
     return !!n && p > n.pos + 0.25;
 }
@@ -1031,7 +1044,7 @@ function erwartetePos(p) {
     else if (!U.laeuft) return U.s0;
     else {
         n = nach(letzterTipp ? letzterTipp.pos : U.s0);
-        if (n && geschaetzt(p)) n = nach(p - 0.25) || n;
+        if (n && (geschaetzt(p) || selbst)) n = nach(p - 0.25) || n;
     }
     return n && !n.ende ? n.pos : null;
 }
@@ -1051,7 +1064,7 @@ function zeigen() {
         // kurz, damit es neben S A T B passt: „Takt 12:2“
     $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `:${st.schlag}` : '');
     $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
-    let zustand = hinhoeren ? 'hört hin' : U.laeuft ? (schaetzt ? 'schätzt' : 'läuft') : 'wartet auf Tipp';
+    let zustand = hinhoeren ? 'hört hin' : U.laeuft ? (selbst ? 'läuft selbst' : schaetzt ? 'schätzt' : 'läuft') : 'wartet auf Tipp';
     if (fertig) zustand = gestopptBei != null ? 'gestoppt' : 'Schluss';
     if (!U.laeuft && !letzterTipp && Math.abs(U.s0 - anfang) < 1e-6) zustand = 'bereit';
     if (stimmTon) zustand = 'Einstieg';
@@ -1077,6 +1090,37 @@ function zeigen() {
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
     aKnopfZeigen();
+    selbstKnopfZeigen();
+}
+
+/** „selbst weiter“: sichtbar, wenn es glatt läuft oder schon selbst läuft; schwebt rechts über den Tasten */
+function selbstKnopfZeigen() {
+    const k = $('selbstKnopf');
+    const sichtbar = !fertig && U.laeuft && (selbst || glatt >= GLATT_NOETIG());
+    if (k.hidden !== !sichtbar) {
+        k.hidden = !sichtbar;
+        if (sichtbar) {
+            const r = $('tasten').getBoundingClientRect();
+            k.style.bottom = (innerHeight - r.top + 8) + 'px';
+            k.style.right = (innerWidth - r.right) + 'px';
+        }
+    }
+    if (k.getAttribute('aria-pressed') !== String(selbst)) {
+        k.setAttribute('aria-pressed', String(selbst));
+        k.querySelector('span').textContent = selbst ? 'läuft selbst · antippen = mittippen' : 'selbst weiter';
+    }
+}
+function selbstUmschalten() {
+    if (!U.laeuft || fertig) return;
+    const t = jetzt();
+    if (selbst) {
+        // zurück zum Mittippen: als hätte man eben hier getippt (Akkorde laufen im Takt weiter)
+        selbst = false; glatt = 0;
+        letzterTipp = { pos: uhrPos(t), t };
+    } else {
+        selbst = true;
+    }
+    zeigen();
 }
 
 /**
@@ -1195,6 +1239,7 @@ function knopf(el, fn) {
     el.addEventListener('click', e => { if (!hilfe && e.detail === 0) fn(); });
 }
 knopf($('weiter'), tippen);
+knopf($('selbstKnopf'), () => selbstUmschalten());
 // Audiogerät schon bei der ersten Berührung irgendwo anlegen: sonst kostet das Anlaufen den ersten Ton
 document.addEventListener('pointerdown', () => audioStart(), { capture: true, once: true });
 knopf($('stoppKnopf'), zeit => { if (ctx && letzterTipp && !fertig) startStopp(zeit); else if (ctx) alleAus(ctx.currentTime, 0.3); });

@@ -148,6 +148,11 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     min-height: 48px; padding: 6px 18px 6px 14px; border-radius: 24px; font-size: 18px; font-weight: 700;
     background: var(--flaeche2); border-color: var(--fokus); box-shadow: 0 6px 20px var(--schatten); }
 
+/* „selbst weiter“ (@dd 20261107): schwebt rechts über den Tasten, erscheint nur, wenn es glatt läuft */
+#selbstKnopf { position: fixed; z-index: 4; display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 6px 16px 6px 12px;
+    border-radius: 10px; font-size: 19px; font-weight: 700; background: var(--laeuft); border-color: #7fbf6a; box-shadow: 0 6px 20px var(--schatten); }
+#selbstKnopf[aria-pressed="true"] { background: var(--an); border-color: var(--an-rand); color: var(--an-text); font-size: 16px; }
+
 /* Tasten: Einstieg, Stopp, weiter breit; nie breiter als der Bildschirm */
 #tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
     height: 16vh; min-height: 96px; padding-block: 6px 8px; }
@@ -305,6 +310,10 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter das Wort, die Tippsilbe fett. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
 <button id="nachOben" hidden aria-label="Ganz nach oben" data-hilfe="Erscheint beim schnellen Hochwischen: springt im Streifen ganz nach oben zu Takt 1.">
     <svg class="sym" viewBox="0 0 24 24"><path d="M5 4h14"/><path d="M12 20V9"/><path d="M6.5 13.5L12 8l5.5 5.5"/></svg>Anfang
+</button>
+
+<button id="selbstKnopf" hidden aria-pressed="false" data-hilfe="Selbst weiter: erscheint, wenn deine Tipps eine Weile sauber auf den Schlägen liegen. Antippen: die Begleitung spielt ohne Tipps im jetzigen Tempo bis zum Schluss, auch über Wartestellen. Tippen auf weiter korrigiert dabei Stelle und Tempo. Nochmal antippen: wieder mittippen. Stopp oder Einstieg beenden es.">
+    <svg class="sym" viewBox="0 0 24 24"><path d="M7 5l11 7-11 7z" fill="currentColor"/></svg><span>selbst weiter</span>
 </button>
 
 <div id="tasten">

@@ -4204,3 +4204,29 @@ function stropheAnwenden(springen) {
 }
 
 api.midiLoaded.on(() => strophenErmitteln());
+
+/* Geheimer Zugang zur Live-Begleitung (@dd 20261107, wie „Office“ im Verein): eine Sekunde langes Drücken auf das
+   Symbol oben links öffnet begleitung.html für das gewählte Lied, wenn es dazu einen Ablauf gibt (<Lied>.ablauf.json).
+   Normales Antippen tut nichts anderes als vorher. Nicht sichtbar, nur für die, die es wissen. */
+(function () {
+    const el = document.querySelector('.topbar .brand');
+    if (!el) return;
+    let uhr = null;
+    el.style.webkitTouchCallout = 'none';
+    el.draggable = false;
+    const ab = () => { clearTimeout(uhr); uhr = null; };
+    el.addEventListener('pointerdown', e => {
+        if (e.button > 0) return;
+        ab();
+        uhr = setTimeout(async () => {
+            const lied = document.getElementById('songSelect')?.value || 'Bereit.musicxml';
+            try {
+                const r = await fetch(lied.replace(/\.musicxml$/i, '.ablauf.json'), { method: 'HEAD', cache: 'no-cache' });
+                if (!r.ok) return;
+            } catch (err) { return; }
+            location.href = 'begleitung.html?lied=' + encodeURIComponent(lied);
+        }, 1000);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
+    el.addEventListener('contextmenu', e => e.preventDefault());
+})();
