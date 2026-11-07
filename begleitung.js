@@ -30,11 +30,13 @@ const SPEICHER = 'begleitung-einstellungen';
 // waerme = Stereo-Chorus, hoehen = Tiefpass (hieß früher Wärme)
 // stimme: aus welcher Stimme der Text kommt ('' = Textstimme des Ablaufs); spiel: 'akkord' oder 'bass' (nur Bass)
 // metronom: 'an' | 'aus', metroLaut = Lautstärke, metroFilter = Tiefpass (links dumpf, rechts hell)
+// Fest und unsichtbar (@dd 20261107): Wärme 50, Klick ganz dumpf (metroFilter 0); gespeicherte Werte zählen dafür nicht
 // Klang-Vorgabe = @dds Einstellung auf der Hörseite (Stand 20261107). Gespeichert wird nur, was davon abweicht:
 // wer nichts verstellt hat, bekommt eine neue Vorgabe von selbst, wer verstellt hat, behält seins (Knopf „Klang zurücksetzen“).
-const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'viertel', stimme: '', spiel: 'akkord',
-    metronom: 'an', metroLaut: 40, metroFilter: 25 };
-const KLANG_FELDER = ['klang', 'lautstaerke', 'tiefbass', 'waerme', 'hoehen', 'metroLaut', 'metroFilter'];
+const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 50, hoehen: 11, modus: 'viertel', stimme: '', spiel: 'akkord',
+    metronom: 'an', metroLaut: 40, metroFilter: 0 };
+const FEST = { waerme: 50, metroFilter: 0 };
+const KLANG_FELDER = ['klang', 'lautstaerke', 'tiefbass', 'hoehen', 'metroLaut'];
 let E = { ...VORGABE };
 try {
     const alt = JSON.parse(localStorage.getItem(SPEICHER) || '{}');
@@ -43,6 +45,7 @@ try {
     Object.assign(E, alt);
     if (E.klang === 'flaeche') E.klang = 'strings';
 } catch (e) { /* privat/gesperrt */ }
+Object.assign(E, FEST);
 function sichern() {
     const abw = {};
     for (const k of Object.keys(E)) if (E[k] !== VORGABE[k]) abw[k] = E[k];
@@ -788,9 +791,10 @@ function einrasten(pos, t, tempoMessen) {
     zeigen();
 }
 
-function schluss(t) {
+/** Ende des Laufs: am Liedschluss lang ausklingen, beim Stopp sofort still (@dd 20261107: Stopp muss beim Drücken reagieren) */
+function schluss(t, abkling = 3) {
     wirbel = null; hinhoeren = false;
-    alleAus(audioZeit(t), 3);
+    alleAus(audioZeit(t), abkling);
     U.laeuft = false;
     fertig = true;
     zeigen();
@@ -949,7 +953,7 @@ function zeigen() {
     $('stelle').textContent = `Takt ${st.takt}` + (laeuft || st.schlag > 1 ? `, Schlag ${st.schlag}` : '');
     $('tempoAnz').textContent = `♩ ${Math.round(U.bpm)}`;
     let zustand = hinhoeren ? 'hört hin' : U.laeuft ? (schaetzt ? 'schätzt' : 'läuft') : 'wartet auf Tipp';
-    if (fertig) zustand = 'Ende';
+    if (fertig) zustand = gestopptBei != null ? 'gestoppt' : 'Schluss';
     if (!U.laeuft && !letzterTipp && Math.abs(U.s0 - anfang) < 1e-6) zustand = 'bereit';
     if (stimmTon) zustand = 'Einstieg';
     if (bestaetigt > 0 && t - bestaetigt < 0.6) zustand = 'ja, weiter';
@@ -964,11 +968,12 @@ function zeigen() {
     $('dann').innerHTML = i + 1 < SEG.length
         ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textHtml(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
     // erwarteter Tipp oben (@dd 20261107): Wort mit fetter Tippsilbe bzw. „–“, daneben die Stelle
-    const ep = erwartetePos(p);
+    // nach Stopp: wo weiter neu startet; nach dem Liedschluss: wieder bei Seele (statt eines leeren „Ende“, @dd 20261107)
+    const ep = fertig ? (gestopptBei != null ? gestopptBei : anfang) : erwartetePos(p);
     const ei = ep == null ? -1 : SEG.findIndex(x => Math.abs(x - ep) < 1e-6);
-    const art = stimmTon ? 'Einstieg' : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft && !fertig) ? 'Start' : 'Tipp';
-    $('erwartet').innerHTML = fertig ? '<span class="was">Ende</span>'
-        : ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
+    const art = stimmTon ? 'Einstieg' : fertig ? (gestopptBei != null ? 'weiter ab' : 'neu ab')
+        : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft) ? 'Start' : 'Tipp';
+    $('erwartet').innerHTML = ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
         : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
@@ -1131,10 +1136,8 @@ function regler(id, feld) {
 }
 regler('lautstaerke', 'lautstaerke');
 regler('tiefbass', 'tiefbass');
-regler('waerme', 'waerme');
 regler('hoehen', 'hoehen');
 regler('metroLaut', 'metroLaut');
-regler('metroFilter', 'metroFilter');
 
 // Tippen auf: DDs Stellen, jede Eins, Eins und Drei (@dd 20261105) oder jeder Schlag (@dd 20261107)
 (() => {
@@ -1179,7 +1182,7 @@ function stimmwahlBauen() {
     if (!E.stimme) E.stimme = A.textstimme || P.stimmen[0];
     // kurz: Anfangsbuchstabe, außer zwei Stimmen teilen ihn (Sopran 1/2), dann der Name
     const kurz = n => (P.stimmen.filter(x => x.charAt(0).toUpperCase() === n.charAt(0).toUpperCase()).length > 1 ? n : n.charAt(0).toUpperCase());
-    for (const [id, name] of [['stimmwahl', n => n], ['stimmchips', kurz]]) {
+    for (const [id, name] of [['stimmchips', kurz]]) {
         const zeile = $(id);
         zeile.innerHTML = '';
         for (const n of P.stimmen) {
@@ -1203,7 +1206,14 @@ wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], ()
     if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
 });
 // Metronom an/aus; zum Hören beim Einschalten ein Klick
-wahlZeile('metrowahl', 'metronom', [['aus', 'aus'], ['an', 'an']], () => {
+// Metronom: ein Knopf an/aus (@dd 20261107); beim Einschalten ein Klick zum Hören
+function metroKnopfZeigen() {
+    $('metroKnopf').setAttribute('aria-pressed', String(E.metronom === 'an'));
+    $('metroKnopf').textContent = E.metronom === 'an' ? 'Metronom an' : 'Metronom aus';
+}
+metroKnopfZeigen();
+$('metroKnopf').addEventListener('click', () => {
+    E.metronom = E.metronom === 'an' ? 'aus' : 'an'; sichern(); metroKnopfZeigen();
     audioStart(); pegelSetzen();
     if (E.metronom === 'an') metroKlick(ctx.currentTime + 0.02, true);
 });
@@ -1242,7 +1252,7 @@ function startStopp(zeit) {
     audioStart();
     if (letzterTipp && !fertig) {
         gestopptBei = SEG[segIndex(uhrPos(t))];
-        schluss(t);
+        schluss(t, 0.12);
         return;
     }
     tippen(t);
@@ -1264,7 +1274,7 @@ addEventListener('keydown', e => {
         if (!$('anleitung').hidden) anleitungAuf(false);
         else if (hilfe) hilfeModus(false);
         else if (!$('einstellungen').hidden) einstellungenAuf(false);
-        else if (ctx) schluss(jetzt());
+        else if (ctx) { if (letzterTipp && !fertig) gestopptBei = SEG[segIndex(uhrPos(jetzt()))]; schluss(jetzt(), 0.12); }
         return;
     }
     if (hilfe || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
@@ -1297,6 +1307,89 @@ document.addEventListener('click', e => {
     const oben = r.top > bh + 20 ? r.top - bh - 10 : Math.min(r.bottom + 10, innerHeight - bh - 12);
     blase.style.left = links + 'px'; blase.style.top = oben + 'px';
 }, true);
+
+/* ---------- Fächer der Einstellungen: offen gemerkt, zu mit Kurzstand (@dd 20261107) ---------- */
+
+const FAECHER = [...document.querySelectorAll('#einstellungen details.fach')];
+(() => {
+    let offen = ['tippen'];
+    try { const x = JSON.parse(localStorage.getItem('begleitung.faecher')); if (Array.isArray(x)) offen = x; } catch (e) { /* Vorgabe */ }
+    for (const d of FAECHER) {
+        d.open = offen.includes(d.dataset.fach);
+        d.addEventListener('toggle', () => {
+            try { localStorage.setItem('begleitung.faecher', JSON.stringify(FAECHER.filter(x => x.open).map(x => x.dataset.fach))); } catch (e) { /* egal */ }
+        });
+    }
+})();
+const MODUSNAME = { viertel: '1/4', halbe: '2/4', takte: 'Takt', stellen: 'DDs' };
+function kurzstand() {
+    const r = document.documentElement;
+    $('kurz_tippen').textContent = `${MODUSNAME[E.modus] || ''} · ${E.spiel === 'bass' ? 'nur Bass' : 'Akkord'}`;
+    $('kurz_klang').textContent = `${E.klang === 'orgel' ? 'Orgel' : 'Strings'} · ${E.lautstaerke} · Tiefbass ${E.tiefbass} · Höhen ${E.hoehen}`;
+    $('kurz_metronom').textContent = E.metronom === 'an' ? `an · ${E.metroLaut}` : 'aus';
+    $('kurz_darstellung').textContent = (r.dataset.hell ? 'Hell' : 'Dunkel') + (r.dataset.kontrast ? ' · Kontrast ' + (r.dataset.kontrast === 'max' ? 'Max' : 'Hoch') : '');
+}
+['input', 'click'].forEach(t => $('einstellungen').addEventListener(t, () => setTimeout(kurzstand)));
+
+/* ---------- Darstellung: Hell/Dunkel und Kontrast (Baustein @dd 20261018), gesetzt am <html> ---------- */
+
+function themaFarbe() {
+    const m = document.querySelector('meta[name=theme-color]');
+    if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--grund').trim();
+}
+(() => {
+    const r = document.documentElement;
+    const seg = (id, optionen, aktiv, setzen) => {
+        const z = $(id);
+        for (const [key, name] of optionen) {
+            const b = document.createElement('button');
+            b.textContent = name;
+            b.setAttribute('aria-pressed', String(aktiv() === key));
+            b.addEventListener('click', () => {
+                setzen(key);
+                [...z.children].forEach((x, i) => x.setAttribute('aria-pressed', String(optionen[i][0] === aktiv())));
+            });
+            z.appendChild(b);
+        }
+    };
+    seg('hellwahl', [['nein', 'Dunkel'], ['ja', 'Hell']], () => (r.dataset.hell ? 'ja' : 'nein'), k => {
+        if (k === 'ja') r.dataset.hell = 'ja'; else delete r.dataset.hell;
+        try { localStorage.setItem('begleitung.hell', k); } catch (e) { /* egal */ }
+        themaFarbe();
+    });
+    seg('kontrastwahl', [['', 'Normal'], ['hoch', 'Hoch'], ['max', 'Max']], () => r.dataset.kontrast || '', k => {
+        if (k) r.dataset.kontrast = k; else delete r.dataset.kontrast;
+        try { if (k) localStorage.setItem('begleitung.kontrast', k); else localStorage.removeItem('begleitung.kontrast'); } catch (e) { /* egal */ }
+    });
+    themaFarbe();
+    kurzstand();
+})();
+
+/* ---------- Ganz nach oben: Knopf erscheint, wenn man im Streifen schnell hochwischt (@dd 20261107) ---------- */
+
+(() => {
+    const s = $('streifen'), k = $('nachOben');
+    let letzt = { top: 0, t: 0 }, weg = null;
+    const verstecken = () => { k.hidden = true; };
+    s.addEventListener('scroll', () => {
+        const t = performance.now(), top = s.scrollTop;
+        const v = (top - letzt.top) / Math.max(1, t - letzt.t) * 1000;   // Pixel je Sekunde, negativ = nach oben
+        letzt = { top, t };
+        if (top < 40) { verstecken(); return; }
+        // nur wenn der Mensch wischt (nicht beim Mitführen), schnell nach oben und schon ein Stück unten
+        if (v < -1500 && top > s.clientHeight && jetzt() - streifenAngefasst < 3) {
+            k.style.top = (s.getBoundingClientRect().top + 10) + 'px';
+            k.hidden = false;
+            clearTimeout(weg);
+            weg = setTimeout(verstecken, 2500);
+        }
+    }, { passive: true });
+    k.addEventListener('click', () => {
+        streifenAngefasst = jetzt();
+        s.scrollTo({ top: 0, behavior: 'smooth' });
+        verstecken();
+    });
+})();
 
 /* ---------- Start ---------- */
 

@@ -4,64 +4,101 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#1b1712">
+<meta name="theme-color" content="#2e2b26">
 <title>Begleitung</title>
 <link rel="icon" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script>
+// Darstellung vor dem ersten Zeichnen (Baustein @dd 20261018): begleitung.hell = ja/nein (ohne Wahl: wie das System),
+// begleitung.kontrast = hoch/max (leer = normal)
+try {
+    const h = localStorage.getItem('begleitung.hell'), k = localStorage.getItem('begleitung.kontrast');
+    if (h === 'ja' || (h !== 'nein' && matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.dataset.hell = 'ja';
+    if (k) document.documentElement.dataset.kontrast = k;
+} catch (e) { /* ohne Speicher dunkel */ }
+</script>
 <style>
-/* Begleitung: live begleiten mit weiter/zurück. Dunkel, damit das Display im Kirchenraum nicht blendet. */
+/* Begleitung: live begleiten mit weiter. Dunkel als Normalfall (Kirchenraum), aber nicht schwarz; Hell umschaltbar.
+   Alle Farben als Variablen, damit Hell, Dunkel und die Kontraststufen aus einer Quelle kommen (@dd 20261107). */
 :root {
-    --grund: #1b1712; --flaeche: #2a241c; --linie: #4a4034;
-    --text: #f3e9da; --leise: #c6b8a2; --warm: #e8a64a; --warm-tief: #8a5a1c;
-    --fokus: #ffd25a;
+    --grund: #2e2b26; --grund2: #26241f;
+    --flaeche: #1f1d19; --flaeche2: #35322c; --linie: #4b463d; --licht: rgba(255,255,255,.05);
+    --text: #f4ece0; --leise: #cfc3b0; --pad-text: #b3a68f; --pad-k: #998c76;
+    --warm: #eba94e; --an: #8c5c1f; --an-rand: #eba94e; --an-text: #f0dcc0; --an-b: #fff; --an-k: #ead5b2;
+    --fokus: #ffd25a; --weiter: #3f301a;
+    --fremd: #7397ab; --pad-fremd: #66869a; --pad-fremd-b: #92b4c8; --an-fremd: #c3dbe7; --an-fremd-b: #eef6fa;
+    --laeuft: #2f4a2a; --schaetzt: #4c4023;
+    --blase: #fff7e0; --blase-text: #1b1712; --schatten: rgba(0,0,0,.45);
     color-scheme: dark;
 }
+:root[data-hell] {
+    --grund: #e2ddd3; --grund2: #d3cdc1;
+    --flaeche: #f8f5ef; --flaeche2: #ece7dd; --linie: #b8b0a2; --licht: rgba(255,255,255,.9);
+    --text: #1b1813; --leise: #4b4438; --pad-text: #675d4e; --pad-k: #7d7262;
+    --warm: #a35d0e; --an: #f1c47f; --an-rand: #a35d0e; --an-text: #3a2508; --an-b: #000; --an-k: #5a3c12;
+    --fokus: #9a6c00; --weiter: #f5dcae;
+    --fremd: #3a6884; --pad-fremd: #4a7590; --pad-fremd-b: #24526e; --an-fremd: #24526e; --an-fremd-b: #0f3a55;
+    --laeuft: #cde5c3; --schaetzt: #eedfae;
+    --blase: #1f1d19; --blase-text: #f8f2e6; --schatten: rgba(60,50,30,.25);
+    color-scheme: light;
+}
+/* Kontrast für draußen (Baustein): wie die Gradation beim Foto, Linien gegenläufig nachziehen */
+:root[data-kontrast="hoch"] { --text: #fbf6ee; --leise: #e2d8c8; --linie: #5a5448; }
+:root[data-kontrast="max"] { --text: #fff; --leise: #f0e8dc; --linie: #6a6356; }
+:root[data-hell][data-kontrast="hoch"] { --text: #0e0c09; --leise: #2e2920; --linie: #a59c8c; }
+:root[data-hell][data-kontrast="max"] { --text: #000; --leise: #1c1913; --linie: #8f8574; }
+:root[data-kontrast="hoch"] body { filter: contrast(1.2) saturate(1.08); }
+:root[data-kontrast="max"] body { filter: contrast(1.45) saturate(1.12); }
+:root[data-kontrast="max"] body * { font-weight: 600; }
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
-    background: var(--grund); color: var(--text);
+    background: linear-gradient(var(--grund), var(--grund2)) fixed; color: var(--text);
     font: 20px/1.3 -apple-system, system-ui, sans-serif;
     display: flex; flex-direction: column;
-    padding: env(safe-area-inset-top, 0) max(12px, env(safe-area-inset-right, 0)) env(safe-area-inset-bottom, 0) max(12px, env(safe-area-inset-left, 0));
+    padding: env(safe-area-inset-top, 0) max(10px, env(safe-area-inset-right, 0)) env(safe-area-inset-bottom, 0) max(10px, env(safe-area-inset-left, 0));
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     touch-action: manipulation;
 }
 button, input, select { font: inherit; color: inherit; }
+/* Knöpfe: kleine Radien (nicht eckig, nie rund), Karte mit feiner Lichtkante */
 button {
-    background: var(--flaeche); border: 2px solid var(--linie); border-radius: 14px;
-    min-height: 52px; padding: 6px 14px; cursor: pointer;
+    background: var(--flaeche); border: 1.5px solid var(--linie); border-radius: 8px;
+    min-height: 48px; padding: 4px 10px; cursor: pointer; box-shadow: inset 0 1px 0 var(--licht);
 }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 4px solid var(--fokus); outline-offset: 3px; }
-button[aria-pressed="true"] { background: var(--warm-tief); border-color: var(--warm); }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--an); border-color: var(--an-rand); color: var(--an-text); }
+svg.sym { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; display: block; }
 
-/* Handy hochkant (@dd 20261105): oben eine Zeile Kopf mit Tempo und Zustand, darunter Akkord und Text knapp,
-   dann so viele Pads wie Platz ist, unten die Tasten */
+/* Kopf: Titel (auf dem Handy weg, Platz für Tempo und Zustand), Zahnrad, Hilfe */
 header { display: flex; gap: 8px; align-items: center; padding-block: 6px; flex: none; }
-header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-#status { display: flex; gap: 8px; align-items: center; font-size: 18px; margin-right: auto; min-width: 0; }
-#tempoAnz { color: var(--leise); white-space: nowrap; }
-#zustand { padding: 4px 10px; border-radius: 10px; background: var(--flaeche); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#zustand[data-art="laeuft"] { background: #2f4a2a; }
-.rund { width: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 22px; font-weight: 700; flex: none; }
-/* Zahnrad-Zeichen größer, der Knopf bleibt gleich (@dd 20261105) */
-#zahnrad { font-size: 34px; line-height: 1; }
+header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+#status { display: flex; gap: 8px; align-items: center; font-size: 19px; margin-right: auto; min-width: 0; }
+#tempoAnz { color: var(--leise); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#zustand { padding: 3px 9px; border-radius: 7px; background: var(--flaeche2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#zustand[data-art="laeuft"] { background: var(--laeuft); }
+#zustand[data-art="schaetzt"] { background: var(--schaetzt); }
+.rund { width: 46px; min-height: 46px; padding: 0; border-radius: 50%; font-size: 24px; font-weight: 800; flex: none; display: grid; place-items: center; }
+@media (max-width: 440px) { header h1 { display: none; } }
 
-#anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 4px 8px; }
+#anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 2px 6px; }
 /* erwarteter Tipp (@dd 20261107): ganz oben, gut lesbar */
-#erwartet { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-bottom: 6px;
-    padding: 4px 12px; border: 2px dashed var(--fokus); border-radius: 12px; font-size: clamp(22px, min(6vw, 4.2vh), 38px); white-space: nowrap; overflow: hidden; }
+#erwartet { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-bottom: 4px;
+    padding: 3px 12px; border: 2px dashed var(--fokus); border-radius: 9px; font-size: clamp(22px, min(6vw, 4.2vh), 38px); white-space: nowrap; overflow: hidden; }
 #erwartet .was { font-size: 0.6em; color: var(--leise); flex: none; }
 #erwartet .wort { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #erwartet .wort b { color: var(--fokus); font-weight: 800; }
 #erwartet .wo { font-size: 0.6em; color: var(--leise); margin-left: auto; flex: none; }
 #akkord { grid-row: 3; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
+#akkord.blass { opacity: 0.4; }
 /* Zeile über dem Akkord: links die Stelle, rechts klein die Stimmenwahl (immer sichtbar, @dd 20261107) */
-#wo { grid-column: 1 / -1; grid-row: 2; font-size: 16px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
+#wo { grid-column: 1 / -1; grid-row: 2; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stimmchips { display: flex; gap: 4px; flex: none; }
-#stimmchips button { min-height: 38px; min-width: 40px; padding: 2px 8px; border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--leise); }
-#stimmchips button[aria-pressed="true"] { color: var(--text); }
+#stimmchips button { min-height: 38px; min-width: 42px; padding: 2px 8px; border-radius: 7px; font-size: 18px; font-weight: 700; color: var(--leise); }
+#stimmchips button[aria-pressed="true"] { color: var(--an-text); }
 #jetzt { grid-column: 2; grid-row: 3; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann b { color: var(--text); font-weight: 600; }
@@ -69,42 +106,50 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 
 /* Pads: alle Tippstellen als Feld, füllt den freien Platz, scrollt senkrecht */
 #streifen { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-    grid-auto-rows: minmax(66px, 1fr); gap: 6px; padding-block: 4px; scrollbar-width: none; }
-#streifen button { min-height: 52px; padding: 4px 6px; touch-action: pan-y; -webkit-touch-callout: none; font-size: 17px; line-height: 1.15;
-    overflow: hidden; text-align: left; color: #a8997f; border-radius: 12px; }
+    grid-auto-rows: minmax(64px, 1fr); gap: 6px; padding-block: 4px; scrollbar-width: none; position: relative; }
+#streifen button { min-height: 52px; padding: 3px 6px; touch-action: pan-y; -webkit-touch-callout: none; font-size: 17px; line-height: 1.15;
+    overflow: hidden; text-align: left; color: var(--pad-text); border-radius: 7px; }
 #streifen button .t { display: block; font-size: 13px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #streifen button .w { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#streifen button.an { background: var(--warm-tief); border-color: var(--warm); color: #d9bd94; }
+#streifen button.an { background: var(--an); border-color: var(--an-rand); color: var(--an-text); }
 /* Wort: Tippsilbe kräftig, der Rest des Wortes zurückgenommen, auch auf der aktiven Stelle */
 #streifen button b { color: var(--text); font-weight: 800; font-size: 1.12em; }
-#streifen button.an b { color: #fff; }
-#streifen button.an .t { color: #f3dcb8; }
+#streifen button.an b { color: var(--an-b); }
+#streifen button.an .t { color: var(--an-text); }
+/* weiterer Text bis zur nächsten Stelle, klein (@dd 20261107) */
+#streifen button .k { display: block; font-size: 0.68em; color: var(--pad-k); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#streifen button.an .k { color: var(--an-k); }
+/* das Pad, auf das der nächste Tipp erwartet wird */
+#streifen button.soll { border-style: dashed; border-color: var(--fokus); }
+/* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
+.fremd { color: var(--fremd); }
+#streifen button .fremd { color: var(--pad-fremd); }
+#streifen button .fremd b { color: var(--pad-fremd-b); }
+#streifen button.an .fremd { color: var(--an-fremd); }
+#streifen button.an .fremd b { color: var(--an-fremd-b); }
 /* Viertel: eine Zeile je Takt, alle Pads gleich breit, etwas kleinere Schrift (@dd 20261107) */
 #streifen.viertel { grid-template-columns: repeat(var(--schlaege, 4), minmax(0, 1fr)); gap: 5px; }
 #streifen.viertel button { padding: 3px 5px; font-size: 16px; }
 #streifen.viertel button .t { font-size: 12px; }
-/* weiterer Text bis zur nächsten Stelle, klein (@dd 20261107) */
-#streifen button .k { display: block; font-size: 0.68em; color: #8f826c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#streifen button.an .k { color: #e6cfa8; }
-/* das Pad, auf das der nächste Tipp erwartet wird */
-#streifen button.soll { border-style: dashed; border-color: var(--fokus); }
-/* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
-.fremd { color: #6a8a9e; }
-#streifen button .fremd { color: #587486; }
-#streifen button .fremd b { color: #86a7ba; }
-#streifen button.an .fremd { color: #b9d3e0; }
-#streifen button.an .fremd b { color: #e4f1f8; }
 
-/* Tasten: A klein, Stopp daneben, weiter breit; nie breiter als der Bildschirm */
+/* Ganz nach oben (@dd 20261107): erscheint, wenn man im Streifen schnell hochwischt */
+#nachOben { position: fixed; z-index: 4; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+    min-height: 48px; padding: 6px 18px 6px 14px; border-radius: 24px; font-size: 18px; font-weight: 700;
+    background: var(--flaeche2); border-color: var(--fokus); box-shadow: 0 6px 20px var(--schatten); }
+
+/* Tasten: Einstieg, Stopp, weiter breit; nie breiter als der Bildschirm */
 #tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
     height: 16vh; min-height: 96px; padding-block: 6px 8px; }
+#tasten button { border-radius: 10px; }
 #aKnopf { font-size: 30px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.05; padding: 4px; }
 /* Einstiegsknopf: Akkord groß, Ton der eigenen Stimme darunter (@dd 20261107) */
 #aKnopf .ak { font-size: clamp(22px, 6.5vw, 1em); font-weight: 800; color: var(--warm); white-space: nowrap; }
+#aKnopf[aria-pressed="true"] .ak { color: var(--an-b); }
 #aKnopf .ton { font-size: 0.7em; font-weight: 700; }
-#stoppKnopf { font-size: 20px; line-height: 1.1; }
-#weiter { font-size: clamp(28px, 9vw, 46px); font-weight: 700; background: #3a2c18; border-color: var(--warm); }
-#weiter:active, #weiter.druck { background: var(--warm-tief); }
+#stoppKnopf { font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px; }
+#stoppKnopf svg.sym { width: 30px; height: 30px; }
+#stoppKnopf.druck, #weiter.druck, #weiter:active { background: var(--an); }
+#weiter { font-size: clamp(28px, 9vw, 46px); font-weight: 700; background: var(--weiter); border-color: var(--warm); }
 
 /* Quer (Handy liegt): Anzeige und Pads links, Tasten rechts über die volle Höhe */
 @media (orientation: landscape) and (max-height: 600px) {
@@ -123,7 +168,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #streifen button .t { font-size: 16px; }
     #tasten { height: 14vh; }
     #aKnopf { font-size: 40px; }
-    #stoppKnopf { font-size: 24px; }
+    #stoppKnopf { font-size: 22px; }
 }
 
 /* Große Bildschirme (Tablet quer, Rechner): links Anzeige groß und Pads, rechts die Tasten untereinander */
@@ -145,7 +190,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
         grid-template-rows: minmax(110px, 1fr) 3fr; gap: 12px; padding-block: 8px 16px; }
     #weiter { grid-column: 1 / -1; font-size: clamp(44px, 5vw, 80px); }
     #aKnopf { font-size: 44px; }
-    #stoppKnopf { font-size: 26px; }
+    #stoppKnopf { font-size: 24px; }
 }
 
 /* Viertel auf breiten Schirmen: zwei Takte je Zeile (steht hinter den Größen-Regeln, damit es gilt) */
@@ -155,71 +200,90 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #streifen.viertel button .t { font-size: clamp(13px, 1.6vh, 16px); }
 }
 
+/* ---------- Einstellungen: kompakt in Fächern (@dd 20261107, Muster Metronom/erinnerapp) ----------
+   Jedes Fach hat seine Farbe (--fc): Symbol-Kachel, Kante und Auswahl, die offene Fläche nur angehaucht.
+   Zu: Symbol, Name und Kurzstand in einer Zeile; die ganze Kopfzeile ist Trefferfläche. Regler paarweise. */
 #einstellungen {
-    position: fixed; inset: auto 0 0 0; background: var(--flaeche); border-top: 2px solid var(--linie);
-    padding: 16px max(16px, env(safe-area-inset-right, 0)) calc(16px + env(safe-area-inset-bottom, 0)) max(16px, env(safe-area-inset-left, 0));
-    display: grid; gap: 10px; max-height: 80vh; overflow-y: auto; z-index: 5;
+    position: fixed; inset: auto 0 0 0; z-index: 5; background: var(--flaeche2); border-top: 1.5px solid var(--linie);
+    border-radius: 12px 12px 0 0; box-shadow: 0 -8px 30px var(--schatten);
+    padding: 0 max(10px, env(safe-area-inset-right, 0)) calc(10px + env(safe-area-inset-bottom, 0)) max(10px, env(safe-area-inset-left, 0));
+    display: flex; flex-direction: column; gap: 6px; max-height: 86vh; overflow-y: auto; font-size: 18px;
 }
-#einstellungen .kopfzeile { position: sticky; top: -16px; margin: -16px 0 0; padding: 12px 0 8px; background: var(--flaeche);
-    display: flex; gap: 10px; align-items: center; z-index: 1; }
-#einstellungen h2 { font-size: 22px; margin: 0 auto 0 0; }
-#einstellungen .gruppe { display: grid; gap: 6px; }
-#einstellungen .gruppe .name { color: var(--leise); font-size: 17px; }
-#akkord.blass { opacity: 0.4; }
-#zustand[data-art="schaetzt"] { background: #4a3f22; }
-#anleitung { position: fixed; inset: 0; z-index: 20; background: #000a; display: grid; place-items: center; padding: 16px; }
-#anleitung .karte { background: var(--flaeche); border: 2px solid var(--linie); border-radius: 16px; padding: 18px 20px;
-    max-width: 26em; max-height: calc(100vh - 32px); overflow-y: auto; font-size: clamp(22px, 6vw, 28px); line-height: 1.45; }
-#anleitung h2 { margin: 0 0 10px; font-size: 1.15em; color: var(--warm); }
-#anleitung p { margin: 8px 0; }
-#anleitung ol { padding-left: 1.3em; margin: 8px 0; }
-#anleitung li { margin-bottom: 8px; }
-#anleitung button { width: 100%; min-height: 64px; margin-top: 10px; font-size: 1em; font-weight: 700; background: var(--warm-tief); border-color: var(--warm); }
-#einstellungen label { display: grid; grid-template-columns: 7.5em 1fr 3.2em; align-items: center; gap: 10px; min-height: 52px; }
-#einstellungen label.haken { grid-template-columns: 52px 1fr; }
-#einstellungen output { text-align: right; color: var(--leise); }
-input[type=range] { width: 100%; height: 52px; accent-color: var(--warm); }
-input[type=checkbox] { width: 32px; height: 32px; accent-color: var(--warm); }
-#einstellungen .zeile { display: flex; gap: 10px; flex-wrap: wrap; }
-#einstellungen .zeile button { flex: 1; }
-/* Browser/Tablet (@dd 20261105): Einstellungen als schlanke Karte rechts unten statt über die ganze Breite */
+#einstellungen .kopfzeile { position: sticky; top: 0; padding: 8px 0 6px; background: var(--flaeche2);
+    display: flex; gap: 8px; align-items: center; z-index: 1; }
+#einstellungen h2 { font-size: 20px; margin: 0 auto 0 2px; }
+#einstellungen .kopfzeile button { min-height: 42px; }
+#einstellungen .rund { width: 42px; min-height: 42px; }
+.fach { --fc: #c98a2e; border: 1.5px solid var(--linie); border-radius: 10px; background: var(--flaeche); }
+.fach[open] { background: color-mix(in srgb, var(--fc) 7%, var(--flaeche)); border-color: color-mix(in srgb, var(--fc) 45%, var(--linie)); }
+.fach > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 5px 34px 5px 7px; position: relative; }
+.fach > summary::-webkit-details-marker { display: none; }
+.fach > summary::after { content: ""; position: absolute; right: 14px; top: 50%; width: 9px; height: 9px; border: solid var(--leise);
+    border-width: 0 2.4px 2.4px 0; transform: translateY(-70%) rotate(45deg); transition: transform .15s; }
+.fach:not([open]) > summary::after { transform: translateY(-50%) rotate(-45deg); }
+.fach > summary .kachel { width: 34px; height: 34px; border-radius: 7px; background: var(--fc); color: #fff; display: grid; place-items: center; flex: none; }
+.fach > summary .kachel svg.sym { width: 21px; height: 21px; }
+.fach > summary b { font-size: 18px; flex: none; }
+.fach > summary .kurz { color: var(--leise); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fach[open] > summary .kurz { display: none; }
+.fach .inhalt { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+/* Zeile: Name links, Segment rechts; passt es nicht, rutscht das Segment darunter */
+.fach .zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.fach .zeile > .name { color: var(--leise); font-size: 16px; min-width: 4.6em; }
+.seg { display: flex; flex: 1 1 auto; min-width: 0; }
+.seg button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 2px 6px; border-radius: 0; margin-left: -1.5px; font-size: 17px; white-space: nowrap; }
+.seg button:first-child { border-radius: 7px 0 0 7px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 7px 7px 0; }
+.seg button:only-child { border-radius: 7px; }
+.fach .seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--fc) 38%, var(--flaeche)); border-color: var(--fc); color: var(--text); font-weight: 700; position: relative; }
+#metroKnopf { align-self: center; font-weight: 700; }
+.fach #metroKnopf[aria-pressed="true"] { background: color-mix(in srgb, var(--fc) 38%, var(--flaeche)); border-color: var(--fc); color: var(--text); }
+.klein { min-height: 40px; padding: 2px 10px; font-size: 15px; color: var(--leise); flex: none; }
+/* Regler paarweise nebeneinander: Name und Wert in einer Zeile, Regler darunter, Trefferfläche größer als sichtbar */
+.paar { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.regler { display: flex; flex-direction: column; min-width: 0; }
+.regler .kopf { display: flex; justify-content: space-between; font-size: 15px; color: var(--leise); }
+.regler output { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.regler input[type=range] { width: 100%; height: 34px; margin: 0; accent-color: var(--fc); }
+/* Browser/Tablet: Einstellungen als schlanke Karte rechts unten */
 @media (min-width: 700px) {
-    #einstellungen { inset: auto max(12px, env(safe-area-inset-right, 0)) 12px auto; width: min(480px, calc(100vw - 24px));
-        border: 2px solid var(--linie); border-radius: 16px; padding: 12px 16px 14px; gap: 6px; font-size: 17px;
-        max-height: calc(100vh - 90px); box-shadow: 0 8px 32px #0009; }
-    #einstellungen .kopfzeile { top: -12px; margin-top: -12px; padding: 10px 0 6px; }
-    #einstellungen h2 { font-size: 19px; }
-    #einstellungen .gruppe { gap: 4px; }
-    #einstellungen .gruppe .name { font-size: 15px; }
-    #einstellungen .zeile { gap: 6px; }
-    #einstellungen button { min-height: 42px; padding: 4px 10px; border-radius: 11px; }
-    #einstellungen .rund { width: 42px; min-height: 42px; font-size: 19px; }
-    #einstellungen label { grid-template-columns: 6.2em 1fr 2.4em; min-height: 40px; gap: 8px; }
-    #einstellungen input[type=range] { height: 40px; }
+    #einstellungen { inset: auto max(12px, env(safe-area-inset-right, 0)) 12px auto; width: min(460px, calc(100vw - 24px));
+        border: 1.5px solid var(--linie); border-radius: 12px; max-height: calc(100vh - 80px); font-size: 17px; }
 }
+
+#anleitung { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 14px; }
+#anleitung .karte { background: var(--flaeche2); border: 1.5px solid var(--linie); border-radius: 12px; padding: 14px 18px;
+    max-width: 26em; max-height: calc(100vh - 28px); overflow-y: auto; font-size: clamp(20px, 5.4vw, 26px); line-height: 1.4; }
+#anleitung h2 { margin: 0 0 8px; font-size: 1.12em; color: var(--warm); }
+#anleitung p { margin: 6px 0; }
+#anleitung ol { padding-left: 1.3em; margin: 6px 0; }
+#anleitung li { margin-bottom: 6px; }
+#anleitung button { width: 100%; min-height: 58px; margin-top: 8px; font-size: 1em; font-weight: 700; background: var(--an); border-color: var(--an-rand); color: var(--an-text); }
 
 /* Hilfemodus (Standard @dd): Ringe um erklärbare Elemente, Klick zeigt Hilfe statt Funktion */
 body.hilfemodus [data-hilfe] { outline: 3px dashed var(--fokus); outline-offset: 3px; transition: outline-color .2s; }
 body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 #hilfeKnopf[aria-pressed="true"] { background: var(--fokus); color: #000; border-color: var(--fokus); }
 #blase {
-    position: fixed; z-index: 10; max-width: min(26em, calc(100vw - 24px)); background: #fff7e0; color: #1b1712;
-    border-radius: 12px; padding: 12px 16px; font-size: 18px; box-shadow: 0 6px 24px #0008;
+    position: fixed; z-index: 30; max-width: min(26em, calc(100vw - 24px)); background: var(--blase); color: var(--blase-text);
+    border-radius: 10px; padding: 10px 14px; font-size: 18px; box-shadow: 0 6px 24px var(--schatten);
 }
-#meldung { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); background: #000c; padding: 14px 20px; border-radius: 12px; z-index: 8; }
+#meldung { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); background: #000c; color: #fff; padding: 14px 20px; border-radius: 10px; z-index: 8; }
 </style>
 </head>
 <body>
 <header>
     <h1 id="titel">Begleitung</h1>
-    <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), ja weiter (Tipp weit weg von jeder Stelle), Ende.">
+    <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), gestoppt, Schluss.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
     </div>
-    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (1/4, 2/4, Takt, DDs), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Metronom, Klang zurücksetzen, Anleitung.">⚙</button>
+    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Einstellungen: Tippen, Klang, Metronom, Darstellung, Anleitung.">
+        <svg class="sym" viewBox="0 0 24 24" style="width:28px;height:28px;stroke-width:2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
-<main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
+<main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp, nach Stopp: weiter ab), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
     <div id="erwartet"></div>
     <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme, immer zur Hand: aus ihr kommen der Text, die Wörter auf den Pads und der Ton auf dem Einstiegsknopf. Ausgeschrieben auch in den Einstellungen."></span></div>
     <div id="akkord"></div>
@@ -227,42 +291,76 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div id="dann"></div>
 </main>
 
-<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter das Wort, die Tippsilbe fett. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier."></div>
+<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter das Wort, die Tippsilbe fett. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
+<button id="nachOben" hidden aria-label="Ganz nach oben" data-hilfe="Erscheint beim schnellen Hochwischen: springt im Streifen ganz nach oben zu Takt 1.">
+    <svg class="sym" viewBox="0 0 24 24"><path d="M5 4h14"/><path d="M12 20V9"/><path d="M6.5 13.5L12 8l5.5 5.5"/></svg>Anfang
+</button>
 
 <div id="tasten">
     <button id="aKnopf" aria-pressed="false" data-hilfe="Einstieg: zeigt Akkord und Ton deiner Stimme an der Stelle, an der die Begleitung steht, am Anfang z.B. Am (c). Drücken: der Akkord tippt kurz an, dein Ton bleibt liegen, solange du hältst. Hast du ein Pad gewählt oder gestoppt, gilt diese Stelle; läuft die Begleitung, geht es zurück an den Anfang. Tastatur: a halten.">A</button>
-    <button id="stoppKnopf" data-hilfe="Stopp: der Klang klingt kurz aus, die Begleitung bleibt an der Stelle. weiter startet von dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">■<br>Stopp</button>
-    <button id="weiter" data-hilfe="Erster Tipp startet (bei Seele), der zweite einen Takt bzw. 2/4 später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
+    <button id="stoppKnopf" data-hilfe="Stopp: sofort still, schon beim Aufsetzen des Fingers. Die Begleitung merkt sich die Stelle, weiter startet dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">
+        <svg class="sym" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg>Stopp
+    </button>
+    <button id="weiter" data-hilfe="Erster Tipp startet (bei Seele), der zweite einen Viertel später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
 </div>
 
 <section id="einstellungen" hidden aria-label="Einstellungen">
     <div class="kopfzeile">
         <h2>Einstellungen</h2>
         <button id="anleitungKnopf" data-hilfe="Erklärt, wie die Begleitung funktioniert.">So geht's</button>
-        <button id="zu" class="rund" aria-label="Einstellungen schließen" data-hilfe="Schließt die Einstellungen (auch Esc).">✕</button>
+        <button id="zu" class="rund" aria-label="Einstellungen schließen" data-hilfe="Schließt die Einstellungen (auch Esc).">
+            <svg class="sym" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
     </div>
-    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. 1/4: jeder Schlag (Vorgabe). Alle zählen ab 1:1, die Begleitung steht beim Laden bei Seele bereit. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
-        <span class="name">Tippen auf</span><div id="moduswahl" class="zeile"></div>
-    </div>
-    <div class="gruppe" data-hilfe="Deine Stimme: aus ihr kommen der Text und die Wörter auf den Pads. Der Alt singt in Takt 10 und 13 bis 14 anderen Text als Tenor und Bass.">
-        <span class="name">Meine Stimme</span><div id="stimmwahl" class="zeile"></div>
-    </div>
-    <div class="gruppe" data-hilfe="Akkord: volle Akkorde mit Bass. Nur Bass: nur der Grundton unten, zum Üben ohne Akkord.">
-        <span class="name">Spielt</span><div id="spielwahl" class="zeile"></div>
-    </div>
-    <div class="gruppe" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Strings: weicher Streicherteppich mit Vibrato.">
-        <span class="name">Klang</span><div id="klangwahl" class="zeile"></div>
-    </div>
-    <label data-hilfe="Gesamtlautstärke der Begleitung.">Lautstärke <input id="lautstaerke" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger.">Tiefbass <input id="tiefbass" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Stereo-Chorus: macht den Klang breiter und lebendiger. Links aus.">Wärme <input id="waerme" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher.">Höhen <input id="hoehen" type="range" min="0" max="100"><output></output></label>
-    <div class="gruppe" data-hilfe="Sanfter, dumpfer Klick auf jeden Schlag, solange die Begleitung nach einem Tipp läuft. Kommt an der erwarteten Stelle kein Tipp, schweigt er wie die Akkorde.">
-        <span class="name">Metronom</span><div id="metrowahl" class="zeile"></div>
-    </div>
-    <label data-hilfe="Lautstärke des Metronoms, unabhängig von der Begleitung.">Klick laut <input id="metroLaut" type="range" min="0" max="100"><output></output></label>
-    <label data-hilfe="Tiefpass für das Metronom: links dumpf und weich, rechts heller und knackiger.">Klick hell <input id="metroFilter" type="range" min="0" max="100"><output></output></label>
-    <button id="klangReset" data-hilfe="Klang, Lautstärke, Tiefbass, Wärme, Höhen und den Metronom-Klang auf die Vorgabe zurück. Tippen auf, Meine Stimme und Metronom an/aus bleiben.">Klang zurücksetzen</button>
+
+    <details class="fach" data-fach="tippen" style="--fc:#c98a2e">
+        <summary data-hilfe="Tippen: worauf getippt wird und was gespielt wird. Deine Stimme wählst du oben auf der Seite (S A T B)."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 9.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L4.5 15.6a1.5 1.5 0 0 1 2.3-1.9L9 16"/></svg></i><b>Tippen</b><span class="kurz" id="kurz_tippen"></span></summary>
+        <div class="inhalt">
+            <div class="zeile" data-hilfe="Wo getippt wird. 1/4: jeder Schlag (Vorgabe). 2/4: Eins und Drei. Takt: jede Eins. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Alle zählen ab 1:1, die Begleitung steht beim Laden bei Seele bereit. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
+                <span class="name">Tippen auf</span><div id="moduswahl" class="seg"></div>
+            </div>
+            <div class="zeile" data-hilfe="Akkord: volle Akkorde mit Bass. Nur Bass: nur der Grundton unten, zum Üben ohne Akkord.">
+                <span class="name">Spielt</span><div id="spielwahl" class="seg"></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="fach" data-fach="klang" style="--fc:#c8475a">
+        <summary data-hilfe="Klang der Begleitung: Farbe, Lautstärke, Tiefbass, Höhen."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></svg></i><b>Klang</b><span class="kurz" id="kurz_klang"></span></summary>
+        <div class="inhalt">
+            <div class="zeile">
+                <div id="klangwahl" class="seg" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Strings: weicher Streicherteppich mit Vibrato."></div>
+                <button id="klangReset" class="klein" data-hilfe="Klang, Lautstärke, Tiefbass, Höhen und die Metronom-Lautstärke auf die Vorgabe zurück. Tippen, Stimme und Metronom an/aus bleiben.">zurücksetzen</button>
+            </div>
+            <div class="paar">
+                <label class="regler" data-hilfe="Gesamtlautstärke der Begleitung."><span class="kopf"><span>Lautstärke</span><output></output></span><input id="lautstaerke" type="range" min="0" max="100"></label>
+                <label class="regler" data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger."><span class="kopf"><span>Tiefbass</span><output></output></span><input id="tiefbass" type="range" min="0" max="100"></label>
+                <label class="regler" data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher."><span class="kopf"><span>Höhen</span><output></output></span><input id="hoehen" type="range" min="0" max="100"></label>
+            </div>
+        </div>
+    </details>
+
+    <details class="fach" data-fach="metronom" style="--fc:#2a9285">
+        <summary data-hilfe="Metronom: sanfter, dumpfer Klick auf jeden Schlag, solange die Begleitung nach einem Tipp läuft."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><path d="M9 3h6l3.5 18h-13z"/><path d="M12 16l5-9"/><path d="M7 16h10"/></svg></i><b>Metronom</b><span class="kurz" id="kurz_metronom"></span></summary>
+        <div class="inhalt">
+            <div class="paar">
+                <button id="metroKnopf" aria-pressed="false" data-hilfe="Metronom an oder aus. Es klickt auf jeden Schlag, solange die Begleitung nach einem Tipp läuft; kommt an der erwarteten Stelle kein Tipp, schweigt es wie die Akkorde.">Metronom</button>
+                <label class="regler" data-hilfe="Lautstärke des Metronoms, unabhängig von der Begleitung."><span class="kopf"><span>Lautstärke</span><output></output></span><input id="metroLaut" type="range" min="0" max="100"></label>
+            </div>
+        </div>
+    </details>
+
+    <details class="fach" data-fach="darstellung" style="--fc:#7d5cc0">
+        <summary data-hilfe="Darstellung: Hell oder Dunkel, Kontrast."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="#fff"/></svg></i><b>Darstellung</b><span class="kurz" id="kurz_darstellung"></span></summary>
+        <div class="inhalt">
+            <div class="zeile" data-hilfe="Dunkel: blendet im Kirchenraum nicht. Hell: für Tageslicht. Ohne Wahl wie das Gerät.">
+                <span class="name">Hell / Dunkel</span><div id="hellwahl" class="seg"></div>
+            </div>
+            <div class="zeile" data-hilfe="Normal: meiste Zeit. Hoch: heller Himmel. Max: pralle Sonne. Gilt in Hell und Dunkel.">
+                <span class="name">Kontrast</span><div id="kontrastwahl" class="seg"></div>
+            </div>
+        </div>
+    </details>
 </section>
 
 <div id="anleitung" role="dialog" aria-modal="true" aria-labelledby="anleitungTitel" hidden>
