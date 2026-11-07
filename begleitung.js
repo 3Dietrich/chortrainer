@@ -325,7 +325,13 @@ function audioStart() {
     const komp = ctx.createDynamicsCompressor();
     komp.threshold.value = -16; komp.ratio.value = 3; komp.attack.value = 0.02; komp.release.value = 0.3;
     ausgang = ctx.createGain();
-    ausgang.connect(komp).connect(ctx.destination);
+    // weiche Begrenzung hinter dem Verdichter (wie im Klavier): Summen sättigen rund statt hart abzuschneiden (Knacksen)
+    const vor = ctx.createGain(), grenze = ctx.createWaveShaper();
+    vor.gain.value = 0.6;
+    const kurve = new Float32Array(1025);
+    for (let i = 0; i < kurve.length; i++) kurve[i] = Math.tanh(1.5 * (i / 512 - 1)) / Math.tanh(1.5);
+    grenze.curve = kurve; grenze.oversample = '2x';
+    ausgang.connect(komp).connect(vor).connect(grenze).connect(ctx.destination);
     // lage: Gesamtpegel der Akkorde, die Nachhut blendet hierüber aus
     lage = ctx.createGain();
     lage.connect(ausgang);
@@ -405,19 +411,35 @@ function haltenAb(p, wann) {
 }
 
 /** art: 'oben' | 'grund' (Bass-Grundton) | 'sub' (Tiefbass eine Oktave darunter); anstieg: feste Einschwingzeit */
+/*
+ * Stimmenklau (wie im Klavier, @dd 20261107: es knackste): höchstens MAX_STIMMEN Töne gleichzeitig. Kommt einer dazu,
+ * verstummt zuerst der älteste schon ausklingende, sonst der älteste. Jeder Ton hängt sich nach dem Ende ganz aus dem
+ * Klanggraphen (auch vom Vibrato), sonst sammeln sich tote Knoten und kosten das iPhone Rechenzeit.
+ */
+const MAX_STIMMEN = 8;
+const aktiv = [];   // klingende Töne, älteste zuerst
+function stimmenKappen(max) {
+    while (aktiv.length > max) {
+        const i = aktiv.findIndex(v => v.frei());
+        aktiv.splice(i >= 0 ? i : 0, 1)[0].daempfen();
+    }
+}
+
 function tonAn(midi, art, wann, weich, anstieg = null) {
+    stimmenKappen(MAX_STIMMEN - 1);
     const f = 440 * Math.pow(2, (midi - 69) / 12);
+    const knoten = [];   // zum Abhängen nach dem Ende
     const g = ctx.createGain();
     g.gain.value = 0;
     const oszis = [];
     const orgel = E.klang === 'orgel';
     if (art === 'sub') {
         const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-        o.connect(g); oszis.push(o);
+        o.connect(g); oszis.push(o); knoten.push(o);
         g.connect(bassBus);
     } else if (orgel) {
         const o = ctx.createOscillator(); o.setPeriodicWave(orgelWelle); o.frequency.value = f;
-        o.connect(g); oszis.push(o);
+        o.connect(g); oszis.push(o); knoten.push(o);
         g.connect(tonfilter);
     } else {
         // Strings: zwei leicht verstimmte Sägezähne und ein Dreieck, weich gefiltert, mit Vibrato
@@ -426,32 +448,85 @@ function tonAn(midi, art, wann, weich, anstieg = null) {
             const o = ctx.createOscillator(), og = ctx.createGain();
             o.type = typ; o.frequency.value = f; o.detune.value = cent; og.gain.value = pegel;
             if (vibrato) vibrato.connect(o.detune);
-            o.connect(og).connect(nf); oszis.push(o);
+            o.connect(og).connect(nf); oszis.push(o); knoten.push(o, og);
+            o.vibratoDran = !!vibrato;
         }
-        nf.connect(g);
+        nf.connect(g); knoten.push(nf);
         g.connect(tonfilter);
     }
     // 'stimme': Einstiegston der eigenen Stimme, etwas lauter als ein Akkordton, damit er heraussticht
     const ziel = art === 'sub' ? 0.5 : art === 'grund' ? 0.12 : art === 'stimme' ? 0.17 : 0.1;
     anstieg ??= weich ? 0.35 : (orgel || art === 'sub' ? 0.03 : 0.12);
+    knoten.push(g);
     oszis.forEach(o => o.start(wann));
     g.gain.setTargetAtTime(ziel, wann, anstieg);
-    return {
+    let ausAb = Infinity;      // ab hier klingt der Ton aus (für den Stimmenklau „frei“)
+    let stumm = Infinity;      // ab hier ist er unhörbar, dann wird er abgeräumt
+    let gestoppt = false;
+    const stopBei = zeit => {
+        if (gestoppt) return;
+        gestoppt = true;
+        oszis.forEach(o => { try { o.stop(zeit); } catch (e) { /* schon gestoppt */ } });
+    };
+    const ton = {
+        tot: false,
+        frei: () => gestoppt || ctx.currentTime >= ausAb,
+        stumm: () => ctx.currentTime >= stumm,
         /** neuer Akkord mit diesem Ton: wieder auf volle Stärke (er war vielleicht schon am Ausklingen) */
         frisch(wannNeu, weichNeu) {
             haltenAb(g.gain, wannNeu);
             g.gain.setTargetAtTime(ziel, wannNeu, weichNeu ? 0.35 : anstieg);
+            ausAb = stumm = Infinity;
         },
-        /** ab wannAus langsam ausklingen, Zeitkonstante tc */
+        /** ab wannAus langsam ausklingen, Zeitkonstante tc; nach sieben Zeitkonstanten wird er abgeräumt */
         ausklingen(wannAus, tc) {
             g.gain.setTargetAtTime(0, wannAus, tc);
+            ausAb = wannAus; stumm = wannAus + 7 * tc;
         },
         stop(wannAus, abkling) {
             haltenAb(g.gain, wannAus);
             g.gain.setTargetAtTime(0, wannAus, abkling / 3);
-            oszis.forEach(o => o.stop(wannAus + abkling * 2 + 0.1));
+            ausAb = wannAus; stumm = wannAus + abkling * 2;
+            stopBei(wannAus + abkling * 2 + 0.1);
+        },
+        /** Stimmenklau: in wenigen Millisekunden weg */
+        daempfen() {
+            ton.tot = true;
+            const t = ctx.currentTime;
+            haltenAb(g.gain, t);
+            g.gain.setTargetAtTime(0, t, 0.006);
+            stopBei(t + 0.05);
+        },
+        /** Einstiegsakkord (@dd 20261107): 50 ms an, 50 ms halten, dann langes Abklingen (nach 1 s ein Viertel) */
+        tupfer(an = 0.05, halten = 0.05, tc = 1 / Math.log(4)) {
+            g.gain.cancelScheduledValues(wann);
+            g.gain.setValueAtTime(0, wann);
+            g.gain.linearRampToValueAtTime(ziel, wann + an);
+            g.gain.setValueAtTime(ziel, wann + an + halten);
+            g.gain.setTargetAtTime(0, wann + an + halten, tc);
+            ausAb = wann + an + halten; stumm = ausAb + 7 * tc;
+            stopBei(stumm);
         },
     };
+    aktiv.push(ton);
+    oszis[0].onended = () => {
+        ton.tot = true;
+        const i = aktiv.indexOf(ton); if (i >= 0) aktiv.splice(i, 1);
+        for (const n of knoten) {
+            try { if (n.vibratoDran) vibrato.disconnect(n.detune); } catch (e) { /* schon weg */ }
+            try { n.disconnect(); } catch (e) { /* schon weg */ }
+        }
+    };
+    return ton;
+}
+
+/** Ausgeklungene Akkordtöne abräumen (laufen sonst unhörbar weiter und kosten Rechenzeit) */
+function aufraeumen() {
+    if (!ctx) return;
+    for (const [k, ton] of klingend) {
+        if (ton.tot) klingend.delete(k);
+        else if (ton.stumm()) { ton.stop(ctx.currentTime, 0.03); klingend.delete(k); }
+    }
 }
 
 let akkordJetzt = '';
@@ -475,7 +550,7 @@ function akkordSpielen(sym, wann, weich, dauer = null, fest = null) {
     if (E.spiel !== 'bass') l.oben.forEach(m => soll.set('o:' + m, [m, 'oben']));
     for (const [k, ton] of klingend) if (!soll.has(k)) { ton.stop(wann, abkling); klingend.delete(k); }
     for (const [k, [m, art]] of soll) {
-        if (klingend.has(k)) klingend.get(k).frisch(wann, weich);
+        if (klingend.has(k) && !klingend.get(k).tot && !klingend.get(k).stumm()) klingend.get(k).frisch(wann, weich);
         else klingend.set(k, tonAn(m, art, wann, weich));
     }
     for (const ton of klingend.values()) {
@@ -691,6 +766,7 @@ function takt() {
         metroPlanen(t);
     }
     wirbelPlanen(ctx.currentTime + 0.1);
+    aufraeumen();
 }
 setInterval(takt, 20);
 
@@ -840,15 +916,15 @@ function aKnopfZeigen() {
 }
 
 /**
- * Akkord nur antippen: alle Töne mit 5 ms Einschwingen, nach sek (Vorgabe 0,1 s) in etwa 60 ms weg. Läuft neben den
- * Akkorden der Begleitung her (nicht in „klingend“), damit der Einstiegston allein stehen bleibt.
+ * Akkord nur antippen: 50 ms an, 50 ms halten, dann langes Abklingen (nach 1 s ein Viertel), damit der Einstiegston
+ * deutlich allein stehen bleibt. Läuft neben den Akkorden der Begleitung her (nicht in „klingend“).
  */
-function akkordTupfer(sym, wann, sek = 0.1) {
+function akkordTupfer(sym, wann) {
     const l = lageFuer(sym);
     if (!l) return;
     akkordJetzt = sym;
     const toene = [[l.bass, 'grund'], [l.bass - 12, 'sub'], ...(E.spiel !== 'bass' ? l.oben.map(m => [m, 'oben']) : [])];
-    for (const [m, art] of toene) tonAn(m, art, wann, false, 0.005).stop(wann + sek, 0.06);
+    for (const [m, art] of toene) tonAn(m, art, wann, false, 0.05).tupfer();
 }
 
 /**
@@ -864,7 +940,7 @@ function stimmton() {
     gestopptBei = null;
     alleAus(ta, 0.1);
     const { a, n } = aKnopfZeigen();
-    if (a) akkordTupfer(a, ta);   // nur angetippt (@dd 20261107: 50-150 ms), der Ton der Stimme ist die Vorgabe
+    if (a) akkordTupfer(a, ta);   // nur angetippt, klingt lang ab; der Ton der Stimme ist die Vorgabe
     // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme wie früher das a
     stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
     $('aKnopf').setAttribute('aria-pressed', 'true');
@@ -1045,6 +1121,8 @@ function streifenZeigen() {
                 gross = fremd ? `<span class="fremd">${fremd.html}</span>` : '·';
             }
         }
+        // Pad, auf dem die eigene Stimme nicht singt: deutlich anders (kein Kartenkörper, blau, kursiv)
+        if (!/^<b>–<\/b>$/.test(gross) && (gross === '·' || gross.startsWith('<span class="fremd">'))) b.classList.add('fremdpad');
         PADS.push({ gross });
         b.innerHTML = `<span class="t">${oben}</span><span class="w">${gross}</span>` + (klein ? `<span class="k">${klein}</span>` : '');
         b.title = (ak ? ak + ': ' : '') + text;
@@ -1339,7 +1417,7 @@ function kurzstand() {
     $('kurz_tippen').textContent = `${MODUSNAME[E.modus] || ''} · ${E.spiel === 'bass' ? 'nur Bass' : 'Akkord'}`;
     $('kurz_klang').textContent = `${E.klang === 'orgel' ? 'Orgel' : 'Strings'} · ${E.lautstaerke} · Tiefbass ${E.tiefbass} · Höhen ${E.hoehen}`;
     $('kurz_metronom').textContent = E.metronom === 'an' ? `an · ${E.metroLaut}` : 'aus';
-    $('kurz_darstellung').textContent = (r.dataset.hell ? 'Hell' : 'Dunkel') + (r.dataset.kontrast ? ' · Kontrast ' + (r.dataset.kontrast === 'max' ? 'Max' : 'Hoch') : '');
+    $('kurz_darstellung').textContent = (r.dataset.hell ? 'Hell' : 'Dunkel') + (r.dataset.kontrast ? ' · Lesbarkeit ' + (r.dataset.kontrast === 'max' ? 'Max' : 'Hoch') : '');
 }
 ['input', 'click'].forEach(t => $('einstellungen').addEventListener(t, () => setTimeout(kurzstand)));
 

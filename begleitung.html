@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#2e2b26">
+<meta name="theme-color" content="#4a463f">
 <title>Begleitung</title>
 <link rel="icon" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -18,16 +18,18 @@ try {
 } catch (e) { /* ohne Speicher dunkel */ }
 </script>
 <style>
-/* Begleitung: live begleiten mit weiter. Dunkel als Normalfall (Kirchenraum), aber nicht schwarz; Hell umschaltbar.
+/* Begleitung: live begleiten mit weiter. Dunkel als Normalfall, aber deutlich heller als schwarz (@dd 20261107: „unter
+   normal zu dunkel“): warmes Schiefergrau als Grund, die Pads liegen dunkler darauf. Hell umschaltbar.
    Alle Farben als Variablen, damit Hell, Dunkel und die Kontraststufen aus einer Quelle kommen (@dd 20261107). */
 :root {
-    --grund: #2e2b26; --grund2: #26241f;
-    --flaeche: #1f1d19; --flaeche2: #35322c; --linie: #4b463d; --licht: rgba(255,255,255,.05);
-    --text: #f4ece0; --leise: #cfc3b0; --pad-text: #b3a68f; --pad-k: #998c76;
+    --grund: #4c4841; --grund2: #3f3c36;
+    --flaeche: #2d2a25; --flaeche2: #575249; --linie: #6a6458; --licht: rgba(255,255,255,.07);
+    --text: #f7f0e5; --leise: #ddd2c0; --pad-text: #c9bca5; --pad-k: #b0a38c;
     --warm: #eba94e; --an: #8c5c1f; --an-rand: #eba94e; --an-text: #f0dcc0; --an-b: #fff; --an-k: #ead5b2;
     --fokus: #ffd25a; --weiter: #3f301a;
-    --fremd: #7397ab; --pad-fremd: #66869a; --pad-fremd-b: #92b4c8; --an-fremd: #c3dbe7; --an-fremd-b: #eef6fa;
-    --laeuft: #2f4a2a; --schaetzt: #4c4023;
+    --fremd: #8fb3c9; --pad-fremd: #86a9bf; --pad-fremd-b: #a9cade; --an-fremd: #c3dbe7; --an-fremd-b: #eef6fa;
+    --fremd-pad: rgba(120,160,190,.10); --fremd-rand: rgba(140,180,210,.30);
+    --laeuft: #3d6136; --schaetzt: #6a5a30;
     --blase: #fff7e0; --blase-text: #1b1712; --schatten: rgba(0,0,0,.45);
     color-scheme: dark;
 }
@@ -38,18 +40,22 @@ try {
     --warm: #a35d0e; --an: #f1c47f; --an-rand: #a35d0e; --an-text: #3a2508; --an-b: #000; --an-k: #5a3c12;
     --fokus: #9a6c00; --weiter: #f5dcae;
     --fremd: #3a6884; --pad-fremd: #4a7590; --pad-fremd-b: #24526e; --an-fremd: #24526e; --an-fremd-b: #0f3a55;
+    --fremd-pad: rgba(70,120,160,.10); --fremd-rand: rgba(70,120,160,.35);
     --laeuft: #cde5c3; --schaetzt: #eedfae;
     --blase: #1f1d19; --blase-text: #f8f2e6; --schatten: rgba(60,50,30,.25);
     color-scheme: light;
 }
-/* Kontrast für draußen (Baustein): wie die Gradation beim Foto, Linien gegenläufig nachziehen */
-:root[data-kontrast="hoch"] { --text: #fbf6ee; --leise: #e2d8c8; --linie: #5a5448; }
-:root[data-kontrast="max"] { --text: #fff; --leise: #f0e8dc; --linie: #6a6356; }
-:root[data-hell][data-kontrast="hoch"] { --text: #0e0c09; --leise: #2e2920; --linie: #a59c8c; }
-:root[data-hell][data-kontrast="max"] { --text: #000; --leise: #1c1913; --linie: #8f8574; }
-:root[data-kontrast="hoch"] body { filter: contrast(1.2) saturate(1.08); }
-:root[data-kontrast="max"] body { filter: contrast(1.45) saturate(1.12); }
-:root[data-kontrast="max"] body * { font-weight: 600; }
+/* Lesbarkeit (@dd 20261107: hier geht es weniger um Kontrast als um Lesbarkeit): Nebenschrift näher an die
+   Hauptschrift, Pad-Schrift größer und kräftiger; kein Kontrastfilter, der das Grau wieder verdunkelt */
+:root[data-kontrast="hoch"] { --text: #fff; --leise: #ece4d6; --pad-text: #e2d7c4; --pad-k: #cfc3ae; --linie: #7a7365; }
+:root[data-kontrast="max"] { --text: #fff; --leise: #fff; --pad-text: #f4ecdf; --pad-k: #e6dccb; --linie: #8a8273; }
+:root[data-hell][data-kontrast="hoch"] { --text: #000; --leise: #2a251d; --pad-text: #3d362b; --pad-k: #4e4639; --linie: #a59c8c; }
+:root[data-hell][data-kontrast="max"] { --text: #000; --leise: #000; --pad-text: #1d1a14; --pad-k: #2e2920; --linie: #8f8574; }
+:root[data-kontrast="hoch"] #streifen button { font-weight: 600; }
+:root[data-kontrast="hoch"] #streifen button .w { font-size: 1.1em; }
+:root[data-kontrast="max"] #streifen button { font-weight: 700; }
+:root[data-kontrast="max"] #streifen button .w { font-size: 1.2em; }
+:root[data-kontrast="max"] #streifen button .t, :root[data-kontrast="max"] #wo, :root[data-kontrast="max"] #dann { font-weight: 700; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -121,8 +127,13 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen button.an .k { color: var(--an-k); }
 /* das Pad, auf das der nächste Tipp erwartet wird */
 #streifen button.soll { border-style: dashed; border-color: var(--fokus); }
-/* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
-.fremd { color: var(--fremd); }
+/* Text anderer Stimmen (die eigene singt dort nicht, @dd 20261107: deutlicher unterscheiden): kühles Blau, kursiv,
+   nicht fett; das Pad selbst ohne Karte, nur blau angehaucht mit gestrichelter Kante */
+.fremd { color: var(--fremd); font-style: italic; }
+#streifen button.fremdpad { background: var(--fremd-pad); border: 1.5px dashed var(--fremd-rand); box-shadow: none; }
+#streifen button.fremdpad .t { color: var(--pad-fremd); }
+#streifen button.fremdpad b { font-weight: 600; }
+#streifen button.fremdpad.an { background: var(--an); border-style: solid; }
 #streifen button .fremd { color: var(--pad-fremd); }
 #streifen button .fremd b { color: var(--pad-fremd-b); }
 #streifen button.an .fremd { color: var(--an-fremd); }
@@ -351,13 +362,13 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     </details>
 
     <details class="fach" data-fach="darstellung" style="--fc:#7d5cc0">
-        <summary data-hilfe="Darstellung: Hell oder Dunkel, Kontrast."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="#fff"/></svg></i><b>Darstellung</b><span class="kurz" id="kurz_darstellung"></span></summary>
+        <summary data-hilfe="Darstellung: Hell oder Dunkel, Lesbarkeit."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="#fff"/></svg></i><b>Darstellung</b><span class="kurz" id="kurz_darstellung"></span></summary>
         <div class="inhalt">
             <div class="zeile" data-hilfe="Dunkel: blendet im Kirchenraum nicht. Hell: für Tageslicht. Ohne Wahl wie das Gerät.">
                 <span class="name">Hell / Dunkel</span><div id="hellwahl" class="seg"></div>
             </div>
-            <div class="zeile" data-hilfe="Normal: meiste Zeit. Hoch: heller Himmel. Max: pralle Sonne. Gilt in Hell und Dunkel.">
-                <span class="name">Kontrast</span><div id="kontrastwahl" class="seg"></div>
+            <div class="zeile" data-hilfe="Lesbarkeit. Normal: meiste Zeit. Hoch: Nebenschrift heller, Pads größer und kräftiger. Max: alles in voller Schriftfarbe, fett und noch größer. Gilt in Hell und Dunkel.">
+                <span class="name">Lesbarkeit</span><div id="kontrastwahl" class="seg"></div>
             </div>
         </div>
     </details>
