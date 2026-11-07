@@ -32,7 +32,7 @@ const SPEICHER = 'begleitung-einstellungen';
 // metronom: 'an' | 'aus', metroLaut = Lautstärke, metroFilter = Tiefpass (links dumpf, rechts hell)
 // Klang-Vorgabe = @dds Einstellung auf der Hörseite (Stand 20261107). Gespeichert wird nur, was davon abweicht:
 // wer nichts verstellt hat, bekommt eine neue Vorgabe von selbst, wer verstellt hat, behält seins (Knopf „Klang zurücksetzen“).
-const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'stellen', stimme: '', spiel: 'akkord',
+const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'viertel', stimme: '', spiel: 'akkord',
     metronom: 'an', metroLaut: 40, metroFilter: 25 };
 const KLANG_FELDER = ['klang', 'lautstaerke', 'tiefbass', 'waerme', 'hoehen', 'metroLaut', 'metroFilter'];
 let E = { ...VORGABE };
@@ -553,9 +553,9 @@ function ereignisseBilden() {
         if (!jePos.has(k)) jePos.set(k, { pos });
         return jePos.get(k);
     };
-    // vor dem Anfang singen nur die Stimmen; die erste Tippstelle danach gibt mit dem Starttipp das Metrum
+    // vor dem Anfang singen nur die Stimmen (ohne Akkorde); die Begleitung steht dort bereit. Tippstellen und Pads
+    // gibt es trotzdem ab 1:1, damit man von vorn mitzählen kann, samt Auftakt-Text „Mei-ne“ (@dd 20261107)
     anfang = A.anfang ? stellePos(A.anfang) : 0;
-    const anfangsTakt = stelleVon(anfang).takt;
     P.taktAnfaenge.forEach((p, i) => { ev(p).takt = i + 1; });
     for (const [s, sym, dauer, lage] of A.akkorde) {
         const e = ev(stellePos(s)); e.akkord = sym;
@@ -563,10 +563,11 @@ function ereignisseBilden() {
         if (lage) e.lage = lage;
     }
     // Tippstellen je Modus: DDs = Stellen und Raster aus dem Ablauf, Takt = jede Eins, 2/4 = Eins und Drei
-    if (E.modus === 'takte') rasterStellen(anfangsTakt, 4).forEach(p => { ev(p).tippstelle = true; });
-    else if (E.modus === 'halbe') rasterStellen(anfangsTakt, 2).forEach(p => { ev(p).tippstelle = true; });
-    else if (E.modus === 'viertel') rasterStellen(anfangsTakt, 1).forEach(p => { ev(p).tippstelle = true; });
+    if (E.modus === 'takte') rasterStellen(1, 4).forEach(p => { ev(p).tippstelle = true; });
+    else if (E.modus === 'halbe') rasterStellen(1, 2).forEach(p => { ev(p).tippstelle = true; });
+    else if (E.modus === 'viertel') rasterStellen(1, 1).forEach(p => { ev(p).tippstelle = true; });
     else {
+        ev(0).tippstelle = true;   // von vorn mitzählen: 1:1
         const stimmeVon = n => (n ? P.stimmen.findIndex(x => x.toLowerCase() === String(n).toLowerCase()) : -1);
         for (const t of A.tippstellen || []) {
             const e = ev(stellePos(typeof t === 'string' ? t : t.stelle));
@@ -587,10 +588,10 @@ function ereignisseBilden() {
     const schluss = ev(P.ende); schluss.ende = true; schluss.warten = true;
     EV = [...jePos.values()].sort((a, b) => a.pos - b.pos);
     // Lücke: Abstand zur vorigen Tippstelle (in Vierteln), Maß für die Fenster
-    let vorige = anfang;
+    let vorige = 0;
     for (const e of EV) if (e.tippstelle || e.warten) { e.luecke = Math.max(1, e.pos - vorige); vorige = e.pos; }
     // Abschnitte für Anzeige, Pads und zurück: von Tippstelle zu Tippstelle
-    SEG = EV.filter(e => (e.tippstelle || e.warten) && !e.ende && e.pos >= anfang - 1e-6).map(e => e.pos);
+    SEG = EV.filter(e => (e.tippstelle || e.warten) && !e.ende).map(e => e.pos);
 }
 
 // Die Uhr läuft in Echtzeit (performance.now), nicht in der Audiozeit: die steht beim ersten Tipp noch,
@@ -796,7 +797,7 @@ function schluss(t) {
 }
 
 function neuAnfang() {
-    springen(1);
+    springenAuf(anfang, false, false);
 }
 
 /** Bereitstellen am Anfang ohne Klang (beim Laden, vor dem ersten Antippen). */
@@ -875,7 +876,7 @@ function springenAuf(ziel, tempoBehalten = false, anspielen = true) {
     audioStart();
     const t = jetzt(), ta = ctx.currentTime;
     fertig = false; wirbel = null; hinhoeren = false;
-    const pos = Math.max(ziel, anfang);
+    const pos = Math.max(ziel, 0);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
     if (!tempoBehalten) U.basis = tempoGrenzen(A.tempo);
     // Stelle antippen: der Akkord, der dort gilt, klingt eine Halbe an (@dd 20261105), weiter startet von hier
@@ -996,6 +997,11 @@ function streifenZeigen() {
     const s = $('streifen');
     s.innerHTML = '';
     PADS = [];
+    // Viertel (@dd 20261107): alle Pads gleich groß und schmaler, eine Zeile = ein Takt (breit: zwei Takte)
+    const schlaege = Math.round(taktEnde(Math.min(2, P.taktAnfaenge.length)) - taktBeginn(Math.min(2, P.taktAnfaenge.length))) || 4;
+    s.classList.toggle('viertel', E.modus === 'viertel');
+    s.style.setProperty('--schlaege', schlaege);
+    s.style.setProperty('--schlaege2', schlaege * 2);
     SEG.forEach((pos, i) => {
         const b = document.createElement('button');
         const text = textIn(pos, segEnde(i)), ak = akkordeIn(pos, segEnde(i));
@@ -1108,11 +1114,12 @@ $('zu').addEventListener('click', () => einstellungenAuf(false));
 function anleitungAuf(auf) {
     $('anleitung').hidden = !auf;
     if (auf) $('anleitungZu').focus();
-    else { try { localStorage.setItem('begleitung-anleitung', '1'); } catch (e) { /* egal */ } }
+    else { try { localStorage.setItem('begleitung-anleitung', '2'); } catch (e) { /* egal */ } }
 }
 $('anleitungKnopf').addEventListener('click', () => { einstellungenAuf(false); anleitungAuf(true); });
 $('anleitungZu').addEventListener('click', () => anleitungAuf(false));
-try { if (!localStorage.getItem('begleitung-anleitung')) anleitungAuf(true); } catch (e) { /* ohne Speicher nicht von selbst */ }
+// neue Anleitung (Viertel, @dd 20261107): wer die alte gesehen hat, bekommt sie einmal wieder
+try { if (localStorage.getItem('begleitung-anleitung') !== '2') anleitungAuf(true); } catch (e) { /* ohne Speicher nicht von selbst */ }
 
 const REGLER = [];   // [id, feld] für „Klang zurücksetzen“
 function regler(id, feld) {
@@ -1132,7 +1139,7 @@ regler('metroFilter', 'metroFilter');
 // Tippen auf: DDs Stellen, jede Eins, Eins und Drei (@dd 20261105) oder jeder Schlag (@dd 20261107)
 (() => {
     const zeile = $('moduswahl');
-    for (const [key, name] of [['stellen', 'DDs'], ['takte', 'Takt'], ['halbe', '2/4'], ['viertel', '1/4']]) {
+    for (const [key, name] of [['viertel', '1/4'], ['halbe', '2/4'], ['takte', 'Takt'], ['stellen', 'DDs']]) {
         const b = document.createElement('button');
         b.textContent = name;
         b.setAttribute('aria-pressed', String(E.modus === key));

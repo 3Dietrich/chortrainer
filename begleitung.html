@@ -79,6 +79,10 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen button b { color: var(--text); font-weight: 800; font-size: 1.12em; }
 #streifen button.an b { color: #fff; }
 #streifen button.an .t { color: #f3dcb8; }
+/* Viertel: eine Zeile je Takt, alle Pads gleich breit, etwas kleinere Schrift (@dd 20261107) */
+#streifen.viertel { grid-template-columns: repeat(var(--schlaege, 4), minmax(0, 1fr)); gap: 5px; }
+#streifen.viertel button { padding: 3px 5px; font-size: 16px; }
+#streifen.viertel button .t { font-size: 12px; }
 /* weiterer Text bis zur nächsten Stelle, klein (@dd 20261107) */
 #streifen button .k { display: block; font-size: 0.68em; color: #8f826c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #streifen button.an .k { color: #e6cfa8; }
@@ -144,6 +148,13 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #stoppKnopf { font-size: 26px; }
 }
 
+/* Viertel auf breiten Schirmen: zwei Takte je Zeile (steht hinter den Größen-Regeln, damit es gilt) */
+@media (min-width: 700px) {
+    #streifen.viertel { grid-template-columns: repeat(var(--schlaege2, 8), minmax(0, 1fr)); gap: 8px; }
+    #streifen.viertel button { padding: 4px 8px; font-size: clamp(18px, 2.2vh, 24px); }
+    #streifen.viertel button .t { font-size: clamp(13px, 1.6vh, 16px); }
+}
+
 #einstellungen {
     position: fixed; inset: auto 0 0 0; background: var(--flaeche); border-top: 2px solid var(--linie);
     padding: 16px max(16px, env(safe-area-inset-right, 0)) calc(16px + env(safe-area-inset-bottom, 0)) max(16px, env(safe-area-inset-left, 0));
@@ -204,7 +215,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), ja weiter (Tipp weit weg von jeder Stelle), Ende.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
     </div>
-    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (DDs, Takt, 2/4, 1/4), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Metronom, Klang zurücksetzen, Anleitung.">⚙</button>
+    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (1/4, 2/4, Takt, DDs), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Metronom, Klang zurücksetzen, Anleitung.">⚙</button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
@@ -230,7 +241,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
         <button id="anleitungKnopf" data-hilfe="Erklärt, wie die Begleitung funktioniert.">So geht's</button>
         <button id="zu" class="rund" aria-label="Einstellungen schließen" data-hilfe="Schließt die Einstellungen (auch Esc).">✕</button>
     </div>
-    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. 1/4: jeder Schlag. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
+    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. 1/4: jeder Schlag (Vorgabe). Alle zählen ab 1:1, die Begleitung steht beim Laden bei Seele bereit. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
         <span class="name">Tippen auf</span><div id="moduswahl" class="zeile"></div>
     </div>
     <div class="gruppe" data-hilfe="Deine Stimme: aus ihr kommen der Text und die Wörter auf den Pads. Der Alt singt in Takt 10 und 13 bis 14 anderen Text als Tenor und Bass.">
@@ -259,12 +270,12 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
             <li><b id="aName">A</b> halten: der Akkord tippt kurz an, dein Ton bleibt liegen (Einstieg)</li>
-            <li><b>weiter</b>: der erste Schlag startet mit <span id="startTakt">Takt 2</span></li>
-            <li>das nächste <b>weiter</b> ist je nach Einstellung der nächste Viertel, 2/4 oder ganze Takt: das gibt das Tempo</li>
-            <li>dann immer auf die <b>dicke Silbe</b> tippen, oder auslassen</li>
+            <li><b>weiter</b>: der erste Schlag startet mit <span id="startTakt">Takt 2</span>. Von vorn mitzählen: Pad <b>1:1</b> antippen</li>
+            <li>das nächste <b>weiter</b> ist der nächste Viertel: das gibt das Tempo</li>
+            <li>dann auf jeden Schlag tippen, die <b>dicke Silbe</b> zeigt wo, oder auslassen</li>
             <li><b>Stopp</b> stoppt. Auf eine Silbe drücken: der (erste) Akkord dort klingt</li>
         </ol>
-        <p>Oben steht, welcher Tipp erwartet wird. Ein Strich heißt: deine Stimme hält dort den Ton.</p>
+        <p>Oben: der erwartete Tipp. Strich: deine Stimme hält den Ton.</p>
         <button id="anleitungZu">Los geht's</button>
     </div>
 </div>
