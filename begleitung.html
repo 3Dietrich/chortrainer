@@ -55,9 +55,14 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #erwartet .wort { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #erwartet .wort b { color: var(--fokus); font-weight: 800; }
 #erwartet .wo { font-size: 0.6em; color: var(--leise); margin-left: auto; flex: none; }
-#akkord { grid-row: 2 / 4; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
-#wo { grid-column: 2; grid-row: 2; font-size: 16px; color: var(--leise); }
-#jetzt { grid-column: 2; grid-row: 3; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#akkord { grid-row: 3; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
+/* Zeile über dem Akkord: links die Stelle, rechts klein die Stimmenwahl (immer sichtbar, @dd 20261107) */
+#wo { grid-column: 1 / -1; grid-row: 2; font-size: 16px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
+#stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#stimmchips { display: flex; gap: 4px; flex: none; }
+#stimmchips button { min-height: 38px; min-width: 40px; padding: 2px 8px; border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--leise); }
+#stimmchips button[aria-pressed="true"] { color: var(--text); }
+#jetzt { grid-column: 2; grid-row: 3; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann b { color: var(--text); font-weight: 600; }
 #dann .ak { color: var(--warm); }
@@ -89,7 +94,10 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 /* Tasten: A klein, Stopp daneben, weiter breit; nie breiter als der Bildschirm */
 #tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
     height: 16vh; min-height: 96px; padding-block: 6px 8px; }
-#aKnopf { font-size: 30px; font-weight: 700; }
+#aKnopf { font-size: 30px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.05; padding: 4px; }
+/* Einstiegsknopf: Akkord groß, Ton der eigenen Stimme darunter (@dd 20261107) */
+#aKnopf .ak { font-size: clamp(22px, 6.5vw, 1em); font-weight: 800; color: var(--warm); white-space: nowrap; }
+#aKnopf .ton { font-size: 0.7em; font-weight: 700; }
 #stoppKnopf { font-size: 20px; line-height: 1.1; }
 #weiter { font-size: clamp(28px, 9vw, 46px); font-weight: 700; background: #3a2c18; border-color: var(--warm); }
 #weiter:active, #weiter.druck { background: var(--warm-tief); }
@@ -202,7 +210,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 
 <main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
     <div id="erwartet"></div>
-    <div id="wo"><span id="stelle"></span></div>
+    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme, immer zur Hand: aus ihr kommen der Text, die Wörter auf den Pads und der Ton auf dem Einstiegsknopf. Ausgeschrieben auch in den Einstellungen."></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
     <div id="dann"></div>
@@ -211,7 +219,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter das Wort, die Tippsilbe fett. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier."></div>
 
 <div id="tasten">
-    <button id="aKnopf" aria-pressed="false" data-hilfe="Stopp: alles hört auf, die Begleitung steht wieder am Anfang (Seele). Solange A gedrückt ist, klingt leise der Stimmton a, loslassen: Ton aus. Tastatur: a halten.">A</button>
+    <button id="aKnopf" aria-pressed="false" data-hilfe="Einstieg: zeigt Akkord und Ton deiner Stimme an der Stelle, an der die Begleitung steht, am Anfang z.B. Am (c). Drücken: der Akkord tippt kurz an, dein Ton bleibt liegen, solange du hältst. Hast du ein Pad gewählt oder gestoppt, gilt diese Stelle; läuft die Begleitung, geht es zurück an den Anfang. Tastatur: a halten.">A</button>
     <button id="stoppKnopf" data-hilfe="Stopp: der Klang klingt kurz aus, die Begleitung bleibt an der Stelle. weiter startet von dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">■<br>Stopp</button>
     <button id="weiter" data-hilfe="Erster Tipp startet (bei Seele), der zweite einen Takt bzw. 2/4 später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
 </div>
@@ -250,7 +258,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
-            <li><b>A</b> halten: Ton a (stimmen)</li>
+            <li><b id="aName">A</b> halten: der Akkord tippt kurz an, dein Ton bleibt liegen (Einstieg)</li>
             <li><b>weiter</b>: der erste Schlag startet mit <span id="startTakt">Takt 2</span></li>
             <li>das nächste <b>weiter</b> ist je nach Einstellung der nächste Viertel, 2/4 oder ganze Takt: das gibt das Tempo</li>
             <li>dann immer auf die <b>dicke Silbe</b> tippen, oder auslassen</li>

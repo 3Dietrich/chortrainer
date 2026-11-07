@@ -3,7 +3,9 @@
  *
  * Ablauf (Akkorde, Sonderstellen) steht in <Lied>.ablauf.json, Text und Takte kommen aus der MusicXML.
  * Plan von @dd (Stimme üben mit Akkorden):
- * - Taste A: alles stoppt, solange sie gedrückt ist klingt ein leiser Stimmton a, die Begleitung steht am Anfang.
+ * - Einstiegsknopf (früher A, @dd 20261107): zeigt Akkord und Ton der eigenen Stimme an der Stelle, an der die
+ *   Begleitung steht, am Anfang z.B. „Am (c)“. Gedrückt: der Akkord tippt kurz an, der Ton der eigenen Stimme
+ *   bleibt liegen, solange der Finger liegt. Läuft die Begleitung, geht es zurück an den Anfang.
  * - Anfang (z.B. 2:1 "Seele"): davor singen nur die Stimmen. Der erste Tipp startet den Klang, dann hört die
  *   Begleitung hin: der zweite Tipp gilt immer für die nächste Tippstelle (einen Takt bzw. 2/4 später), der Abstand
  *   gibt das Metrum. Das gilt nach jedem Start (Anfang, Pad, Stopp).
@@ -57,10 +59,13 @@ function partiturLesen(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     const titel = (doc.querySelector('work-title, movement-title')?.textContent || '').trim();
     const silben = [];
-    const noten = [];   // je Stimme die klingenden Noten { t, ende } (Stimme 1, ohne Pausen): wo ein Ton gehalten wird
+    // je Stimme die klingenden Noten { t, ende, midi, name } (Stimme 1, ohne Pausen): wo ein Ton gehalten wird und
+    // welcher Ton zum Einstieg klingt (midi klingend, name deutsch ohne Oktave: c, fis, b, h …)
+    const noten = [];
+    const partNamen = [...doc.querySelectorAll('part-list score-part')].map(sp => (sp.querySelector('part-name')?.textContent || '').trim());
     let taktAnfaenge = [], ende = 0;
     [...doc.querySelectorAll('part')].forEach((teil, si) => {
-        let div = 1, t = 0;
+        let div = 1, t = 0, verschub = 0;
         const anfaenge = [];
         noten[si] = [];
         for (const takt of teil.querySelectorAll(':scope > measure')) {
@@ -70,6 +75,14 @@ function partiturLesen(xmlText) {
                 if (e.tagName === 'attributes') {
                     const d = e.querySelector('divisions');
                     if (d) div = +d.textContent;
+                    // klingende Lage: Transposition, Oktavschlüssel; Tenor im Violinschlüssel ohne Angabe klingt eine Oktave tiefer
+                    const tr = e.querySelector('transpose'), clef = e.querySelector('clef');
+                    if (tr) verschub = +(tr.querySelector('chromatic')?.textContent || 0) + 12 * +(tr.querySelector('octave-change')?.textContent || 0);
+                    if (clef && !tr) {
+                        const okt = clef.querySelector('clef-octave-change');
+                        verschub = okt ? 12 * +okt.textContent
+                            : (clef.querySelector('sign')?.textContent === 'G' && /tenor/i.test(partNamen[si] || '') ? -12 : 0);
+                    }
                 } else if (e.tagName === 'backup') {
                     t -= dauer();
                 } else if (e.tagName === 'forward') {
@@ -82,7 +95,12 @@ function partiturLesen(xmlText) {
                     const ly = e.querySelector(':scope > lyric');
                     const text = ly?.querySelector('text')?.textContent.trim();
                     if (text) silben.push({ t, stimme: si, text, syl: ly.querySelector('syllabic')?.textContent || 'single' });
-                    if (!e.querySelector(':scope > rest')) noten[si].push({ t, ende: t + d });
+                    const ph = e.querySelector(':scope > pitch');
+                    if (ph && !e.querySelector(':scope > rest')) {
+                        const step = ph.querySelector('step').textContent, alter = Math.round(+(ph.querySelector('alter')?.textContent || 0));
+                        const midi = 12 * (+ph.querySelector('octave').textContent + 1) + SCHRITT[step] + alter + verschub;
+                        noten[si].push({ t, ende: t + d, midi, name: tonName(step, alter) });
+                    }
                     t += d;
                 }
             }
@@ -90,8 +108,31 @@ function partiturLesen(xmlText) {
         if (si === 0) taktAnfaenge = anfaenge;
         ende = Math.max(ende, t);
     });
-    const stimmen = [...doc.querySelectorAll('part-list score-part')].map(sp => (sp.querySelector('part-name')?.textContent || '').trim());
-    return { titel, silben, noten, taktAnfaenge, ende, stimmen };
+    return { titel, silben, noten, taktAnfaenge, ende, stimmen: partNamen };
+}
+
+/** deutscher Tonname ohne Oktave: C# → cis, Eb → es, Ab → as, Bb → b, B → h */
+function tonName(step, alter) {
+    const s = step.toLowerCase();
+    if (alter > 0) return s + 'is';
+    if (alter < 0) return s === 'b' ? 'b' : s === 'e' ? 'es' : s === 'a' ? 'as' : s + 'es';
+    return s === 'b' ? 'h' : s;
+}
+
+/**
+ * Einstiegston der Stimme si an pos: der Ton, mit dem sie dort einsetzt. Beginnt ihre Phrase kurz vorher mit einem
+ * Auftakt (weniger als ein Takt, davor Pause), der erste Ton des Auftakts (Tenor bei Seele: „Mei-ne“ auf c, @dd
+ * 20261107: „Am (c)“); sonst der Ton, der an pos klingt, sonst der nächste innerhalb von zwei Takten.
+ */
+function tonFuer(pos, si) {
+    const n = si >= 0 && P.noten[si];
+    if (!n) return null;
+    let i = n.findIndex(x => x.t < pos + 1e-6 && x.ende > pos + 1e-6);
+    if (i < 0) { const x = n.find(y => y.t >= pos - 1e-6 && y.t < pos + 8); return x || null; }
+    let k = i;
+    while (k > 0 && Math.abs(n[k - 1].ende - n[k].t) < 1e-6 && pos - n[k - 1].t < 4 - 1e-6) k--;
+    const auftakt = k < i && (k === 0 || n[k - 1].ende < n[k].t - 1e-6);
+    return auftakt ? n[k] : n[i];
 }
 
 /**
@@ -387,7 +428,8 @@ function tonAn(midi, art, wann, weich, anstieg = null) {
         nf.connect(g);
         g.connect(tonfilter);
     }
-    const ziel = art === 'sub' ? 0.5 : art === 'grund' ? 0.12 : 0.1;
+    // 'stimme': Einstiegston der eigenen Stimme, etwas lauter als ein Akkordton, damit er heraussticht
+    const ziel = art === 'sub' ? 0.5 : art === 'grund' ? 0.12 : art === 'stimme' ? 0.17 : 0.1;
     anstieg ??= weich ? 0.35 : (orgel || art === 'sub' ? 0.03 : 0.12);
     oszis.forEach(o => o.start(wann));
     g.gain.setTargetAtTime(ziel, wann, anstieg);
@@ -767,14 +809,47 @@ function anfangStellen() {
     hinhoeren = false;
 }
 
-/** Taste A drücken: alles stoppen, zurück an den Anfang, leiser Stimmton a, solange gedrückt (Gate). */
+/**
+ * Einstiegsstelle für den Einstiegsknopf: steht die Begleitung (bereit, nach Pad oder Stopp), die Stelle, an der
+ * es weitergeht; läuft sie oder ist sie am Schluss, der Anfang.
+ */
+function einstieg() {
+    if (U.laeuft || hinhoeren) return anfang;
+    if (fertig) return gestopptBei != null ? gestopptBei : anfang;
+    return U.s0;
+}
+
+/** Akkord, der an pos gilt; bei einer Pause dort der nächste */
+function einstiegsAkkord(pos) {
+    return akkordBei(pos) || (EV.find(x => x.pos >= pos - 1e-6 && x.akkord && x.akkord !== '-') || {}).akkord || null;
+}
+
+/** Beschriftung des Einstiegsknopfs: Akkord und Ton der eigenen Stimme, z.B. „Am (c)“ */
+function aKnopfZeigen() {
+    if (!P) return;
+    const pos = einstieg(), a = einstiegsAkkord(pos), n = tonFuer(pos, stimmeIndex(E.stimme));
+    const html = a || n
+        ? `<span class="ak">${a ? anzeigeName(a) : '·'}</span><span class="ton">${n ? '(' + n.name + ')' : ''}</span>` : 'A';
+    if (html !== aKnopfZeigen.alt) { $('aKnopf').innerHTML = html; aKnopfZeigen.alt = html; }
+    return { a, n };
+}
+
+/**
+ * Einstiegsknopf drücken (@dd 20261107): der Akkord der Einstiegsstelle tippt kurz an, der Ton der eigenen Stimme
+ * bleibt liegen, solange gedrückt (Gate). Die Begleitung steht danach an dieser Stelle, weiter startet von dort.
+ */
 function stimmton() {
     if (!P || stimmTon) return;
     audioStart();
     const ta = ctx.currentTime;
-    springen(1);
-    // a (A3), Tenor-Lage, Frauen hören es eine Oktave tiefer; sofort und mit kurzem Einschwingen (Gate)
-    stimmTon = tonAn(57, 'oben', ta, false, 0.008);
+    const pos = einstieg();
+    springenAuf(pos, false, false);
+    gestopptBei = null;
+    alleAus(ta, 0.1);
+    const { a, n } = aKnopfZeigen();
+    if (a) akkordSpielen(a, ta, false, 1.5);
+    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme wie früher das a
+    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
     $('aKnopf').setAttribute('aria-pressed', 'true');
     zeigen();
 }
@@ -875,7 +950,7 @@ function zeigen() {
     let zustand = hinhoeren ? 'hört hin' : U.laeuft ? (schaetzt ? 'schätzt' : 'läuft') : 'wartet auf Tipp';
     if (fertig) zustand = 'Ende';
     if (!U.laeuft && !letzterTipp && Math.abs(U.s0 - anfang) < 1e-6) zustand = 'bereit';
-    if (stimmTon) zustand = 'Stimmton a';
+    if (stimmTon) zustand = 'Einstieg';
     if (bestaetigt > 0 && t - bestaetigt < 0.6) zustand = 'ja, weiter';
     $('zustand').textContent = zustand;
     $('zustand').dataset.art = schaetzt ? 'schaetzt' : (laeuft ? 'laeuft' : 'wartet');
@@ -890,12 +965,13 @@ function zeigen() {
     // erwarteter Tipp oben (@dd 20261107): Wort mit fetter Tippsilbe bzw. „–“, daneben die Stelle
     const ep = erwartetePos(p);
     const ei = ep == null ? -1 : SEG.findIndex(x => Math.abs(x - ep) < 1e-6);
-    const art = stimmTon ? 'Stimmton a' : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft && !fertig) ? 'Start' : 'Tipp';
+    const art = stimmTon ? 'Einstieg' : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft && !fertig) ? 'Start' : 'Tipp';
     $('erwartet').innerHTML = fertig ? '<span class="was">Ende</span>'
         : ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
         : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
+    aKnopfZeigen();
 }
 
 /**
@@ -1091,9 +1167,30 @@ function wahlZeile(id, feld, optionen, nachher) {
         zeile.appendChild(b);
     }
 }
+// zweimal: ausgeschrieben in den Einstellungen und klein, aber ständig sichtbar über dem Akkord (@dd 20261107)
 function stimmwahlBauen() {
     if (!E.stimme) E.stimme = A.textstimme || P.stimmen[0];
-    wahlZeile('stimmwahl', 'stimme', P.stimmen.map(n => [n, n]), () => { leitsilbenBilden(); streifenZeigen(); zeigen(); });
+    // kurz: Anfangsbuchstabe, außer zwei Stimmen teilen ihn (Sopran 1/2), dann der Name
+    const kurz = n => (P.stimmen.filter(x => x.charAt(0).toUpperCase() === n.charAt(0).toUpperCase()).length > 1 ? n : n.charAt(0).toUpperCase());
+    for (const [id, name] of [['stimmwahl', n => n], ['stimmchips', kurz]]) {
+        const zeile = $(id);
+        zeile.innerHTML = '';
+        for (const n of P.stimmen) {
+            const b = document.createElement('button');
+            b.textContent = name(n);
+            b.dataset.stimme = n;
+            b.title = n;
+            b.setAttribute('aria-label', 'Meine Stimme: ' + n);
+            b.setAttribute('aria-pressed', String(E.stimme === n));
+            b.addEventListener('click', () => stimmeSetzen(n));
+            zeile.appendChild(b);
+        }
+    }
+}
+function stimmeSetzen(n) {
+    E.stimme = n; sichern();
+    document.querySelectorAll('[data-stimme]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.stimme === n)));
+    leitsilbenBilden(); streifenZeigen(); zeigen();
 }
 wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], () => {
     if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
@@ -1223,4 +1320,7 @@ document.addEventListener('click', e => {
     stimmwahlBauen();
     streifenZeigen();
     zeigen();
+    // Anleitung nennt den Einstiegsknopf so, wie er beschriftet ist (z.B. Am (c))
+    const ein = aKnopfZeigen();
+    if (ein && (ein.a || ein.n)) $('aName').textContent = (ein.a ? anzeigeName(ein.a) : '') + (ein.n ? ` (${ein.n.name})` : '');
 })();
