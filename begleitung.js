@@ -7,10 +7,13 @@
  * - Anfang (z.B. 2:1 "Seele"): davor singen nur die Stimmen. Der erste Tipp startet den Klang, dann hört die
  *   Begleitung hin: der zweite Tipp gilt immer für die nächste Tippstelle (einen Takt bzw. 2/4 später), der Abstand
  *   gibt das Metrum. Das gilt nach jedem Start (Anfang, Pad, Stopp).
- * - Tippen auf: DDs (Stellen und Raster aus dem Ablauf), Takt (jede Eins), 2/4 (Eins und Drei).
+ * - Tippen auf: DDs (Stellen und Raster aus dem Ablauf), Takt (jede Eins), 2/4 (Eins und Drei), 1/4 (jeder Schlag).
  * - Nach einem Tipp laufen die Akkorde nur innerhalb desselben Taktes von selbst weiter. Kommt kein Tipp, bleibt
  *   es still; die Uhr schätzt weiter, wo der Chor ist, und der nächste Tipp rastet auf die nächstgelegene Stelle.
  * - Tempo: Mittel aus den Tipp-Abständen, dazu Faktoren aus dem Ablauf (Takt 18 zieht an, Schluss langsamer).
+ *   Es ändert sich nur behutsam und bleibt immer zwischen 65 und 120 (@dd 20261107).
+ * - Oben steht, welcher Tipp als Nächstes erwartet wird; hält die eigene Stimme dort einen Ton, steht „–“ statt
+ *   eines Wortes. Metronom (sanft, dumpf, mit Lautstärke und Tiefpass) klickt, solange die Begleitung läuft.
  *
  * Aufruf: begleitung.html?lied=Bereit.musicxml (Ablauf: Bereit.ablauf.json daneben).
  */
@@ -21,18 +24,30 @@ const $ = id => document.getElementById(id);
 /* ---------- Einstellungen (nur Bequemlichkeit pro Gerät, alles geht auch ohne Speicher) ---------- */
 
 const SPEICHER = 'begleitung-einstellungen';
-// modus: 'stellen' = DDs Stellen aus dem Ablauf, 'takte' = jede Eins, 'halbe' = Eins und Drei (2/4)
+// modus: 'stellen' = DDs Stellen aus dem Ablauf, 'takte' = jede Eins, 'halbe' = Eins und Drei (2/4), 'viertel' = jeder Schlag
 // waerme = Stereo-Chorus, hoehen = Tiefpass (hieß früher Wärme)
 // stimme: aus welcher Stimme der Text kommt ('' = Textstimme des Ablaufs); spiel: 'akkord' oder 'bass' (nur Bass)
-const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'stellen', stimme: '', spiel: 'akkord' };
+// metronom: 'an' | 'aus', metroLaut = Lautstärke, metroFilter = Tiefpass (links dumpf, rechts hell)
+// Klang-Vorgabe = @dds Einstellung auf der Hörseite (Stand 20261107). Gespeichert wird nur, was davon abweicht:
+// wer nichts verstellt hat, bekommt eine neue Vorgabe von selbst, wer verstellt hat, behält seins (Knopf „Klang zurücksetzen“).
+const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 64, hoehen: 11, modus: 'stellen', stimme: '', spiel: 'akkord',
+    metronom: 'an', metroLaut: 40, metroFilter: 25 };
+const KLANG_FELDER = ['klang', 'lautstaerke', 'tiefbass', 'waerme', 'hoehen', 'metroLaut', 'metroFilter'];
 let E = { ...VORGABE };
 try {
     const alt = JSON.parse(localStorage.getItem(SPEICHER) || '{}');
     if (!('hoehen' in alt)) delete alt.waerme;   // alte Fassung: dort war waerme der Tiefpass
+    delete alt.tempo; delete alt.wach;          // Felder alter Fassungen
     Object.assign(E, alt);
     if (E.klang === 'flaeche') E.klang = 'strings';
 } catch (e) { /* privat/gesperrt */ }
-function sichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(E)); } catch (e) { /* egal */ } }
+function sichern() {
+    const abw = {};
+    for (const k of Object.keys(E)) if (E[k] !== VORGABE[k]) abw[k] = E[k];
+    try { localStorage.setItem(SPEICHER, JSON.stringify(abw)); } catch (e) { /* egal */ }
+}
+const TEMPO_MIN = 65, TEMPO_MAX = 120;
+const tempoGrenzen = b => Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, b));
 
 /* ---------- MusicXML lesen (Text, Taktanfänge) ---------- */
 
@@ -42,10 +57,12 @@ function partiturLesen(xmlText) {
     const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
     const titel = (doc.querySelector('work-title, movement-title')?.textContent || '').trim();
     const silben = [];
+    const noten = [];   // je Stimme die klingenden Noten { t, ende } (Stimme 1, ohne Pausen): wo ein Ton gehalten wird
     let taktAnfaenge = [], ende = 0;
     [...doc.querySelectorAll('part')].forEach((teil, si) => {
         let div = 1, t = 0;
         const anfaenge = [];
+        noten[si] = [];
         for (const takt of teil.querySelectorAll(':scope > measure')) {
             anfaenge.push(t);
             for (const e of takt.children) {
@@ -65,6 +82,7 @@ function partiturLesen(xmlText) {
                     const ly = e.querySelector(':scope > lyric');
                     const text = ly?.querySelector('text')?.textContent.trim();
                     if (text) silben.push({ t, stimme: si, text, syl: ly.querySelector('syllabic')?.textContent || 'single' });
+                    if (!e.querySelector(':scope > rest')) noten[si].push({ t, ende: t + d });
                     t += d;
                 }
             }
@@ -73,7 +91,17 @@ function partiturLesen(xmlText) {
         ende = Math.max(ende, t);
     });
     const stimmen = [...doc.querySelectorAll('part-list score-part')].map(sp => (sp.querySelector('part-name')?.textContent || '').trim());
-    return { titel, silben, taktAnfaenge, ende, stimmen };
+    return { titel, silben, noten, taktAnfaenge, ende, stimmen };
+}
+
+/**
+ * Was Stimme si an pos tut: 'silbe' (eine Silbe beginnt genau hier), 'halten' (ein Ton klingt weiter oder ein
+ * Melisma/Haltebogen ohne neue Silbe), null (Pause oder Stimme unbekannt).
+ */
+function stimmeAn(pos, si) {
+    if (si < 0 || !P.noten[si]) return null;
+    if (P.silben.some(x => x.stimme === si && Math.abs(x.t - pos) < 1e-6)) return 'silbe';
+    return P.noten[si].some(n => n.t < pos + 1e-6 && n.ende > pos + 1e-6) ? 'halten' : null;
 }
 
 let P = null;        // Partitur
@@ -94,30 +122,44 @@ function leitsilbenBilden() {
     LEIT = [...jeZeit.values()].sort((a, b) => a.t - b.t);
 }
 
-/** Text der Leitstimme im Abschnitt, Silben eines Wortes zusammengezogen. */
-/** Das ganze Wort, in dem die erste Silbe ab pos liegt (in ihrer eigenen Stimme), mit Silbenstrichen; die Silbe an pos fett. */
+/**
+ * Das ganze Wort, in dem die erste Silbe ab pos liegt (in ihrer eigenen Stimme), mit Silbenstrichen; die Silbe an
+ * pos fett. Ergebnis { html, letzte } (letzte = Zeit der letzten Silbe des Wortes) oder null.
+ * Hält die eigene Stimme an pos einen Ton, fragt der Aufrufer vorher stimmeAn() und zeigt „–“ (@dd 20261107).
+ */
 function wortAn(pos, bis, stimme = -1) {
-    // eigene Stimme: die Silbe genau hier, sonst die, die dort noch klingt (bis ein Takt davor), sonst die nächste
     const eigen = stimme >= 0 ? P.silben.filter(x => x.stimme === stimme).sort((a, b) => a.t - b.t) : null;
-    const x0 = eigen
-        ? (eigen.find(x => Math.abs(x.t - pos) < 1e-6) || [...eigen].reverse().find(x => x.t < pos && x.t > pos - 4)
-            || eigen.find(x => x.t >= pos - 1e-6))
-        : LEIT.find(x => x.t >= pos - 1e-6);
-    if (!x0 || x0.t >= bis - 1e-6) return '';
-    const gehalten = x0.t < pos - 1e-6;
+    const x0 = (eigen || LEIT).find(x => x.t >= pos - 1e-6);
+    if (!x0 || x0.t >= bis - 1e-6) return null;
     const eigene = P.silben.filter(x => x.stimme === x0.stimme).sort((a, b) => a.t - b.t);
     let i = eigene.indexOf(x0);
     const hier = i;
     // Wortgrenze auch bei langer Lücke (z.B. Summen „mh“ vor „su-che“ im Bass)
     while (i > 0 && (eigene[i].syl === 'middle' || eigene[i].syl === 'end') && eigene[i].t - eigene[i - 1].t <= 5) i--;
     const teile = [];
+    let letzte = x0.t;
     for (let k = i; k < eigene.length; k++) {
         const x = eigene[k], txt = x.text.replace(/[<>&]/g, '');
-        teile.push(k === hier && (x.syl !== 'single' || gehalten) ? `<b>${txt}</b>` : txt);
+        teile.push(k === hier && x.syl !== 'single' ? `<b>${txt}</b>` : txt);
+        letzte = x.t;
         if (x.syl === 'single' || x.syl === 'end' || k - i > 6) break;
         if (eigene[k + 1] && eigene[k + 1].t - x.t > 5) break;
     }
-    return teile.join('-');
+    return { html: teile.join('-'), letzte };
+}
+
+/** Weitere Silben der Stimme si zwischen von (ausschließlich) und bis, klein unter dem Wort auf dem Pad */
+function kleinText(von, bis, si) {
+    if (si < 0) return '';
+    let s = '', vorige = null;
+    for (const x of P.silben) {
+        if (x.stimme !== si || x.t <= von + 1e-6 || x.t >= bis - 1e-6) continue;
+        const anhang = x.syl === 'middle' || x.syl === 'end';
+        s += (anhang ? '-' : s ? ' ' : '') + x.text.replace(/[<>&]/g, '');
+        vorige = x;
+    }
+    if (vorige && (vorige.syl === 'begin' || vorige.syl === 'middle')) s += '-';
+    return s;
 }
 
 /**
@@ -127,7 +169,8 @@ function wortAn(pos, bis, stimme = -1) {
 function textHtml(a, b) {
     const meine = stimmeIndex(E.stimme);
     const silben = LEIT.filter(x => x.t >= a - 1e-6 && x.t < b - 1e-6);
-    let h = '';
+    // hält die eigene Stimme am Anfang des Abschnitts einen Ton: „–“ statt des Wortes davor (@dd 20261107)
+    let h = stimmeAn(a, meine) === 'halten' ? '–' : '';
     silben.forEach((x, k) => {
         const anhang = x.syl === 'middle' || x.syl === 'end';
         const offen = (x.syl === 'begin' || x.syl === 'middle') && k === silben.length - 1;
@@ -219,7 +262,7 @@ function lageFuer(sym, fest = null) {
 /* ---------- Klangerzeugung (WebAudio, ohne Samples) ---------- */
 
 let ctx = null, ausgang = null, lage = null, tonfilter = null, bassBus = null, wachQuelle = null, orgelWelle = null;
-let chorusNass = null, vibrato = null;
+let chorusNass = null, vibrato = null, metroBus = null, metroFilter = null;
 const klingend = new Map();          // Schlüssel → { stop }
 
 function impuls(sek) {
@@ -267,6 +310,11 @@ function audioStart() {
     // Orgel: Grundton, Oktave, Quinte darüber, Superoktave (wie gezogene Flötenregister 8', 4', 2 2/3', 2')
     const re = new Float32Array([0, 1, 0.5, 0.22, 0.16, 0.05, 0.04]);
     orgelWelle = ctx.createPeriodicWave(re.map(() => 0), re);
+    // Metronom: eigener Weg mit Tiefpass, unabhängig von der Lautstärke der Begleitung
+    metroFilter = ctx.createBiquadFilter();
+    metroFilter.type = 'lowpass'; metroFilter.Q.value = 0.5;
+    metroBus = ctx.createGain();
+    metroBus.connect(metroFilter).connect(komp);
     pegelSetzen();
     wachSetzen();
 }
@@ -278,6 +326,22 @@ function pegelSetzen() {
     bassBus.gain.setTargetAtTime(E.tiefbass / 100, jetzt, 0.05);
     tonfilter.frequency.setTargetAtTime(250 * Math.pow(32, E.hoehen / 100), jetzt, 0.05);   // Höhen: 250 bis 8000 Hz
     chorusNass.gain.setTargetAtTime(E.waerme / 100 * 0.9, jetzt, 0.05);
+    metroBus.gain.setTargetAtTime(E.metronom === 'an' ? Math.pow(E.metroLaut / 100, 1.6) * 0.9 : 0, jetzt, 0.05);
+    metroFilter.frequency.setTargetAtTime(200 * Math.pow(30, E.metroFilter / 100), jetzt, 0.05);   // 200 bis 6000 Hz
+}
+
+/** Ein Metronom-Klick: kurzer, weicher Holzton (Dreieck mit kleinem Tonhöhen-Fall), die Eins etwas höher */
+function metroKlick(wann, eins) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    const f = eins ? 520 : 390;
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(f * 1.4, wann);
+    o.frequency.exponentialRampToValueAtTime(f, wann + 0.015);
+    g.gain.setValueAtTime(0, wann);
+    g.gain.linearRampToValueAtTime(eins ? 0.9 : 0.6, wann + 0.004);
+    g.gain.setTargetAtTime(0, wann + 0.006, 0.035);
+    o.connect(g).connect(metroBus);
+    o.start(wann); o.stop(wann + 0.4);
 }
 
 function wachSetzen() {
@@ -459,6 +523,7 @@ function ereignisseBilden() {
     // Tippstellen je Modus: DDs = Stellen und Raster aus dem Ablauf, Takt = jede Eins, 2/4 = Eins und Drei
     if (E.modus === 'takte') rasterStellen(anfangsTakt, 4).forEach(p => { ev(p).tippstelle = true; });
     else if (E.modus === 'halbe') rasterStellen(anfangsTakt, 2).forEach(p => { ev(p).tippstelle = true; });
+    else if (E.modus === 'viertel') rasterStellen(anfangsTakt, 1).forEach(p => { ev(p).tippstelle = true; });
     else {
         const stimmeVon = n => (n ? P.stimmen.findIndex(x => x.toLowerCase() === String(n).toLowerCase()) : -1);
         for (const t of A.tippstellen || []) {
@@ -494,7 +559,37 @@ const uhrPos = t => (U.laeuft ? U.s0 + (t - U.t0) * U.bpm / 60 : U.s0);
 const zeitVon = pos => U.t0 + (pos - U.s0) * 60 / U.bpm;
 const taktVon = pos => stelleVon(pos).takt;
 
-function uhrSetzen(pos, t, bpm = U.bpm) { U.s0 = pos; U.t0 = t; U.bpm = bpm; }
+// das wirksame Tempo bleibt immer zwischen 65 und 120, auch mit den Faktoren aus dem Ablauf (@dd 20261107)
+function uhrSetzen(pos, t, bpm = U.bpm) { U.s0 = pos; U.t0 = t; U.bpm = tempoGrenzen(bpm); }
+
+/* ---------- Metronom: klickt jeden Schlag, solange die Begleitung nach einem Tipp läuft ---------- */
+
+let metroNaechster = null;   // Position (Viertel) des nächsten Klicks
+
+/** nächster Schlag ab p (einschließlich), gezählt vom Taktanfang */
+function naechsterSchlag(p) {
+    const n = stelleVon(p).takt, b = taktBeginn(n);
+    const q = b + Math.ceil(p - b - 1e-6);
+    return q >= taktEnde(n) - 1e-6 ? taktEnde(n) : q;
+}
+const istEins = q => Math.abs(q - taktBeginn(stelleVon(q).takt)) < 1e-6;
+
+/** Bis wohin geklickt wird: bis zur nächsten erwarteten Tippstelle bzw. zum Ende des getippten Taktes.
+ *  Kommt dort kein Tipp, schweigt auch das Metronom (wie die Akkorde). */
+function metroGrenze() {
+    const n = EV.find(e => (e.tippstelle || e.warten) && e.pos > letzterTipp.pos + 1e-6);
+    return Math.min(P.ende - 1e-3, Math.max(n ? n.pos : 0, taktEnde(taktVon(letzterTipp.pos)) - 1e-3));
+}
+
+function metroPlanen(t) {
+    if (E.metronom !== 'an' || !U.laeuft || !letzterTipp || metroNaechster == null) return;
+    const grenze = metroGrenze(), horizont = uhrPos(t + 0.08), p = uhrPos(t);
+    while (metroNaechster <= horizont + 1e-6 && metroNaechster <= grenze + 1e-6) {
+        // verpasste Schläge (Tab im Hintergrund) nicht nachholen
+        if (metroNaechster >= p - 0.1) metroKlick(audioZeit(Math.max(t, zeitVon(metroNaechster))), istEins(metroNaechster));
+        metroNaechster = naechsterSchlag(metroNaechster + 1e-3);
+    }
+}
 
 /** Produkt der Tempo-Faktoren aus dem Ablauf bis einschließlich pos (Takt 18 zieht an, Schluss langsamer) */
 function faktorBis(pos) {
@@ -547,6 +642,7 @@ function takt() {
             if (e.tempo) uhrSetzen(e.pos, tz, U.basis * faktorBis(e.pos));
             ix++;
         }
+        metroPlanen(t);
     }
     wirbelPlanen(ctx.currentTime + 0.1);
 }
@@ -619,12 +715,13 @@ function einrasten(pos, t, tempoMessen) {
             const gemessen = viertel * 60 / sek / faktorBis(pos);
             if (tempoMessen === 'voll') {
                 // zweiter Tipp nach dem Start: das Tempo kommt ganz aus diesem Abstand
-                U.basis = Math.min(160, Math.max(40, gemessen));
+                U.basis = tempoGrenzen(gemessen);
             } else {
-                // begrenzt auf einen Sprung von höchstens 0,6 bis 1,6; ein Takt zählt zu zwei Dritteln
-                const neu = Math.min(U.basis * 1.6, Math.max(U.basis * 0.6, gemessen));
-                const w = viertel <= 8 ? Math.min(0.65, Math.max(0.2, viertel / 6)) : 0.3;
-                U.basis = U.basis * (1 - w) + neu * w;
+                // behutsam (@dd 20261107: nicht hektisch): ein Ausreißer zählt höchstens als 0,8 bis 1,25 des
+                // bisherigen Tempos, und ein Tipp bewegt es nur zu einem Zehntel (Viertel) bis gut einem Drittel (Takt und mehr)
+                const neu = Math.min(U.basis * 1.25, Math.max(U.basis * 0.8, gemessen));
+                const w = Math.min(0.35, Math.max(0.1, viertel / 10));
+                U.basis = tempoGrenzen(U.basis * (1 - w) + neu * w);
             }
         }
     }
@@ -635,6 +732,7 @@ function einrasten(pos, t, tempoMessen) {
     uhrSetzen(pos, t, U.basis * faktorBis(pos));
     U.laeuft = true;
     letzterTipp = { pos, t };
+    metroNaechster = naechsterSchlag(pos);   // liegt der Tipp auf einem Schlag, klickt es sofort mit
     if (e && Math.abs(e.pos - pos) < 1e-6) {
         if (!e.akkord && !e.tippstelle) { const a = akkordBei(pos); if (a) akkordSpielen(a, audioZeit(t), false); }
         ausfuehren(e, t, true);
@@ -662,7 +760,7 @@ function neuAnfang() {
 /** Bereitstellen am Anfang ohne Klang (beim Laden, vor dem ersten Antippen). */
 function anfangStellen() {
     ix = EV.findIndex(e => e.pos >= anfang - 1e-6);
-    U.basis = A.tempo;
+    U.basis = tempoGrenzen(A.tempo);
     uhrSetzen(anfang, jetzt(), U.basis * faktorBis(anfang));
     U.laeuft = false;
     letzterTipp = null;
@@ -704,7 +802,7 @@ function springenAuf(ziel, tempoBehalten = false, anspielen = true) {
     fertig = false; wirbel = null; hinhoeren = false;
     const pos = Math.max(ziel, anfang);
     ix = EV.findIndex(e => e.pos >= pos - 1e-6);
-    if (!tempoBehalten) U.basis = A.tempo;
+    if (!tempoBehalten) U.basis = tempoGrenzen(A.tempo);
     // Stelle antippen: der Akkord, der dort gilt, klingt eine Halbe an (@dd 20261105), weiter startet von hier
     const a = akkordBei(pos);
     if (!anspielen) { /* Klang macht der Aufrufer (Pads: solange der Finger liegt) */ }
@@ -742,6 +840,24 @@ function geschaetzt(p) {
     return !!n && p > n.pos + 0.25;
 }
 
+/**
+ * Welche Stelle der nächste Tipp trifft (Anzeige oben, Pad markiert): bereit/Wartestelle/nach Sprung = die Stelle,
+ * an der die Uhr steht; nach dem Starttipp die nächste Tippstelle (Metrum); sonst die nächste nach dem letzten Tipp,
+ * beim Schätzen die nächste noch vor der Uhr. null = Schluss bzw. Ende.
+ */
+function erwartetePos(p) {
+    if (fertig) return null;
+    const nach = x => EV.find(e => (e.tippstelle || e.warten) && e.pos > x + 1e-6);
+    let n;
+    if (hinhoeren) n = nach(U.s0);
+    else if (!U.laeuft) return U.s0;
+    else {
+        n = nach(letzterTipp ? letzterTipp.pos : U.s0);
+        if (n && geschaetzt(p)) n = nach(p - 0.25) || n;
+    }
+    return n && !n.ende ? n.pos : null;
+}
+
 function akkordeIn(a, b) {
     return A.akkorde.filter(([s]) => { const p = stellePos(s); return p >= a - 1e-6 && p < b - 1e-6; })
         .map(([, sym]) => anzeigeName(sym)).join(' ');
@@ -771,17 +887,39 @@ function zeigen() {
     $('jetzt').innerHTML = textHtml(SEG[i], segEnde(i));
     $('dann').innerHTML = i + 1 < SEG.length
         ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textHtml(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
-    [...$('streifen').children].forEach((b, k) => b.classList.toggle('an', k === i));
-    if (i !== zeigen.seg) {
-        zeigen.seg = i;
-        $('streifen').children[i]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+    // erwarteter Tipp oben (@dd 20261107): Wort mit fetter Tippsilbe bzw. „–“, daneben die Stelle
+    const ep = erwartetePos(p);
+    const ei = ep == null ? -1 : SEG.findIndex(x => Math.abs(x - ep) < 1e-6);
+    const art = stimmTon ? 'Stimmton a' : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft && !fertig) ? 'Start' : 'Tipp';
+    $('erwartet').innerHTML = fertig ? '<span class="was">Ende</span>'
+        : ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
+        : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
+    [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
+    streifenFuehren(i);
+}
+
+/**
+ * Der gesungene Abschnitt bleibt im Streifen etwa im oberen Drittel bis zur Mitte, damit der nächste Text zu
+ * sehen ist (@dd 20261107). Gescrollt wird erst, wenn er dieses Band verlässt, dann sanft an den oberen Rand des
+ * Bandes; so springt es nur alle paar Zeilen. Wer gerade selbst im Streifen wischt, wird nicht gestört.
+ */
+let streifenAngefasst = -1e9;
+function streifenFuehren(i) {
+    const s = $('streifen'), b = s.children[i];
+    if (!b || jetzt() - streifenAngefasst < 2.5) return;
+    const h = s.clientHeight, rel = b.getBoundingClientRect().top - s.getBoundingClientRect().top;
+    if (s.scrollHeight <= h + 2) return;
+    if (rel >= h * 0.15 && rel + b.offsetHeight <= h * 0.6) return;
+    s.scrollTo({ top: Math.max(0, s.scrollTop + rel - h * 0.22), behavior: 'smooth' });
 }
 setInterval(() => { if (U.laeuft) zeigen(); }, 100);
+
+let PADS = [];   // je Abschnitt { gross } (Wort mit Tippsilbe, „–“ oder Wort einer anderen Stimme), für die Anzeige oben
 
 function streifenZeigen() {
     const s = $('streifen');
     s.innerHTML = '';
+    PADS = [];
     SEG.forEach((pos, i) => {
         const b = document.createElement('button');
         const text = textIn(pos, segEnde(i)), ak = akkordeIn(pos, segEnde(i));
@@ -791,11 +929,25 @@ function streifenZeigen() {
         const ev = EV.find(e => Math.abs(e.pos - pos) < 1e-6);
         const oben = segName(pos) + (ak ? ' · ' + ak : '');
         const si = E.stimme ? stimmeIndex(E.stimme) : (ev && ev.stimme != null ? ev.stimme : stimmeIndex(A.textstimme));
-        // singt die eigene Stimme hier nicht: das Wort der anderen, andersfarbig
-        const eigen = wortAn(pos, segEnde(i), si);
-        const fremd = !eigen && (wortAn(pos, segEnde(i), stimmeIndex(A.textstimme)) || wortAn(pos, segEnde(i)));
-        const unten = eigen || (fremd ? `<span class="fremd">${fremd}</span>` : '·');
-        b.innerHTML = `<span class="t">${oben}</span><span class="w">${unten}</span>`;
+        // hält die eigene Stimme hier einen Ton: „–“ statt eines Wortes (@dd 20261107: sonst bringt es raus);
+        // singt sie hier nicht: das Wort der anderen, andersfarbig. Darunter klein der weitere Text bis zur nächsten Stelle.
+        const bis = segEnde(i);
+        let gross, klein = '';
+        if (stimmeAn(pos, si) === 'halten') {
+            gross = '<b>–</b>';
+            klein = kleinText(pos, bis, si);
+        } else {
+            const eigen = wortAn(pos, bis, si);
+            if (eigen) {
+                gross = eigen.html;
+                klein = kleinText(Math.max(pos, eigen.letzte), bis, si);
+            } else {
+                const fremd = wortAn(pos, bis, stimmeIndex(A.textstimme)) || wortAn(pos, bis);
+                gross = fremd ? `<span class="fremd">${fremd.html}</span>` : '·';
+            }
+        }
+        PADS.push({ gross });
+        b.innerHTML = `<span class="t">${oben}</span><span class="w">${gross}</span>` + (klein ? `<span class="k">${klein}</span>` : '');
         b.title = (ak ? ak + ': ' : '') + text;
         b.tabIndex = -1;
         // Gate (@dd 20261105): der Akkord der Stelle klingt, solange der Finger liegt; beim Loslassen steht
@@ -820,6 +972,8 @@ function streifenZeigen() {
         s.appendChild(b);
     });
 }
+// selbst im Streifen wischen: das Mitführen hält kurz still
+['pointerdown', 'wheel', 'touchstart'].forEach(t => $('streifen').addEventListener(t, () => { streifenAngefasst = jetzt(); }, { passive: true }));
 
 /* ---------- Bildschirm wach halten ---------- */
 
@@ -884,21 +1038,25 @@ $('anleitungKnopf').addEventListener('click', () => { einstellungenAuf(false); a
 $('anleitungZu').addEventListener('click', () => anleitungAuf(false));
 try { if (!localStorage.getItem('begleitung-anleitung')) anleitungAuf(true); } catch (e) { /* ohne Speicher nicht von selbst */ }
 
-function regler(id, feld, anzeige = v => v) {
+const REGLER = [];   // [id, feld] für „Klang zurücksetzen“
+function regler(id, feld) {
     const r = $(id), out = r.parentElement.querySelector('output');
+    REGLER.push([id, feld]);
     r.value = E[feld];
-    out.textContent = anzeige(+r.value);
-    r.addEventListener('input', () => { E[feld] = +r.value; out.textContent = anzeige(+r.value); sichern(); pegelSetzen(); });
+    out.textContent = r.value;
+    r.addEventListener('input', () => { E[feld] = +r.value; out.textContent = r.value; sichern(); pegelSetzen(); });
 }
 regler('lautstaerke', 'lautstaerke');
 regler('tiefbass', 'tiefbass');
 regler('waerme', 'waerme');
 regler('hoehen', 'hoehen');
+regler('metroLaut', 'metroLaut');
+regler('metroFilter', 'metroFilter');
 
-// Tippen auf: DDs Stellen, jede Eins oder Eins und Drei (@dd 20261105)
+// Tippen auf: DDs Stellen, jede Eins, Eins und Drei (@dd 20261105) oder jeder Schlag (@dd 20261107)
 (() => {
     const zeile = $('moduswahl');
-    for (const [key, name] of [['stellen', 'DDs'], ['takte', 'Takt'], ['halbe', '2/4']]) {
+    for (const [key, name] of [['stellen', 'DDs'], ['takte', 'Takt'], ['halbe', '2/4'], ['viertel', '1/4']]) {
         const b = document.createElement('button');
         b.textContent = name;
         b.setAttribute('aria-pressed', String(E.modus === key));
@@ -940,6 +1098,11 @@ function stimmwahlBauen() {
 wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], () => {
     if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
 });
+// Metronom an/aus; zum Hören beim Einschalten ein Klick
+wahlZeile('metrowahl', 'metronom', [['aus', 'aus'], ['an', 'an']], () => {
+    audioStart(); pegelSetzen();
+    if (E.metronom === 'an') metroKlick(ctx.currentTime + 0.02, true);
+});
 
 // Klangfarbe: Orgel oder Strings
 (() => {
@@ -957,6 +1120,16 @@ wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], ()
         zeile.appendChild(b);
     }
 })();
+
+// Klang zurücksetzen: Klangfarbe, Regler und Metronom-Klang auf die Vorgabe (@dd 20261107); Metronom an/aus bleibt
+$('klangReset').addEventListener('click', () => {
+    for (const k of KLANG_FELDER) E[k] = VORGABE[k];
+    sichern();
+    for (const [id, feld] of REGLER) { $(id).value = E[feld]; $(id).parentElement.querySelector('output').textContent = E[feld]; }
+    [...$('klangwahl').children].forEach((x, k) => x.setAttribute('aria-pressed', String(['orgel', 'strings'][k] === E.klang)));
+    pegelSetzen();
+    if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
+});
 
 /** Leertaste: läuft die Begleitung, stoppt sie; steht sie, startet sie (am Anfang bzw. dort, wo gestoppt wurde). */
 function startStopp(zeit) {
@@ -1042,6 +1215,8 @@ document.addEventListener('click', e => {
     titel = titel.charAt(0).toUpperCase() + titel.slice(1);
     $('titel').textContent = titel;
     document.title = titel + ' · Begleitung';
+    const st0 = stelleVon(A.anfang ? stellePos(A.anfang) : 0);
+    $('startTakt').textContent = `Takt ${st0.takt}` + (st0.schlag > 1 ? `, Schlag ${st0.schlag}` : '');
     leitsilbenBilden();
     ereignisseBilden();
     anfangStellen();

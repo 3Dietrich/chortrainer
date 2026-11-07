@@ -48,16 +48,23 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #zahnrad { font-size: 34px; line-height: 1; }
 
 #anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 4px 8px; }
-#akkord { grid-row: 1 / 3; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
-#wo { font-size: 16px; color: var(--leise); }
-#jetzt { font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#dann { grid-column: 1 / -1; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* erwarteter Tipp (@dd 20261107): ganz oben, gut lesbar */
+#erwartet { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-bottom: 6px;
+    padding: 4px 12px; border: 2px dashed var(--fokus); border-radius: 12px; font-size: clamp(22px, min(6vw, 4.2vh), 38px); white-space: nowrap; overflow: hidden; }
+#erwartet .was { font-size: 0.6em; color: var(--leise); flex: none; }
+#erwartet .wort { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#erwartet .wort b { color: var(--fokus); font-weight: 800; }
+#erwartet .wo { font-size: 0.6em; color: var(--leise); margin-left: auto; flex: none; }
+#akkord { grid-row: 2 / 4; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
+#wo { grid-column: 2; grid-row: 2; font-size: 16px; color: var(--leise); }
+#jetzt { grid-column: 2; grid-row: 3; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann b { color: var(--text); font-weight: 600; }
 #dann .ak { color: var(--warm); }
 
 /* Pads: alle Tippstellen als Feld, füllt den freien Platz, scrollt senkrecht */
 #streifen { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-    grid-auto-rows: minmax(52px, 1fr); gap: 6px; padding-block: 4px; scrollbar-width: none; }
+    grid-auto-rows: minmax(66px, 1fr); gap: 6px; padding-block: 4px; scrollbar-width: none; }
 #streifen button { min-height: 52px; padding: 4px 6px; touch-action: pan-y; -webkit-touch-callout: none; font-size: 17px; line-height: 1.15;
     overflow: hidden; text-align: left; color: #a8997f; border-radius: 12px; }
 #streifen button .t { display: block; font-size: 13px; color: var(--leise); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -67,6 +74,11 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #streifen button b { color: var(--text); font-weight: 800; font-size: 1.12em; }
 #streifen button.an b { color: #fff; }
 #streifen button.an .t { color: #f3dcb8; }
+/* weiterer Text bis zur nächsten Stelle, klein (@dd 20261107) */
+#streifen button .k { display: block; font-size: 0.68em; color: #8f826c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#streifen button.an .k { color: #e6cfa8; }
+/* das Pad, auf das der nächste Tipp erwartet wird */
+#streifen button.soll { border-style: dashed; border-color: var(--fokus); }
 /* Text anderer Stimmen (die eigene singt dort nicht): kühles Blau, gut lesbar, auch auf dem aktiven Pad */
 .fremd { color: #6a8a9e; }
 #streifen button .fremd { color: #587486; }
@@ -94,7 +106,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 
 /* Tablet hochkant und größer: Pads größer, sie wachsen in den freien Platz (Zeilen 1fr) */
 @media (min-width: 700px) and (min-height: 601px) {
-    #streifen { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-auto-rows: minmax(68px, 1fr); gap: 10px; }
+    #streifen { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); grid-auto-rows: minmax(84px, 1fr); gap: 10px; }
     #streifen button { font-size: 22px; padding: 6px 10px; }
     #streifen button .t { font-size: 16px; }
     #tasten { height: 14vh; }
@@ -114,7 +126,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #wo { font-size: 20px; }
     #jetzt { font-size: clamp(30px, 4.5vh, 52px); }
     #dann { font-size: clamp(22px, 3vh, 34px); }
-    #streifen { grid-column: 1; grid-row: 3; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: minmax(72px, 1fr); }
+    #streifen { grid-column: 1; grid-row: 3; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: minmax(92px, 1fr); }
     #streifen button { font-size: clamp(22px, 2.6vh, 30px); }
     #streifen button .t { font-size: clamp(15px, 1.8vh, 20px); }
     #tasten { grid-column: 2; grid-row: 2 / 4; height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -184,11 +196,12 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), ja weiter (Tipp weit weg von jeder Stelle), Ende.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
     </div>
-    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (DDs, Takt, 2/4), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Anleitung.">⚙</button>
+    <button id="zahnrad" class="rund" aria-label="Einstellungen" data-hilfe="Tippen auf (DDs, Takt, 2/4, 1/4), Klang, Lautstärke, Tiefbass, Wärme, Höhen, Metronom, Klang zurücksetzen, Anleitung.">⚙</button>
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
-<main id="anzeige" data-hilfe="Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
+<main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
+    <div id="erwartet"></div>
     <div id="wo"><span id="stelle"></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
@@ -209,7 +222,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
         <button id="anleitungKnopf" data-hilfe="Erklärt, wie die Begleitung funktioniert.">So geht's</button>
         <button id="zu" class="rund" aria-label="Einstellungen schließen" data-hilfe="Schließt die Einstellungen (auch Esc).">✕</button>
     </div>
-    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. Umschalten stellt auf den Anfang.">
+    <div class="gruppe" data-hilfe="Wo getippt wird. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Takt: jede Eins. 2/4: Eins und Drei. 1/4: jeder Schlag. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
         <span class="name">Tippen auf</span><div id="moduswahl" class="zeile"></div>
     </div>
     <div class="gruppe" data-hilfe="Deine Stimme: aus ihr kommen der Text und die Wörter auf den Pads. Der Alt singt in Takt 10 und 13 bis 14 anderen Text als Tenor und Bass.">
@@ -225,18 +238,25 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <label data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger.">Tiefbass <input id="tiefbass" type="range" min="0" max="100"><output></output></label>
     <label data-hilfe="Stereo-Chorus: macht den Klang breiter und lebendiger. Links aus.">Wärme <input id="waerme" type="range" min="0" max="100"><output></output></label>
     <label data-hilfe="Weiter links dunkler und weicher, weiter rechts heller und deutlicher.">Höhen <input id="hoehen" type="range" min="0" max="100"><output></output></label>
+    <div class="gruppe" data-hilfe="Sanfter, dumpfer Klick auf jeden Schlag, solange die Begleitung nach einem Tipp läuft. Kommt an der erwarteten Stelle kein Tipp, schweigt er wie die Akkorde.">
+        <span class="name">Metronom</span><div id="metrowahl" class="zeile"></div>
+    </div>
+    <label data-hilfe="Lautstärke des Metronoms, unabhängig von der Begleitung.">Klick laut <input id="metroLaut" type="range" min="0" max="100"><output></output></label>
+    <label data-hilfe="Tiefpass für das Metronom: links dumpf und weich, rechts heller und knackiger.">Klick hell <input id="metroFilter" type="range" min="0" max="100"><output></output></label>
+    <button id="klangReset" data-hilfe="Klang, Lautstärke, Tiefbass, Wärme, Höhen und den Metronom-Klang auf die Vorgabe zurück. Tippen auf, Meine Stimme und Metronom an/aus bleiben.">Klang zurücksetzen</button>
 </section>
 
 <div id="anleitung" role="dialog" aria-modal="true" aria-labelledby="anleitungTitel" hidden>
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
-            <li><b>A</b> halten: Ton a</li>
-            <li><b>weiter</b> tippen, wenn ihr anfangt</li>
-            <li>einen Takt später nochmal: das gibt das Tempo</li>
-            <li>dann immer auf die <b>dicke Silbe</b> tippen</li>
+            <li><b>A</b> halten: Ton a (stimmen)</li>
+            <li><b>weiter</b>: der erste Schlag startet mit <span id="startTakt">Takt 2</span></li>
+            <li>das nächste <b>weiter</b> ist je nach Einstellung der nächste Viertel, 2/4 oder ganze Takt: das gibt das Tempo</li>
+            <li>dann immer auf die <b>dicke Silbe</b> tippen, oder auslassen</li>
+            <li><b>Stopp</b> stoppt. Auf eine Silbe drücken: der (erste) Akkord dort klingt</li>
         </ol>
-        <p>Kein Tipp: es bleibt still.</p>
+        <p>Oben steht, welcher Tipp erwartet wird. Ein Strich heißt: deine Stimme hält dort den Ton.</p>
         <button id="anleitungZu">Los geht's</button>
     </div>
 </div>
