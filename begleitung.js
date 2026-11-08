@@ -1165,8 +1165,13 @@ function streifenFuehren(i) {
     if (s.scrollHeight <= h + 2) return;
     // in der Mitte halten (@dd 20261108): weicht die Zeilenmitte mehr als ein Achtel der Höhe ab, sanft zurück
     const mitte = rel + b.offsetHeight / 2;
-    if (Math.abs(mitte - h / 2) <= h * 0.125) return;
-    s.scrollTo({ top: Math.max(0, s.scrollTop + mitte - h / 2), behavior: 'smooth' });
+    if (Math.abs(mitte - h * 0.45) <= h * 0.1) return;
+    // dasselbe Ziel nicht alle 100 ms neu anstoßen: Safari beginnt das sanfte Scrollen dann jedes Mal von vorn
+    // und kommt nicht vom Fleck (@dd 20261108: die Pads bewegten sich am iPhone nicht zur Mitte)
+    const ziel = Math.round(Math.max(0, Math.min(s.scrollHeight - h, s.scrollTop + mitte - h * 0.45)));
+    if (Math.abs(ziel - (streifenFuehren.ziel ?? -999)) < 6 && jetzt() - streifenFuehren.t < 1.2) return;
+    streifenFuehren.ziel = ziel; streifenFuehren.t = jetzt();
+    s.scrollTo({ top: ziel, behavior: 'smooth' });
 }
 setInterval(() => { if (U.laeuft) zeigen(); }, 100);
 
@@ -1282,14 +1287,21 @@ $('zahnrad').addEventListener('click', () => einstellungenAuf($('einstellungen')
 $('zu').addEventListener('click', () => einstellungenAuf(false));
 
 /* Anleitung: beim ersten Besuch von selbst, sonst über „So geht's“ in den Einstellungen */
+// Anleitung kommt bei jedem Öffnen, bis „nicht mehr zeigen“ abgehakt ist (@dd 20261108)
 function anleitungAuf(auf) {
     $('anleitung').hidden = !auf;
-    if (auf) $('anleitungZu').focus();
-    else { try { localStorage.setItem('begleitung-anleitung', '2'); } catch (e) { /* egal */ } }
+    if (auf) {
+        try { $('anleitungWeg').checked = localStorage.getItem('begleitung-anleitung') === '2'; } catch (e) { /* egal */ }
+        $('anleitungZu').focus();
+    } else {
+        try {
+            if ($('anleitungWeg').checked) localStorage.setItem('begleitung-anleitung', '2');
+            else localStorage.removeItem('begleitung-anleitung');
+        } catch (e) { /* egal */ }
+    }
 }
 $('anleitungKnopf').addEventListener('click', () => { einstellungenAuf(false); anleitungAuf(true); });
 $('anleitungZu').addEventListener('click', () => anleitungAuf(false));
-// neue Anleitung (Viertel, @dd 20261107): wer die alte gesehen hat, bekommt sie einmal wieder
 try { if (localStorage.getItem('begleitung-anleitung') !== '2') anleitungAuf(true); } catch (e) { /* ohne Speicher nicht von selbst */ }
 
 const REGLER = [];   // [id, feld] für „Klang zurücksetzen“
@@ -1572,8 +1584,8 @@ function blitz(el) {
     f.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;background:radial-gradient(circle at '
         + x + 'px ' + y + 'px, rgba(255,250,215,.98) 0, rgba(255,214,90,.75) 46px, rgba(255,200,60,.25) 22vmax, rgba(255,255,255,0) 60vmax)';
     document.body.appendChild(f);
-    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => f.remove();
-    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'ease-out' });
+    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1200, easing: 'cubic-bezier(.2,.6,.3,1)' }).onfinish = () => f.remove();
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 700, easing: 'ease-out' });
     try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { /* iPhone kennt das nicht */ }
 }
 

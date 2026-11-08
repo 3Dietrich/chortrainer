@@ -4218,8 +4218,8 @@ function blitz(el) {
     f.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;background:radial-gradient(circle at '
         + x + 'px ' + y + 'px, rgba(255,250,215,.98) 0, rgba(255,214,90,.75) 46px, rgba(255,200,60,.25) 22vmax, rgba(255,255,255,0) 60vmax)';
     document.body.appendChild(f);
-    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => f.remove();
-    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'ease-out' });
+    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1200, easing: 'cubic-bezier(.2,.6,.3,1)' }).onfinish = () => f.remove();
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 700, easing: 'ease-out' });
     try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { /* iPhone kennt das nicht */ }
 }
 

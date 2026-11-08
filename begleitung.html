@@ -273,6 +273,8 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #anleitung p { margin: 6px 0; }
 #anleitung ol { padding-left: 1.3em; margin: 6px 0; }
 #anleitung li { margin-bottom: 6px; }
+#anleitung .nichtmehr { display: flex; align-items: center; gap: 12px; min-height: 52px; margin-top: 6px; font-size: .85em; color: var(--leise); cursor: pointer; }
+#anleitung .nichtmehr input { width: 30px; height: 30px; accent-color: var(--warm); flex: none; }
 #anleitung button { width: 100%; min-height: 58px; margin-top: 8px; font-size: 1em; font-weight: 700; background: var(--an); border-color: var(--an-rand); color: var(--an-text); }
 
 /* Hilfemodus (Standard @dd): Ringe um erklärbare Elemente, Klick zeigt Hilfe statt Funktion */
@@ -395,6 +397,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
             <li><b>Stopp</b> stoppt. Kein Tipp mehr: nach einem Takt hört sie von selbst auf</li>
         </ol>
         <p>Oben: der erwartete Tipp. Strich: deine Stimme hält den Ton.</p>
+        <label class="nichtmehr"><input type="checkbox" id="anleitungWeg"> nicht mehr zeigen</label>
         <button id="anleitungZu">Los geht's</button>
     </div>
 </div>
