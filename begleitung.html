@@ -285,6 +285,11 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     position: fixed; z-index: 30; max-width: min(26em, calc(100vw - 24px)); background: var(--blase); color: var(--blase-text);
     border-radius: 10px; padding: 10px 14px; font-size: 18px; box-shadow: 0 6px 24px var(--schatten);
 }
+/* Hilfemodus: oben das Angebot, die Anleitung zu öffnen */
+#hilfeAngebot { position: fixed; z-index: 11; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 64px);
+    display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 14px; border-radius: 10px; max-width: calc(100vw - 20px);
+    background: var(--blase); color: var(--blase-text); box-shadow: 0 6px 24px var(--schatten); font-size: 16px; white-space: nowrap; }
+#hilfeAngebot button { min-height: 44px; font-weight: 700; background: var(--fokus); color: #000; border-color: var(--fokus); }
 #meldung { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); background: #000c; color: #fff; padding: 14px 20px; border-radius: 10px; z-index: 8; }
 </style>
 </head>
@@ -401,6 +406,10 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     </div>
 </div>
 
+<div id="hilfeAngebot" hidden>
+    <span>Umrandetes antippen: Erklärung</span>
+    <button id="hilfeAnleitung">So geht's</button>
+</div>
 <div id="blase" hidden></div>
 <div id="meldung" hidden></div>
 <script src="begleitung.js"></script>

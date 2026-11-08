@@ -1489,11 +1489,14 @@ function hilfeModus(an) {
     hilfe = an;
     document.body.classList.toggle('hilfemodus', an);
     $('hilfeKnopf').setAttribute('aria-pressed', String(an));
+    // im Hilfemodus oben das Angebot „So geht's“ (@dd 20261108: das ? soll auch die Anleitung anbieten)
+    $('hilfeAngebot').hidden = !an;
     if (!an) $('blase').hidden = true;
 }
+$('hilfeAnleitung').addEventListener('click', () => { hilfeModus(false); anleitungAuf(true); });
 $('hilfeKnopf').addEventListener('click', e => { e.stopPropagation(); hilfeModus(!hilfe); });
 document.addEventListener('click', e => {
-    if (!hilfe || e.target.closest('#hilfeKnopf')) return;
+    if (!hilfe || e.target.closest('#hilfeKnopf, #hilfeAngebot')) return;
     e.preventDefault(); e.stopPropagation();
     const el = e.target.closest('[data-hilfe]');
     const blase = $('blase');
