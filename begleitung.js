@@ -940,26 +940,14 @@ function einstiegsAkkord(pos) {
 }
 
 /**
- * Einstieg für Stimme si an pos (@dd 20261108: jeder Stimmknopf ist ein Einstiegsknopf): der Ton, mit dem sie dort
- * einsetzt, und der Akkord dazu. Setzt sie erst später ein (Sopran bei Bereit: Takt 18), ihr erster Ton danach
- * mit dem Akkord an dieser Stelle.
+ * Einstieg für Stimme si an pos (Pads, Taste a): der Ton, mit dem sie dort einsetzt, und der Akkord dazu. Setzt sie
+ * erst später ein (Sopran: Takt 18), ihr erster Ton danach mit dem Akkord an dieser Stelle.
  */
 function einstiegFuer(pos, si) {
     let n = tonFuer(pos, si);
     if (!n && si >= 0 && P.noten[si]) n = P.noten[si].find(x => x.t >= pos - 1e-6) || null;
     const a = n && n.t >= pos + 8 ? einstiegsAkkord(n.t) : einstiegsAkkord(pos);
     return { a, n };
-}
-
-/** Stimmknöpfe beschriften: Buchstabe und Einstiegston an der Stelle, an der die Begleitung steht */
-function stimmknoepfeZeigen() {
-    if (!P) return;
-    const pos = einstieg();
-    for (const b of $('stimmchips').children) {
-        const { n } = einstiegFuer(pos, stimmeIndex(b.dataset.stimme));
-        const ton = n ? n.name : '';
-        if (b.dataset.ton !== ton) { b.dataset.ton = ton; b.querySelector('small').textContent = ton; }
-    }
 }
 
 /**
@@ -971,7 +959,28 @@ function akkordTupfer(sym, wann) {
     if (!l) return;
     akkordJetzt = sym;
     const toene = [[l.bass, 'grund'], [l.bass - 12, 'sub'], ...(E.spiel !== 'bass' ? l.oben.map(m => [m, 'oben']) : [])];
-    for (const [m, art] of toene) tonAn(m, art, wann, false, 0.05).tupfer();
+    return toene.map(([m, art]) => { const t = tonAn(m, art, wann, false, 0.05); t.tupfer(); return t; });
+}
+
+/**
+ * Pad drücken (@dd 20261108): Einstieg an dieser Stelle. Der Akkord tippt kurz an (50 ms an, 50 ms halten, langes
+ * Abklingen), der Ton der eigenen Stimme bleibt liegen, solange der Finger liegt. Wird daraus ein Wischen, ist
+ * beides sofort weg.
+ */
+let padToene = [];
+function padAn(pos) {
+    audioStart();
+    const ta = ctx.currentTime;
+    stimmtonAus(ta);
+    padToene.forEach(t => t.daempfen());
+    const { a, n } = einstiegFuer(pos, stimmeIndex(E.stimme));
+    padToene = a ? akkordTupfer(a, ta) || [] : [];
+    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
+}
+function padAus(wischen) {
+    if (!ctx) return;
+    stimmtonAus(ctx.currentTime);
+    if (wischen) { padToene.forEach(t => t.daempfen()); padToene = []; }
 }
 
 /**
@@ -1112,7 +1121,6 @@ function zeigen() {
         : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross === '·' ? 'zählen' : PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
-    stimmknoepfeZeigen();
     selbstKnopfZeigen();
 }
 
@@ -1216,18 +1224,17 @@ function streifenZeigen() {
         let an = false;
         b.addEventListener('pointerdown', e => {
             if (hilfe || e.button > 0) return;
-            audioStart();
-            const a = akkordBei(pos);
-            if (a) { akkordSpielen(a, ctx.currentTime, false, 64); an = true; }
+            padAn(pos); an = true;
         });
         b.addEventListener('pointerup', () => {
-            if (hilfe) return;
-            springenAuf(pos, false, false);
-            if (ctx) alleAus(ctx.currentTime, 0.15);
+            if (hilfe || !an) return;
             an = false;
+            springenAuf(pos, false, false);
+            padAus(false);
+            zeigen();
         });
         ['pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => {
-            if (an && ctx) alleAus(ctx.currentTime, 0.15);
+            if (an) padAus(true);
             an = false;
         }));
         s.appendChild(b);
@@ -1346,32 +1353,13 @@ function stimmwahlBauen() {
         zeile.innerHTML = '';
         for (const n of P.stimmen) {
             const b = document.createElement('button');
-            b.innerHTML = `<b>${name(n)}</b><small></small>`;
+            b.textContent = name(n);
             b.dataset.stimme = n;
             b.title = n;
-            b.setAttribute('aria-label', 'Einstieg und Meine Stimme: ' + n);
+            b.setAttribute('aria-label', 'Meine Stimme: ' + n);
             b.setAttribute('aria-pressed', String(E.stimme === n));
-            // Gate (wie früher A): Aufsetzen = Akkord kurz und Einstiegston dieser Stimme, Loslassen = Ton aus.
-            // Die gedrückte Stimme wird zugleich Meine Stimme (Text, Pads).
-            b.addEventListener('pointerdown', e => {
-                if (hilfe || e.button > 0) return;
-                e.preventDefault();
-                try { b.setPointerCapture(e.pointerId); } catch (err) { /* ohne echten Finger */ }
-                b.classList.add('druck');
-                if (E.stimme !== n) stimmeSetzen(n);
-                stimmton(stimmeIndex(n));
-            });
-            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => b.addEventListener(t, () => {
-                b.classList.remove('druck');
-                if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
-            }));
-            // Tastatur (Enter/Leertaste): kurzer Ton, ein Gate gibt es dort nicht
-            b.addEventListener('click', e => {
-                if (hilfe || e.detail !== 0) return;
-                if (E.stimme !== n) stimmeSetzen(n);
-                stimmton(stimmeIndex(n));
-                setTimeout(() => { if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); } }, 1500);
-            });
+            // stumm, nur die Wahl der eigenen Stimme (@dd 20261108); den Einstieg geben die Pads
+            b.addEventListener('click', () => stimmeSetzen(n));
             zeile.appendChild(b);
         }
     }

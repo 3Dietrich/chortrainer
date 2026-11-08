@@ -107,15 +107,9 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #wo { grid-column: 1 / -1; grid-row: 2; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stimmchips { display: flex; gap: 4px; flex: none; }
-/* Stimmknöpfe = Einstiegsknöpfe (@dd 20261108): Buchstabe und Einstiegston; gedrückt halten = Akkord kurz, Ton bleibt */
-#stimmchips { gap: 6px; }
-#stimmchips button { min-height: 50px; min-width: 56px; padding: 2px 8px; border-radius: 8px; color: var(--leise);
-    display: flex; align-items: baseline; justify-content: center; gap: 4px; }
-#stimmchips button b { font-size: 22px; font-weight: 800; }
-#stimmchips button small { font-size: 17px; font-weight: 700; color: var(--warm); min-width: 1.2em; text-align: left; }
+/* Stimmwahl: stumm, klein und unauffällig (@dd 20261108); den Einstieg geben die Pads */
+#stimmchips button { min-height: 40px; min-width: 42px; padding: 2px 8px; border-radius: 7px; font-size: 17px; font-weight: 700; color: var(--leise); }
 #stimmchips button[aria-pressed="true"] { color: var(--an-text); }
-#stimmchips button[aria-pressed="true"] small { color: var(--an-b); }
-#stimmchips button.druck { outline: 3px solid var(--fokus); outline-offset: 1px; }
 #jetzt { grid-column: 2; grid-row: 3; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann b { color: var(--text); font-weight: 600; }
@@ -307,13 +301,13 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 
 <main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp, nach Stopp: weiter ab), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
     <div id="erwartet"></div>
-    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Einstieg je Stimme: neben dem Buchstaben steht der Ton, mit dem die Stimme an der aktuellen Stelle einsetzt (setzt sie erst später ein, ihr erster Ton danach). Gedrückt halten: der Akkord klingt kurz an, der Ton bleibt liegen, solange du hältst. Die gedrückte Stimme wird zugleich deine Stimme (Text und Pads). Läuft die Begleitung, bleibt sie dabei an der Stelle stehen."></span></div>
+    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme: aus ihr kommen der Text, die Silben auf den Pads und der Einstiegston beim Drücken eines Pads."></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
     <div id="dann"></div>
 </main>
 
-<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter das Wort, die Tippsilbe fett. Gedrückt halten: der Akkord dort klingt, solange der Finger liegt. Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
+<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter die Silbe. Gedrückt halten: der Akkord tippt kurz an, der Ton deiner Stimme an dieser Stelle bleibt liegen (Einstieg). Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
 <button id="nachOben" hidden aria-label="Ganz nach oben" data-hilfe="Erscheint beim schnellen Hochwischen: springt im Streifen ganz nach oben zu Takt 1.">
     <svg class="sym" viewBox="0 0 24 24"><path d="M5 4h14"/><path d="M12 20V9"/><path d="M6.5 13.5L12 8l5.5 5.5"/></svg>Anfang
 </button>
@@ -392,10 +386,10 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
-            <li><b>S A T B</b> oben halten: der Akkord tippt kurz an, der Anfangston der Stimme bleibt liegen (Einstieg)</li>
+            <li>Oben deine Stimme wählen (S A T B). Eine <b>Silbe</b> halten: der Akkord tippt kurz an, dein Ton dort bleibt liegen (Einstieg)</li>
             <li><b>weiter</b>: der erste Schlag ist <span id="startTakt">Takt 1</span>, dann jeder Viertel mit (eins, zwei, Mei-, -ne, See- …)</li>
             <li>dann auf jeden Schlag tippen, die <b>dicke Silbe</b> zeigt wo, oder auslassen</li>
-            <li><b>Stopp</b> stoppt. Auf eine Silbe drücken: der (erste) Akkord dort klingt</li>
+            <li><b>Stopp</b> stoppt. Kein Tipp mehr: nach einem Takt hört sie von selbst auf</li>
         </ol>
         <p>Oben: der erwartete Tipp. Strich: deine Stimme hält den Ton.</p>
         <button id="anleitungZu">Los geht's</button>
