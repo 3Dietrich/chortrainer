@@ -351,6 +351,9 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
                 <div id="klangwahl" class="seg" data-hilfe="Klangfarbe. Orgel: Flötenregister, klarer Einsatz. Strings: weicher Streicherteppich mit Vibrato."></div>
                 <button id="klangReset" class="klein" data-hilfe="Klang, Lautstärke, Tiefbass, Höhen und die Metronom-Lautstärke auf die Vorgabe zurück. Tippen, Stimme und Metronom an/aus bleiben.">zurücksetzen</button>
             </div>
+            <div class="zeile" data-hilfe="Wie viele Töne höchstens gleichzeitig klingen. Kommt einer dazu, verstummt zuerst der älteste schon ausklingende. Weniger Stimmen heißt weniger Rechenarbeit fürs Handy (gegen Knacksen bei schnellen Tipps). Der gehaltene Ton deiner Stimme beim Drücken eines Pads bleibt immer.">
+                <span class="name">Stimmen</span><div id="stimmenwahl" class="seg"></div>
+            </div>
             <div class="paar">
                 <label class="regler" data-hilfe="Gesamtlautstärke der Begleitung."><span class="kopf"><span>Lautstärke</span><output></output></span><input id="lautstaerke" type="range" min="0" max="100"></label>
                 <label class="regler" data-hilfe="Zusätzlicher Bass eine Oktave unter der tiefsten Stimme. Draußen braucht es mehr, in der Kirche weniger."><span class="kopf"><span>Tiefbass</span><output></output></span><input id="tiefbass" type="range" min="0" max="100"></label>

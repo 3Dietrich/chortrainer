@@ -34,7 +34,7 @@ const SPEICHER = 'begleitung-einstellungen';
 // Klang-Vorgabe = @dds Einstellung auf der Hörseite (Stand 20261107). Gespeichert wird nur, was davon abweicht:
 // wer nichts verstellt hat, bekommt eine neue Vorgabe von selbst, wer verstellt hat, behält seins (Knopf „Klang zurücksetzen“).
 const VORGABE = { klang: 'strings', lautstaerke: 66, tiefbass: 96, waerme: 50, hoehen: 11, modus: 'viertel', stimme: '', spiel: 'akkord',
-    metronom: 'an', metroLaut: 40, metroFilter: 0 };
+    metronom: 'an', metroLaut: 40, metroFilter: 0, stimmen: 8 };
 const FEST = { waerme: 50, metroFilter: 0 };
 const KLANG_FELDER = ['klang', 'lautstaerke', 'tiefbass', 'hoehen', 'metroLaut'];
 let E = { ...VORGABE };
@@ -123,19 +123,13 @@ function tonName(step, alter) {
 }
 
 /**
- * Einstiegston der Stimme si an pos: der Ton, mit dem sie dort einsetzt. Beginnt ihre Phrase kurz vorher mit einem
- * Auftakt (weniger als ein Takt, davor Pause), der erste Ton des Auftakts (Tenor bei Seele: „Mei-ne“ auf c, @dd
- * 20261107: „Am (c)“); sonst der Ton, der an pos klingt, sonst der nächste innerhalb von zwei Takten.
+ * Einstiegston der Stimme si an pos: der Ton, der dort klingt, sonst der nächste innerhalb von zwei Takten.
+ * (Kein Rückgriff mehr auf einen Auftakt davor: der Anfang ist 1:1, an 2:1 und 2:2 gilt der Ton dort, @dd 20261108)
  */
 function tonFuer(pos, si) {
     const n = si >= 0 && P.noten[si];
     if (!n) return null;
-    let i = n.findIndex(x => x.t < pos + 1e-6 && x.ende > pos + 1e-6);
-    if (i < 0) { const x = n.find(y => y.t >= pos - 1e-6 && y.t < pos + 8); return x || null; }
-    let k = i;
-    while (k > 0 && Math.abs(n[k - 1].ende - n[k].t) < 1e-6 && pos - n[k - 1].t < 4 - 1e-6) k--;
-    const auftakt = k < i && (k === 0 || n[k - 1].ende < n[k].t - 1e-6);
-    return auftakt ? n[k] : n[i];
+    return n.find(x => x.t < pos + 1e-6 && x.ende > pos + 1e-6) || n.find(x => x.t >= pos - 1e-6 && x.t < pos + 8) || null;
 }
 
 /**
@@ -426,17 +420,21 @@ function haltenAb(p, wann) {
  * verstummt zuerst der älteste schon ausklingende, sonst der älteste. Jeder Ton hängt sich nach dem Ende ganz aus dem
  * Klanggraphen (auch vom Vibrato), sonst sammeln sich tote Knoten und kosten das iPhone Rechenzeit.
  */
-const MAX_STIMMEN = 8;
+// Zahl der Stimmen einstellbar: 4, 6, 8, 12 (@dd 20261108: bei schnellen Tipps knackste es noch). Der gehaltene
+// Sington beim Ansingen (Pad, Taste a) wird nie geklaut; die Akkordtöne treten für ihn zurück.
+const MAX_STIMMEN = () => E.stimmen || 8;
 const aktiv = [];   // klingende Töne, älteste zuerst
 function stimmenKappen(max) {
     while (aktiv.length > max) {
-        const i = aktiv.findIndex(v => v.frei());
-        aktiv.splice(i >= 0 ? i : 0, 1)[0].daempfen();
+        const frei = aktiv.findIndex(v => v !== stimmTon && v.frei());
+        const i = frei >= 0 ? frei : aktiv.findIndex(v => v !== stimmTon);
+        if (i < 0) break;
+        aktiv.splice(i, 1)[0].daempfen();
     }
 }
 
 function tonAn(midi, art, wann, weich, anstieg = null) {
-    stimmenKappen(MAX_STIMMEN - 1);
+    stimmenKappen(MAX_STIMMEN() - 1);
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     const knoten = [];   // zum Abhängen nach dem Ende
     const g = ctx.createGain();
@@ -504,8 +502,8 @@ function tonAn(midi, art, wann, weich, anstieg = null) {
             ton.tot = true;
             const t = ctx.currentTime;
             haltenAb(g.gain, t);
-            g.gain.setTargetAtTime(0, t, 0.006);
-            stopBei(t + 0.05);
+            g.gain.setTargetAtTime(0, t, 0.012);
+            stopBei(t + 0.08);
         },
         /** Einstiegsakkord (@dd 20261107): 50 ms an, 50 ms halten, dann langes Abklingen (nach 1 s ein Viertel) */
         tupfer(an = 0.05, halten = 0.05, tc = 1 / Math.log(4)) {
@@ -974,8 +972,8 @@ function padAn(pos) {
     stimmtonAus(ta);
     padToene.forEach(t => t.daempfen());
     const { a, n } = einstiegFuer(pos, stimmeIndex(E.stimme));
+    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);   // zuerst: beim Stimmenklau geschützt
     padToene = a ? akkordTupfer(a, ta) || [] : [];
-    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
 }
 function padAus(wischen) {
     if (!ctx) return;
@@ -997,9 +995,9 @@ function stimmton(si = stimmeIndex(E.stimme)) {
     springenAuf(pos, false, false);
     gestopptBei = null;
     alleAus(ta, 0.1);
-    if (a) akkordTupfer(a, ta);   // nur angetippt, klingt lang ab; der Ton der Stimme ist die Vorgabe
-    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme das a
+    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme das a; zuerst, damit er geschützt ist
     stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
+    if (a) akkordTupfer(a, ta);   // nur angetippt, klingt lang ab; der Ton der Stimme ist die Vorgabe
     zeigen();
 }
 
@@ -1369,6 +1367,7 @@ function stimmeSetzen(n) {
     document.querySelectorAll('[data-stimme]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.stimme === n)));
     leitsilbenBilden(); streifenZeigen(); zeigen();
 }
+wahlZeile('stimmenwahl', 'stimmen', [4, 6, 8, 12].map(z => [z, String(z)]), () => stimmenKappen(MAX_STIMMEN()));
 wahlZeile('spielwahl', 'spiel', [['akkord', 'Akkord'], ['bass', 'nur Bass']], () => {
     if (ctx && akkordJetzt && akkordJetzt !== '-') { const a = akkordJetzt; alleAus(ctx.currentTime, 0.2); akkordSpielen(a, ctx.currentTime, false); }
 });
@@ -1492,7 +1491,7 @@ const MODUSNAME = { viertel: '1/4', halbe: '2/4', takte: 'Takt', stellen: 'DDs' 
 function kurzstand() {
     const r = document.documentElement;
     $('kurz_tippen').textContent = `${MODUSNAME[E.modus] || ''} · ${E.spiel === 'bass' ? 'nur Bass' : 'Akkord'}`;
-    $('kurz_klang').textContent = `${E.klang === 'orgel' ? 'Orgel' : 'Strings'} · ${E.lautstaerke} · Tiefbass ${E.tiefbass} · Höhen ${E.hoehen}`;
+    $('kurz_klang').textContent = `${E.klang === 'orgel' ? 'Orgel' : 'Strings'} · ${E.lautstaerke} · Tiefbass ${E.tiefbass} · Höhen ${E.hoehen} · ${MAX_STIMMEN()} Stimmen`;
     $('kurz_metronom').textContent = E.metronom === 'an' ? `an · ${E.metroLaut}` : 'aus';
     $('kurz_darstellung').textContent = (r.dataset.hell ? 'Hell' : 'Dunkel') + (r.dataset.kontrast ? ' · Lesbarkeit ' + (r.dataset.kontrast === 'max' ? 'Max' : 'Hoch') : '');
 }

@@ -4562,7 +4562,7 @@
           <tied type="start"/>
           </notations>
         <lyric number="1" default-x="-0.96" default-y="-50.27" relative-y="-30">
-          <syllabic>begin</syllabic>
+          <syllabic>single</syllabic>
           <text>mh</text>
           </lyric>
         </note>
@@ -4593,8 +4593,8 @@
         <type>quarter</type>
         <stem>up</stem>
         <lyric number="1" default-y="-50.27" relative-y="-30">
-          <syllabic>middle</syllabic>
-          <text>mh</text>
+          <syllabic>begin</syllabic>
+          <text>ver</text>
           </lyric>
         </note>
       </measure>
@@ -4613,6 +4613,10 @@
         <notations>
           <tied type="start"/>
           </notations>
+        <lyric number="1" default-x="-0.96" default-y="-50.27" relative-y="-30">
+          <syllabic>end</syllabic>
+          <text>wirrt,</text>
+          </lyric>
         </note>
       </measure>
     <measure number="10" width="171.09">
@@ -4641,7 +4645,7 @@
         <type>half</type>
         <stem>up</stem>
         <lyric number="1" default-y="-50.27" relative-y="-30">
-          <syllabic>middle</syllabic>
+          <syllabic>begin</syllabic>
           <text>su</text>
           </lyric>
         </note>
