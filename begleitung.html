@@ -88,6 +88,9 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #zustand[data-art="schaetzt"] { background: var(--schaetzt); }
 .rund { width: 46px; min-height: 46px; padding: 0; border-radius: 50%; font-size: 24px; font-weight: 800; flex: none; display: grid; place-items: center; }
 @media (max-width: 440px) { header h1 { display: none; } }
+/* Symbol links: eine Sekunde drücken = zurück zu den Noten; beim Drücken leicht gedimmt */
+#marke { width: 34px; height: 34px; border-radius: 7px; flex: none; -webkit-touch-callout: none; transition: opacity .9s; }
+#marke.druck { opacity: .35; }
 
 #anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 2px 6px; }
 /* erwarteter Tipp (@dd 20261107): ganz oben, gut lesbar */
@@ -289,6 +292,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </head>
 <body>
 <header>
+    <img id="marke" src="icon-192.png" alt="" draggable="false" data-hilfe="Zurück zu den Noten: eine Sekunde gedrückt halten.">
     <h1 id="titel">Begleitung</h1>
     <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), gestoppt, Schluss.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
@@ -317,11 +321,11 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </button>
 
 <div id="tasten">
-    <button id="aKnopf" aria-pressed="false" data-hilfe="Einstieg: zeigt Akkord und Ton deiner Stimme an der Stelle, an der die Begleitung steht, am Anfang z.B. Am (c). Drücken: der Akkord klingt nur ganz kurz an (0,1 Sekunden), dein Ton bleibt liegen, solange du hältst. Hast du ein Pad gewählt oder gestoppt, gilt diese Stelle; läuft die Begleitung, geht es zurück an den Anfang. Tastatur: a halten.">A</button>
+    <button id="aKnopf" aria-pressed="false" data-hilfe="Einstieg: zeigt Akkord und Ton deiner Stimme an der Stelle, an der die Begleitung steht, am Anfang z.B. Am (c). Drücken: der Akkord klingt nur ganz kurz an (0,1 Sekunden), dein Ton bleibt liegen, solange du hältst. Hast du ein Pad gewählt oder gestoppt, gilt diese Stelle; läuft die Begleitung, die Stelle, an der sie gerade ist. Tastatur: a halten.">A</button>
     <button id="stoppKnopf" data-hilfe="Stopp: sofort still, schon beim Aufsetzen des Fingers. Die Begleitung merkt sich die Stelle, weiter startet dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">
         <svg class="sym" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg>Stopp
     </button>
-    <button id="weiter" data-hilfe="Erster Tipp startet (bei Seele), der zweite einen Viertel später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
+    <button id="weiter" data-hilfe="Erster Tipp startet (am Liedanfang 1:1, sonst an der gewählten Stelle), der zweite einen Viertel später gibt das Tempo. Danach auf die Stellen tippen, die die Pads zeigen. Akkorde im selben Takt kommen von selbst. Fehlt ein Tipp, bleibt es still, bis du wieder tippst. Tastatur und Fußtaster: Pfeil rechts, Bild runter; Leertaste startet und stoppt.">weiter</button>
 </div>
 
 <section id="einstellungen" hidden aria-label="Einstellungen">
@@ -336,7 +340,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <details class="fach" data-fach="tippen" style="--fc:#c98a2e">
         <summary data-hilfe="Tippen: worauf getippt wird und was gespielt wird. Deine Stimme wählst du oben auf der Seite (S A T B)."><i class="kachel"><svg class="sym" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M12 9.5a1.5 1.5 0 0 1 3 0V11"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L4.5 15.6a1.5 1.5 0 0 1 2.3-1.9L9 16"/></svg></i><b>Tippen</b><span class="kurz" id="kurz_tippen"></span></summary>
         <div class="inhalt">
-            <div class="zeile" data-hilfe="Wo getippt wird. 1/4: jeder Schlag (Vorgabe). 2/4: Eins und Drei. Takt: jede Eins. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Alle zählen ab 1:1, die Begleitung steht beim Laden bei Seele bereit. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
+            <div class="zeile" data-hilfe="Wo getippt wird. 1/4: jeder Schlag (Vorgabe). 2/4: Eins und Drei. Takt: jede Eins. DDs: die Stellen aus dem Ablauf (Seele, fangen, Kerker …, ab Takt 15 jede Eins). Alle zählen ab 1:1, dort steht die Begleitung beim Laden bereit. Der zweite Tipp nach dem Start ist die nächste Stelle davon und gibt das Tempo. Umschalten stellt auf den Anfang.">
                 <span class="name">Tippen auf</span><div id="moduswahl" class="seg"></div>
             </div>
             <div class="zeile" data-hilfe="Akkord: volle Akkorde mit Bass. Nur Bass: nur der Grundton unten, zum Üben ohne Akkord.">
@@ -388,8 +392,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
             <li><b id="aName">A</b> halten: der Akkord tippt kurz an, dein Ton bleibt liegen (Einstieg)</li>
-            <li><b>weiter</b>: der erste Schlag startet mit <span id="startTakt">Takt 2</span>. Von vorn mitzählen: Pad <b>1:1</b> antippen</li>
-            <li>das nächste <b>weiter</b> ist der nächste Viertel: das gibt das Tempo</li>
+            <li><b>weiter</b>: der erste Schlag ist <span id="startTakt">Takt 1</span>, dann jeder Viertel mit (eins, zwei, Mei-, -ne, See- …)</li>
             <li>dann auf jeden Schlag tippen, die <b>dicke Silbe</b> zeigt wo, oder auslassen</li>
             <li><b>Stopp</b> stoppt. Auf eine Silbe drücken: der (erste) Akkord dort klingt</li>
         </ol>

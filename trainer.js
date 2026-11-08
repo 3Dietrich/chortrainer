@@ -3033,6 +3033,12 @@ api.playerStateChanged.on(args => {
 
 /* --- Nach dem Laden eines Songs an der gemerkten Stelle beginnen, sonst oben (Titel sichtbar) --- */
 api.renderFinished.on(() => { neuTakteMarkieren(); systemBaender(); });
+// Weniger Noten als vorher (Nur gewählte zeigen, @dd 20261108: am iPhone blieb bei Bereit unten viel Weiß): ist die
+// Seite kürzer geworden, nicht hinter ihrem Ende stehen bleiben
+api.postRenderFinished.on(() => setTimeout(() => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    if (window.scrollY > max + 2) window.scrollTo(0, Math.max(0, max));
+}, 150));
 // Erst nach postRenderFinished: dort rollt alphaTab sonst noch sanft zum Strich zurück
 api.postRenderFinished.on(() => {
     if (scrollNachRender === null) return;

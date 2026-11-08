@@ -914,10 +914,12 @@ function anfangStellen() {
 
 /**
  * Einstiegsstelle für den Einstiegsknopf: steht die Begleitung (bereit, nach Pad oder Stopp), die Stelle, an der
- * es weitergeht; läuft sie oder ist sie am Schluss, der Anfang.
+ * es weitergeht; läuft sie, die Stelle, an der sie gerade ist; nach dem Schluss der Anfang.
  */
 function einstieg() {
-    if (U.laeuft || hinhoeren) return anfang;
+    // läuft die Begleitung: die Stelle, an der sie gerade ist (@dd 20261108: nicht zurück an den Anfang springen)
+    if (hinhoeren) return U.s0;
+    if (U.laeuft) return SEG[segIndex(uhrPos(jetzt()))];
     if (fertig) return gestopptBei != null ? gestopptBei : anfang;
     return U.s0;
 }
@@ -1086,7 +1088,7 @@ function zeigen() {
     const art = stimmTon ? 'Einstieg' : fertig ? (gestopptBei != null ? 'weiter ab' : 'neu ab')
         : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft) ? 'Start' : 'Tipp';
     $('erwartet').innerHTML = ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
-        : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
+        : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross === '·' ? 'zählen' : PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
     aKnopfZeigen();
@@ -1541,6 +1543,24 @@ function themaFarbe() {
         s.scrollTo({ top: 0, behavior: 'smooth' });
         verstecken();
     });
+})();
+
+/* ---------- Zurück zu den Noten (@dd 20261108): Symbol oben links eine Sekunde drücken, wie der Weg hierher ---------- */
+
+(() => {
+    const el = $('marke');
+    if (!el) return;
+    let uhr = null;
+    const ab = () => { clearTimeout(uhr); uhr = null; el.classList.remove('druck'); };
+    el.addEventListener('pointerdown', e => {
+        if (hilfe || e.button > 0) return;
+        e.preventDefault();
+        ab();
+        el.classList.add('druck');
+        uhr = setTimeout(() => { location.href = 'index.html'; }, 1000);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
+    el.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
 /* ---------- Start ---------- */
