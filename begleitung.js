@@ -942,10 +942,10 @@ function einstiegsAkkord(pos) {
  * erst später ein (Sopran: Takt 18), ihr erster Ton danach mit dem Akkord an dieser Stelle.
  */
 function einstiegFuer(pos, si) {
-    let n = tonFuer(pos, si);
-    if (!n && si >= 0 && P.noten[si]) n = P.noten[si].find(x => x.t >= pos - 1e-6) || null;
-    const a = n && n.t >= pos + 8 ? einstiegsAkkord(n.t) : einstiegsAkkord(pos);
-    return { a, n };
+    // nur der Ton, der an pos klingt; hat die Stimme dort Pause, gibt es keinen Ton, nur den Akkord
+    // (@dd 20261108: ein Ton aus der Pause heraus ist immer der falsche)
+    const n = si >= 0 && P.noten[si] ? P.noten[si].find(x => x.t < pos + 1e-6 && x.ende > pos + 1e-6) || null : null;
+    return { a: einstiegsAkkord(pos), n };
 }
 
 /**
@@ -972,7 +972,7 @@ function padAn(pos) {
     stimmtonAus(ta);
     padToene.forEach(t => t.daempfen());
     const { a, n } = einstiegFuer(pos, stimmeIndex(E.stimme));
-    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);   // zuerst: beim Stimmenklau geschützt
+    if (n) stimmTon = tonAn(n.midi, 'stimme', ta, false, 0.008);   // zuerst: beim Stimmenklau geschützt
     padToene = a ? akkordTupfer(a, ta) || [] : [];
 }
 function padAus(wischen) {
@@ -995,8 +995,8 @@ function stimmton(si = stimmeIndex(E.stimme)) {
     springenAuf(pos, false, false);
     gestopptBei = null;
     alleAus(ta, 0.1);
-    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme das a; zuerst, damit er geschützt ist
-    stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
+    // sofort und mit kurzem Einschwingen (Gate); in einer Pause kein Ton; zuerst, damit er geschützt ist
+    if (n) stimmTon = tonAn(n.midi, 'stimme', ta, false, 0.008);
     if (a) akkordTupfer(a, ta);   // nur angetippt, klingt lang ab; der Ton der Stimme ist die Vorgabe
     zeigen();
 }
@@ -1163,8 +1163,10 @@ function streifenFuehren(i) {
     if (!b || jetzt() - streifenAngefasst < 2.5) return;
     const h = s.clientHeight, rel = b.getBoundingClientRect().top - s.getBoundingClientRect().top;
     if (s.scrollHeight <= h + 2) return;
-    if (rel >= h * 0.15 && rel + b.offsetHeight <= h * 0.6) return;
-    s.scrollTo({ top: Math.max(0, s.scrollTop + rel - h * 0.22), behavior: 'smooth' });
+    // in der Mitte halten (@dd 20261108): weicht die Zeilenmitte mehr als ein Achtel der Höhe ab, sanft zurück
+    const mitte = rel + b.offsetHeight / 2;
+    if (Math.abs(mitte - h / 2) <= h * 0.125) return;
+    s.scrollTo({ top: Math.max(0, s.scrollTop + mitte - h / 2), behavior: 'smooth' });
 }
 setInterval(() => { if (U.laeuft) zeigen(); }, 100);
 
@@ -1550,9 +1552,15 @@ function themaFarbe() {
             weg = setTimeout(verstecken, 2500);
         }
     }, { passive: true });
+    // zum Anfang der eigenen Stimme (@dd 20261108): das Pad mit ihrem ersten Ton, in die Mitte
     k.addEventListener('click', () => {
         streifenAngefasst = jetzt();
-        s.scrollTo({ top: 0, behavior: 'smooth' });
+        const si = stimmeIndex(E.stimme), erste = si >= 0 && P.noten[si] && P.noten[si][0];
+        let i = 0;
+        if (erste) while (i + 1 < SEG.length && SEG[i + 1] <= erste.t + 1e-6) i++;
+        const b = s.children[i];
+        const ziel = b ? s.scrollTop + b.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientHeight / 2 + b.offsetHeight / 2 : 0;
+        s.scrollTo({ top: Math.max(0, ziel), behavior: 'smooth' });
         verstecken();
     });
 })();
