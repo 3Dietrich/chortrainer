@@ -1158,9 +1158,9 @@ function selbstUmschalten() {
  * Bandes; so springt es nur alle paar Zeilen. Wer gerade selbst im Streifen wischt, wird nicht gestört.
  */
 let streifenAngefasst = -1e9;
-function streifenFuehren(i) {
+function streifenFuehren(i, gleich = false) {
     const s = $('streifen'), b = s.children[i];
-    if (!b || jetzt() - streifenAngefasst < 2.5) return;
+    if (!b || (!gleich && jetzt() - streifenAngefasst < 2.5)) return;
     const h = s.clientHeight, rel = b.getBoundingClientRect().top - s.getBoundingClientRect().top;
     if (s.scrollHeight <= h + 2) return;
     // in der Mitte halten (@dd 20261108): weicht die Zeilenmitte mehr als ein Achtel der Höhe ab, sanft zurück
@@ -1237,6 +1237,9 @@ function streifenZeigen() {
             springenAuf(pos, false, false);
             padAus(false);
             zeigen();
+            // beim Durchklicken durch die Silben (@dd 20261108): das gedrückte Pad sanft zur Mitte, damit die
+            // nächste Zeile zu sehen bleibt
+            streifenFuehren(i, true);
         });
         ['pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => {
             if (an) padAus(true);
