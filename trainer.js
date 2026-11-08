@@ -4217,10 +4217,12 @@ api.midiLoaded.on(() => strophenErmitteln());
 (function () {
     const el = document.querySelector('.topbar .brand');
     if (!el) return;
-    let uhr = null;
+    // Nach einer Sekunde wird das Symbol umrandet, gewechselt wird erst beim Loslassen (sonst trifft das Loslassen
+    // auf der neuen Seite ein Bedienelement)
+    let uhr = null, ziel = null;
     el.style.webkitTouchCallout = 'none';
     el.draggable = false;
-    const ab = () => { clearTimeout(uhr); uhr = null; };
+    const ab = () => { clearTimeout(uhr); uhr = null; ziel = null; el.style.outline = ''; };
     el.addEventListener('pointerdown', e => {
         if (e.button > 0) return;
         ab();
@@ -4228,11 +4230,13 @@ api.midiLoaded.on(() => strophenErmitteln());
             const lied = document.getElementById('songSelect')?.value || 'Bereit.musicxml';
             try {
                 const r = await fetch(lied.replace(/\.musicxml$/i, '.ablauf.json'), { method: 'HEAD', cache: 'no-cache' });
-                if (!r.ok) return;
+                if (!r.ok || !uhr) return;
             } catch (err) { return; }
-            location.href = 'begleitung.html?lied=' + encodeURIComponent(lied);
+            ziel = 'begleitung.html?lied=' + encodeURIComponent(lied);
+            el.style.outline = '3px solid #ffd25a';
         }, 1000);
     });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
+    el.addEventListener('pointerup', () => { const z = ziel; ab(); if (z) location.href = z; });
+    ['pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
     el.addEventListener('contextmenu', e => e.preventDefault());
 })();

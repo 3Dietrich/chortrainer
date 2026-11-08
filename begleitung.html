@@ -91,6 +91,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 /* Symbol links: eine Sekunde drücken = zurück zu den Noten; beim Drücken leicht gedimmt */
 #marke { width: 34px; height: 34px; border-radius: 7px; flex: none; -webkit-touch-callout: none; transition: opacity .9s; }
 #marke.druck { opacity: .35; }
+#marke.scharf { opacity: 1; outline: 3px solid var(--fokus); outline-offset: 2px; transition: none; }
 
 #anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 2px 6px; }
 /* erwarteter Tipp (@dd 20261107): ganz oben, gut lesbar */
@@ -292,7 +293,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </head>
 <body>
 <header>
-    <img id="marke" src="icon-192.png" alt="" draggable="false" data-hilfe="Zurück zu den Noten: eine Sekunde gedrückt halten.">
+    <img id="marke" src="icon-192.png" alt="" draggable="false" data-hilfe="Zurück zu den Noten: eine Sekunde gedrückt halten, bis es gelb umrandet ist, dann loslassen.">
     <h1 id="titel">Begleitung</h1>
     <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), gestoppt, Schluss.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>

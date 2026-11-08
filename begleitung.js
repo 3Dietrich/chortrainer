@@ -1550,16 +1550,19 @@ function themaFarbe() {
 (() => {
     const el = $('marke');
     if (!el) return;
-    let uhr = null;
-    const ab = () => { clearTimeout(uhr); uhr = null; el.classList.remove('druck'); };
+    // Gewechselt wird erst beim Loslassen (@dd 20261108: sonst landete das Loslassen auf der neuen, noch
+    // ungestalteten Notenseite im Takt-Feld und öffnete die Zahlentastatur)
+    let uhr = null, scharf = false;
+    const ab = () => { clearTimeout(uhr); uhr = null; scharf = false; el.classList.remove('druck', 'scharf'); };
     el.addEventListener('pointerdown', e => {
         if (hilfe || e.button > 0) return;
         e.preventDefault();
         ab();
         el.classList.add('druck');
-        uhr = setTimeout(() => { location.href = 'index.html'; }, 1000);
+        uhr = setTimeout(() => { scharf = true; el.classList.add('scharf'); }, 1000);
     });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
+    el.addEventListener('pointerup', () => { const los = scharf; ab(); if (los) location.href = 'index.html'; });
+    ['pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
     el.addEventListener('contextmenu', e => e.preventDefault());
 })();
 
