@@ -3155,9 +3155,15 @@ function zugangAnwenden() {
         select.value = select.querySelector('option[data-frei]').value;
     }
     // Statt "alte Ansicht" (gesperrt) unten den Login anbieten
-    const fuss = document.querySelector('#pageFoot a');
-    fuss.href = 'login.php';
-    fuss.textContent = 'Chor-Login: alle Lieder freischalten';
+    // Fußzeile ohne Link (Verein): einen anlegen. Ohne diese Prüfung brach hier alles ab, und Besucher ohne
+    // Anmeldung sahen keine Noten (Fehler gefunden 20261108)
+    let fuss = document.querySelector('#pageFoot a');
+    const fusszeile = document.getElementById('pageFoot');
+    if (!fuss && fusszeile) { fuss = document.createElement('a'); fusszeile.appendChild(fuss); }
+    if (fuss) {
+        fuss.href = 'login.php';
+        fuss.textContent = 'Chor-Login: alle Lieder freischalten';
+    }
 }
 
 /* --- Offline: Service Worker (sw.js) fragt zuerst das Netz, ohne Netz den Speicher ---
