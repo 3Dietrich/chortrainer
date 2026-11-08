@@ -89,7 +89,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 .rund { width: 46px; min-height: 46px; padding: 0; border-radius: 50%; font-size: 24px; font-weight: 800; flex: none; display: grid; place-items: center; }
 @media (max-width: 440px) { header h1 { display: none; } }
 /* Symbol links: eine Sekunde drücken = zurück zu den Noten; beim Drücken leicht gedimmt */
-#marke { width: 34px; height: 34px; border-radius: 7px; flex: none; -webkit-touch-callout: none; transition: opacity .9s; }
+#marke { width: 34px; height: 34px; border-radius: 7px; flex: none; -webkit-touch-callout: none; transition: opacity .45s; }
 #marke.druck { opacity: .35; }
 #marke.scharf { opacity: 1; outline: 3px solid var(--fokus); outline-offset: 2px; transition: none; }
 
@@ -268,10 +268,10 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 
 #anleitung { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 14px; }
 #anleitung .karte { background: var(--flaeche2); border: 1.5px solid var(--linie); border-radius: 12px; padding: 14px 18px;
-    max-width: 26em; max-height: calc(100vh - 28px); overflow-y: auto; font-size: clamp(20px, 5.4vw, 26px); line-height: 1.4; }
+    max-width: 26em; max-height: calc(100vh - 28px); overflow-y: auto; font-size: clamp(17px, 4.4vw, 21px); line-height: 1.4; }
 #anleitung h2 { margin: 0 0 8px; font-size: 1.12em; color: var(--warm); }
 #anleitung p { margin: 6px 0; }
-#anleitung ol { padding-left: 1.3em; margin: 6px 0; }
+#anleitung ul { padding-left: 1.2em; margin: 6px 0; }
 #anleitung li { margin-bottom: 6px; }
 #anleitung .nichtmehr { display: flex; align-items: center; gap: 12px; min-height: 52px; margin-top: 6px; font-size: .85em; color: var(--leise); cursor: pointer; }
 #anleitung .nichtmehr input { width: 30px; height: 30px; accent-color: var(--warm); flex: none; }
@@ -290,7 +290,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </head>
 <body>
 <header>
-    <img id="marke" src="icon-192.png" alt="" draggable="false" data-hilfe="Zurück zu den Noten: eine Sekunde gedrückt halten, bis es gelb umrandet ist, dann loslassen.">
+    <img id="marke" src="icon-192.png" alt="" draggable="false" data-hilfe="Zurück zu den Noten: gedrückt halten, bis es blitzt (eine halbe Sekunde), dann loslassen.">
     <h1 id="titel">Begleitung</h1>
     <div id="status" data-hilfe="Tempo aus deinen Tipps und der Zustand: bereit, hört hin (nach dem ersten Tipp, der zweite gibt das Metrum), läuft, schätzt (eine Stelle ohne Tipp, es bleibt still, die Seite vermutet, wo du bist), wartet auf Tipp (Wartestelle), gestoppt, Schluss.">
         <span id="tempoAnz">♩</span><span id="zustand">bereit</span>
@@ -390,13 +390,11 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 <div id="anleitung" role="dialog" aria-modal="true" aria-labelledby="anleitungTitel" hidden>
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
-        <ol>
+        <ul>
             <li>Oben deine Stimme wählen (S A T B). Eine <b>Silbe</b> halten: der Akkord tippt kurz an, dein Ton dort bleibt liegen (Einstieg)</li>
-            <li><b>weiter</b>: der erste Schlag ist <span id="startTakt">Takt 1</span>, dann jeder Viertel mit (eins, zwei, Mei-, -ne, See- …)</li>
-            <li>dann auf jeden Schlag tippen, die <b>dicke Silbe</b> zeigt wo, oder auslassen</li>
-            <li><b>Stopp</b> stoppt. Kein Tipp mehr: nach einem Takt hört sie von selbst auf</li>
-        </ol>
-        <p>Oben: der erwartete Tipp. Strich: deine Stimme hält den Ton.</p>
+            <li><b>weiter</b>: die Schläge für den Takt. Jede Viertel, z.B. eins, zwei, Mei-, -ne, See- …</li>
+            <li>wenn lange genug getippt, gibt's das Angebot <b>selbst weiter</b></li>
+        </ul>
         <label class="nichtmehr"><input type="checkbox" id="anleitungWeg"> nicht mehr zeigen</label>
         <button id="anleitungZu">Los geht's</button>
     </div>

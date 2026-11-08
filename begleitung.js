@@ -1603,7 +1603,7 @@ function blitz(el) {
         e.preventDefault();
         ab();
         el.classList.add('druck');
-        uhr = setTimeout(() => { scharf = true; el.classList.add('scharf'); blitz(el); }, 1000);
+        uhr = setTimeout(() => { scharf = true; el.classList.add('scharf'); blitz(el); }, 500);   // halbe Sekunde (@dd 20261108)
     });
     el.addEventListener('pointerup', () => { const los = scharf; ab(); if (los) location.href = 'index.html'; });
     ['pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
@@ -1632,7 +1632,7 @@ function blitz(el) {
     $('titel').textContent = titel;
     document.title = titel + ' · Begleitung';
     const st0 = stelleVon(A.anfang ? stellePos(A.anfang) : 0);
-    $('startTakt').textContent = `Takt ${st0.takt}` + (st0.schlag > 1 ? `, Schlag ${st0.schlag}` : '');
+    if ($('startTakt')) $('startTakt').textContent = `Takt ${st0.takt}` + (st0.schlag > 1 ? `, Schlag ${st0.schlag}` : '');
     leitsilbenBilden();
     ereignisseBilden();
     anfangStellen();

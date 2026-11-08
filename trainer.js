@@ -4247,7 +4247,7 @@ function blitz(el) {
             ziel = 'begleitung.html?lied=' + encodeURIComponent(lied);
             el.style.outline = '3px solid #ffd25a';
             blitz(el);
-        }, 1000);
+        }, 500);   // halbe Sekunde (@dd 20261108)
     });
     el.addEventListener('pointerup', () => { const z = ziel; ab(); if (z) location.href = z; });
     ['pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));
