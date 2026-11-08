@@ -44,8 +44,9 @@ from pathlib import Path
 QUELLE = Path(__file__).resolve().parent
 MOTOR = ['trainer.js', 'style.css', 'sw.js', 'alphaTab_v1_8_1.js', 'sonivox.sf2',
          'html-to-image_1_11_11.js', 'pegel.json',
-         # Begleitung (live begleiten): an beiden Orten, im Verein ohne Anmeldung (Bereit ist frei, @dd 20261108;
-         # .htaccess dort); erreichbar über langes Drücken aufs Symbol oben links in den Noten oder auf „Office“ in intern/
+         # Begleitung (live begleiten): an beiden Orten. Zugangsregel im Verein (@dd 20261108, .htaccess dort): Bereit
+         # frei (Noten, Gesang, Begleitung), alle anderen Lieder nur mit Chorzugang. Erreichbar über langes Drücken aufs
+         # Symbol oben links in den Noten oder auf „Office“ in intern/
          'begleitung.html', 'begleitung.js', 'Bereit.ablauf.json'] + sorted(
     str(p.relative_to(QUELLE)) for p in (QUELLE / 'font').iterdir() if not p.name.startswith('.'))
 PANKD_EIGEN = ['manifest.json', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',
