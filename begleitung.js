@@ -1565,6 +1565,18 @@ function themaFarbe() {
     });
 })();
 
+/** „Blitz“ (@dd 20261108): nach einer Sekunde blitzt es vom Symbol aus auf, jetzt darf man loslassen */
+function blitz(el) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const f = document.createElement('div');
+    f.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;background:radial-gradient(circle at '
+        + x + 'px ' + y + 'px, rgba(255,250,215,.98) 0, rgba(255,214,90,.75) 46px, rgba(255,200,60,.25) 22vmax, rgba(255,255,255,0) 60vmax)';
+    document.body.appendChild(f);
+    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => f.remove();
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'ease-out' });
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { /* iPhone kennt das nicht */ }
+}
+
 /* ---------- Zurück zu den Noten (@dd 20261108): Symbol oben links eine Sekunde drücken, wie der Weg hierher ---------- */
 
 (() => {
@@ -1579,7 +1591,7 @@ function themaFarbe() {
         e.preventDefault();
         ab();
         el.classList.add('druck');
-        uhr = setTimeout(() => { scharf = true; el.classList.add('scharf'); }, 1000);
+        uhr = setTimeout(() => { scharf = true; el.classList.add('scharf'); blitz(el); }, 1000);
     });
     el.addEventListener('pointerup', () => { const los = scharf; ab(); if (los) location.href = 'index.html'; });
     ['pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, ab));

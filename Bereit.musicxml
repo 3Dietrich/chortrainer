@@ -4925,7 +4925,7 @@
       <note default-x="12.5" default-y="-343.4">
         <pitch>
           <step>A</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -4939,7 +4939,7 @@
       <note default-x="63.64" default-y="-343.4">
         <pitch>
           <step>A</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -4954,7 +4954,7 @@
         <pitch>
           <step>G</step>
           <alter>1</alter>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>3</duration>
         <voice>1</voice>
@@ -4971,7 +4971,7 @@
         <pitch>
           <step>G</step>
           <alter>1</alter>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>1</duration>
         <voice>1</voice>
@@ -4987,7 +4987,7 @@
       <note default-x="60.86" default-y="-366.02">
         <pitch>
           <step>F</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -5001,7 +5001,7 @@
       <note default-x="105.16" default-y="-361.02">
         <pitch>
           <step>G</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -5015,7 +5015,7 @@
       <note default-x="149.46" default-y="-356.02">
         <pitch>
           <step>A</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -5029,7 +5029,7 @@
       <note default-x="194.42" default-y="-346.02">
         <pitch>
           <step>C</step>
-          <octave>3</octave>
+          <octave>4</octave>
           </pitch>
         <duration>1</duration>
         <voice>1</voice>
@@ -5044,7 +5044,7 @@
       <note default-x="224.75" default-y="-351.02">
         <pitch>
           <step>B</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>1</duration>
         <voice>1</voice>
@@ -5061,7 +5061,7 @@
       <note default-x="12.5" default-y="-356.02">
         <pitch>
           <step>A</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>2</duration>
         <voice>1</voice>
@@ -5075,7 +5075,7 @@
       <note default-x="56.8" default-y="-356.02">
         <pitch>
           <step>A</step>
-          <octave>2</octave>
+          <octave>3</octave>
           </pitch>
         <duration>3</duration>
         <voice>1</voice>

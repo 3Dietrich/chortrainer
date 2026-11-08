@@ -4211,6 +4211,18 @@ function stropheAnwenden(springen) {
 
 api.midiLoaded.on(() => strophenErmitteln());
 
+/** „Blitz“ (@dd 20261108): nach einer Sekunde blitzt es vom Symbol aus auf, jetzt darf man loslassen */
+function blitz(el) {
+    const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const f = document.createElement('div');
+    f.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;background:radial-gradient(circle at '
+        + x + 'px ' + y + 'px, rgba(255,250,215,.98) 0, rgba(255,214,90,.75) 46px, rgba(255,200,60,.25) 22vmax, rgba(255,255,255,0) 60vmax)';
+    document.body.appendChild(f);
+    f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: 'cubic-bezier(.2,.7,.3,1)' }).onfinish = () => f.remove();
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3) rotate(-6deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'ease-out' });
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) { /* iPhone kennt das nicht */ }
+}
+
 /* Geheimer Zugang zur Live-Begleitung (@dd 20261107, wie „Office“ im Verein): eine Sekunde langes Drücken auf das
    Symbol oben links öffnet begleitung.html für das gewählte Lied, wenn es dazu einen Ablauf gibt (<Lied>.ablauf.json).
    Normales Antippen tut nichts anderes als vorher. Nicht sichtbar, nur für die, die es wissen. */
@@ -4234,6 +4246,7 @@ api.midiLoaded.on(() => strophenErmitteln());
             } catch (err) { return; }
             ziel = 'begleitung.html?lied=' + encodeURIComponent(lied);
             el.style.outline = '3px solid #ffd25a';
+            blitz(el);
         }, 1000);
     });
     el.addEventListener('pointerup', () => { const z = ziel; ab(); if (z) location.href = z; });
