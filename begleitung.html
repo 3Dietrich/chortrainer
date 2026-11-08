@@ -107,8 +107,15 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #wo { grid-column: 1 / -1; grid-row: 2; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stimmchips { display: flex; gap: 4px; flex: none; }
-#stimmchips button { min-height: 38px; min-width: 42px; padding: 2px 8px; border-radius: 7px; font-size: 18px; font-weight: 700; color: var(--leise); }
+/* Stimmknöpfe = Einstiegsknöpfe (@dd 20261108): Buchstabe und Einstiegston; gedrückt halten = Akkord kurz, Ton bleibt */
+#stimmchips { gap: 6px; }
+#stimmchips button { min-height: 50px; min-width: 56px; padding: 2px 8px; border-radius: 8px; color: var(--leise);
+    display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+#stimmchips button b { font-size: 22px; font-weight: 800; }
+#stimmchips button small { font-size: 17px; font-weight: 700; color: var(--warm); min-width: 1.2em; text-align: left; }
 #stimmchips button[aria-pressed="true"] { color: var(--an-text); }
+#stimmchips button[aria-pressed="true"] small { color: var(--an-b); }
+#stimmchips button.druck { outline: 3px solid var(--fokus); outline-offset: 1px; }
 #jetzt { grid-column: 2; grid-row: 3; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #dann b { color: var(--text); font-weight: 600; }
@@ -158,14 +165,9 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #selbstKnopf[aria-pressed="true"] { background: var(--an); border-color: var(--an-rand); color: var(--an-text); font-size: 16px; }
 
 /* Tasten: Einstieg, Stopp, weiter breit; nie breiter als der Bildschirm */
-#tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
+#tasten { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr); gap: 8px;
     height: 16vh; min-height: 96px; padding-block: 6px 8px; }
 #tasten button { border-radius: 10px; }
-#aKnopf { font-size: 30px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; line-height: 1.05; padding: 4px; }
-/* Einstiegsknopf: Akkord groß, Ton der eigenen Stimme darunter (@dd 20261107) */
-#aKnopf .ak { font-size: clamp(22px, 6.5vw, 1em); font-weight: 800; color: var(--warm); white-space: nowrap; }
-#aKnopf[aria-pressed="true"] .ak { color: var(--an-b); }
-#aKnopf .ton { font-size: 0.7em; font-weight: 700; }
 #stoppKnopf { font-size: 18px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px; }
 #stoppKnopf svg.sym { width: 30px; height: 30px; }
 #stoppKnopf.druck, #weiter.druck, #weiter:active { background: var(--an); }
@@ -178,7 +180,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #anzeige { grid-column: 1; grid-row: 2; }
     #streifen { grid-column: 1; grid-row: 3; }
     #tasten { grid-column: 2; grid-row: 2 / 4; height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: 1fr 2fr; }
-    #weiter { grid-column: 1 / -1; }
+    #weiter, #stoppKnopf { grid-column: 1 / -1; }
 }
 
 /* Tablet hochkant und größer: Pads größer, sie wachsen in den freien Platz (Zeilen 1fr) */
@@ -187,7 +189,6 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #streifen button { font-size: 22px; padding: 6px 10px; }
     #streifen button .t { font-size: 16px; }
     #tasten { height: 14vh; }
-    #aKnopf { font-size: 40px; }
     #stoppKnopf { font-size: 22px; }
 }
 
@@ -209,7 +210,7 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #tasten { grid-column: 2; grid-row: 2 / 4; height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         grid-template-rows: minmax(110px, 1fr) 3fr; gap: 12px; padding-block: 8px 16px; }
     #weiter { grid-column: 1 / -1; font-size: clamp(44px, 5vw, 80px); }
-    #aKnopf { font-size: 44px; }
+    #stoppKnopf { grid-column: 1 / -1; }
     #stoppKnopf { font-size: 24px; }
 }
 
@@ -306,7 +307,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 
 <main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp, nach Stopp: weiter ab), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
     <div id="erwartet"></div>
-    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme, immer zur Hand: aus ihr kommen der Text, die Wörter auf den Pads und der Ton auf dem Einstiegsknopf. Ausgeschrieben auch in den Einstellungen."></span></div>
+    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Einstieg je Stimme: neben dem Buchstaben steht der Ton, mit dem die Stimme an der aktuellen Stelle einsetzt (setzt sie erst später ein, ihr erster Ton danach). Gedrückt halten: der Akkord klingt kurz an, der Ton bleibt liegen, solange du hältst. Die gedrückte Stimme wird zugleich deine Stimme (Text und Pads). Läuft die Begleitung, bleibt sie dabei an der Stelle stehen."></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
     <div id="dann"></div>
@@ -322,7 +323,6 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </button>
 
 <div id="tasten">
-    <button id="aKnopf" aria-pressed="false" data-hilfe="Einstieg: zeigt Akkord und Ton deiner Stimme an der Stelle, an der die Begleitung steht, am Anfang z.B. Am (c). Drücken: der Akkord klingt nur ganz kurz an (0,1 Sekunden), dein Ton bleibt liegen, solange du hältst. Hast du ein Pad gewählt oder gestoppt, gilt diese Stelle; läuft die Begleitung, die Stelle, an der sie gerade ist. Tastatur: a halten.">A</button>
     <button id="stoppKnopf" data-hilfe="Stopp: sofort still, schon beim Aufsetzen des Fingers. Die Begleitung merkt sich die Stelle, weiter startet dort neu (mit Hinhören). Tastatur: Leertaste startet und stoppt.">
         <svg class="sym" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg>Stopp
     </button>
@@ -392,7 +392,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <div class="karte">
         <h2 id="anleitungTitel">Stimme üben mit Akkorden</h2>
         <ol>
-            <li><b id="aName">A</b> halten: der Akkord tippt kurz an, dein Ton bleibt liegen (Einstieg)</li>
+            <li><b>S A T B</b> oben halten: der Akkord tippt kurz an, der Anfangston der Stimme bleibt liegen (Einstieg)</li>
             <li><b>weiter</b>: der erste Schlag ist <span id="startTakt">Takt 1</span>, dann jeder Viertel mit (eins, zwei, Mei-, -ne, See- …)</li>
             <li>dann auf jeden Schlag tippen, die <b>dicke Silbe</b> zeigt wo, oder auslassen</li>
             <li><b>Stopp</b> stoppt. Auf eine Silbe drücken: der (erste) Akkord dort klingt</li>

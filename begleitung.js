@@ -784,6 +784,16 @@ function takt() {
             ix++;
         }
         metroPlanen(t);
+        // Kein Tipp mehr und nicht „selbst weiter“ (@dd 20261108: still weiterlaufen bringt nichts): einen Takt nach
+        // der erwarteten Stelle anhalten (Zusatztakt); weiter startet dann an der verpassten Stelle
+        if (U.laeuft && !selbst && letzterTipp) {
+            const n = EV.find(e => (e.tippstelle || e.warten) && e.pos > letzterTipp.pos + 1e-6);
+            const bei = n ? n.pos : letzterTipp.pos, nr = taktVon(bei);
+            if (uhrPos(t) >= bei + (taktEnde(nr) - taktBeginn(nr))) {
+                gestopptBei = n && !n.ende ? n.pos : null;
+                schluss(t, 0.4);
+            }
+        }
     }
     wirbelPlanen(ctx.currentTime + 0.1);
     aufraeumen();
@@ -929,14 +939,27 @@ function einstiegsAkkord(pos) {
     return akkordBei(pos) || (EV.find(x => x.pos >= pos - 1e-6 && x.akkord && x.akkord !== '-') || {}).akkord || null;
 }
 
-/** Beschriftung des Einstiegsknopfs: Akkord und Ton der eigenen Stimme, z.B. „Am (c)“ */
-function aKnopfZeigen() {
-    if (!P) return;
-    const pos = einstieg(), a = einstiegsAkkord(pos), n = tonFuer(pos, stimmeIndex(E.stimme));
-    const html = a || n
-        ? `<span class="ak">${a ? anzeigeName(a) : '·'}</span><span class="ton">${n ? '(' + n.name + ')' : ''}</span>` : 'A';
-    if (html !== aKnopfZeigen.alt) { $('aKnopf').innerHTML = html; aKnopfZeigen.alt = html; }
+/**
+ * Einstieg für Stimme si an pos (@dd 20261108: jeder Stimmknopf ist ein Einstiegsknopf): der Ton, mit dem sie dort
+ * einsetzt, und der Akkord dazu. Setzt sie erst später ein (Sopran bei Bereit: Takt 18), ihr erster Ton danach
+ * mit dem Akkord an dieser Stelle.
+ */
+function einstiegFuer(pos, si) {
+    let n = tonFuer(pos, si);
+    if (!n && si >= 0 && P.noten[si]) n = P.noten[si].find(x => x.t >= pos - 1e-6) || null;
+    const a = n && n.t >= pos + 8 ? einstiegsAkkord(n.t) : einstiegsAkkord(pos);
     return { a, n };
+}
+
+/** Stimmknöpfe beschriften: Buchstabe und Einstiegston an der Stelle, an der die Begleitung steht */
+function stimmknoepfeZeigen() {
+    if (!P) return;
+    const pos = einstieg();
+    for (const b of $('stimmchips').children) {
+        const { n } = einstiegFuer(pos, stimmeIndex(b.dataset.stimme));
+        const ton = n ? n.name : '';
+        if (b.dataset.ton !== ton) { b.dataset.ton = ton; b.querySelector('small').textContent = ton; }
+    }
 }
 
 /**
@@ -955,20 +978,19 @@ function akkordTupfer(sym, wann) {
  * Einstiegsknopf drücken (@dd 20261107): der Akkord der Einstiegsstelle klingt nur 0,1 s an, der Ton der eigenen Stimme
  * bleibt liegen, solange gedrückt (Gate). Die Begleitung steht danach an dieser Stelle, weiter startet von dort.
  */
-function stimmton() {
+function stimmton(si = stimmeIndex(E.stimme)) {
     if (!P || stimmTon) return;
     selbst = false; glatt = 0;
     audioStart();
     const ta = ctx.currentTime;
     const pos = einstieg();
+    const { a, n } = einstiegFuer(pos, si);
     springenAuf(pos, false, false);
     gestopptBei = null;
     alleAus(ta, 0.1);
-    const { a, n } = aKnopfZeigen();
     if (a) akkordTupfer(a, ta);   // nur angetippt, klingt lang ab; der Ton der Stimme ist die Vorgabe
-    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme wie früher das a
+    // sofort und mit kurzem Einschwingen (Gate); ohne Note der Stimme das a
     stimmTon = tonAn(n ? n.midi : 57, 'stimme', ta, false, 0.008);
-    $('aKnopf').setAttribute('aria-pressed', 'true');
     zeigen();
 }
 
@@ -976,7 +998,6 @@ function stimmtonAus(ta) {
     if (!stimmTon) return;
     stimmTon.stop(ta, 0.4);
     stimmTon = null;
-    $('aKnopf').setAttribute('aria-pressed', 'false');
 }
 
 /** Akkord, der an pos gilt (letzter Wechsel bis dorthin), ohne Pause */
@@ -1091,7 +1112,7 @@ function zeigen() {
         : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross === '·' ? 'zählen' : PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
-    aKnopfZeigen();
+    stimmknoepfeZeigen();
     selbstKnopfZeigen();
 }
 
@@ -1245,22 +1266,6 @@ knopf($('selbstKnopf'), () => selbstUmschalten());
 // Audiogerät schon bei der ersten Berührung irgendwo anlegen: sonst kostet das Anlaufen den ersten Ton
 document.addEventListener('pointerdown', () => audioStart(), { capture: true, once: true });
 knopf($('stoppKnopf'), zeit => { if (ctx && letzterTipp && !fertig) startStopp(zeit); else if (ctx) alleAus(ctx.currentTime, 0.3); });
-// A als Gate: Ton beim Aufsetzen an, beim Loslassen aus; der Finger darf dabei vom Knopf rutschen
-$('aKnopf').addEventListener('pointerdown', e => {
-    if (hilfe || e.button > 0) return;
-    e.preventDefault();
-    $('aKnopf').setPointerCapture?.(e.pointerId);
-    stimmton();
-});
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => $('aKnopf').addEventListener(t, () => {
-    if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
-}));
-// Tastatur (Enter/Leertaste auf dem fokussierten Knopf): kurzer Ton, ein Gate gibt es dort nicht
-$('aKnopf').addEventListener('click', e => {
-    if (hilfe || e.detail !== 0) return;
-    stimmton();
-    setTimeout(() => { if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); } }, 1500);
-});
 
 function einstellungenAuf(auf) {
     $('einstellungen').hidden = !auf;
@@ -1341,12 +1346,32 @@ function stimmwahlBauen() {
         zeile.innerHTML = '';
         for (const n of P.stimmen) {
             const b = document.createElement('button');
-            b.textContent = name(n);
+            b.innerHTML = `<b>${name(n)}</b><small></small>`;
             b.dataset.stimme = n;
             b.title = n;
-            b.setAttribute('aria-label', 'Meine Stimme: ' + n);
+            b.setAttribute('aria-label', 'Einstieg und Meine Stimme: ' + n);
             b.setAttribute('aria-pressed', String(E.stimme === n));
-            b.addEventListener('click', () => stimmeSetzen(n));
+            // Gate (wie früher A): Aufsetzen = Akkord kurz und Einstiegston dieser Stimme, Loslassen = Ton aus.
+            // Die gedrückte Stimme wird zugleich Meine Stimme (Text, Pads).
+            b.addEventListener('pointerdown', e => {
+                if (hilfe || e.button > 0) return;
+                e.preventDefault();
+                try { b.setPointerCapture(e.pointerId); } catch (err) { /* ohne echten Finger */ }
+                b.classList.add('druck');
+                if (E.stimme !== n) stimmeSetzen(n);
+                stimmton(stimmeIndex(n));
+            });
+            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => b.addEventListener(t, () => {
+                b.classList.remove('druck');
+                if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); }
+            }));
+            // Tastatur (Enter/Leertaste): kurzer Ton, ein Gate gibt es dort nicht
+            b.addEventListener('click', e => {
+                if (hilfe || e.detail !== 0) return;
+                if (E.stimme !== n) stimmeSetzen(n);
+                stimmton(stimmeIndex(n));
+                setTimeout(() => { if (ctx) { stimmtonAus(ctx.currentTime); zeigen(); } }, 1500);
+            });
             zeile.appendChild(b);
         }
     }
@@ -1595,7 +1620,4 @@ function themaFarbe() {
     stimmwahlBauen();
     streifenZeigen();
     zeigen();
-    // Anleitung nennt den Einstiegsknopf so, wie er beschriftet ist (z.B. Am (c))
-    const ein = aKnopfZeigen();
-    if (ein && (ein.a || ein.n)) $('aName').textContent = (ein.a ? anzeigeName(ein.a) : '') + (ein.n ? ` (${ein.n.name})` : '');
 })();
