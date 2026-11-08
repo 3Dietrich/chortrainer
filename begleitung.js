@@ -1371,10 +1371,28 @@ function stimmwahlBauen() {
             b.setAttribute('aria-label', 'Meine Stimme: ' + n);
             b.setAttribute('aria-pressed', String(E.stimme === n));
             // stumm, nur die Wahl der eigenen Stimme (@dd 20261108); den Einstieg geben die Pads
-            b.addEventListener('click', () => stimmeSetzen(n));
+            b.addEventListener('click', () => { stimmeSetzen(n); zumStimmanfang(true); });
             zeile.appendChild(b);
         }
     }
+}
+/** Pad, auf dem die eigene Stimme ihren ersten Ton hat */
+function stimmanfangIndex() {
+    const si = stimmeIndex(E.stimme), erste = si >= 0 && P.noten[si] && P.noten[si][0];
+    let i = 0;
+    if (erste) while (i + 1 < SEG.length && SEG[i + 1] <= erste.t + 1e-6) i++;
+    return i;
+}
+/**
+ * Zum Anfang der eigenen Stimme (@dd 20261108, Stimmknopf und „Anfang“): das Pad mittig in den Streifen; mit
+ * stellen = true steht auch die Begleitung dort (nicht, solange sie läuft), weiter startet dann von da.
+ */
+function zumStimmanfang(stellen) {
+    const i = stimmanfangIndex(), s = $('streifen'), b = s.children[i];
+    if (stellen && !U.laeuft && !hinhoeren && SEG[i] != null) { springenAuf(SEG[i], false, false); gestopptBei = null; }
+    streifenAngefasst = jetzt();
+    if (b) s.scrollTo({ top: Math.max(0, s.scrollTop + b.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientHeight / 2 + b.offsetHeight / 2), behavior: 'smooth' });
+    zeigen();
 }
 function stimmeSetzen(n) {
     E.stimme = n; sichern();
@@ -1565,16 +1583,7 @@ function themaFarbe() {
         }
     }, { passive: true });
     // zum Anfang der eigenen Stimme (@dd 20261108): das Pad mit ihrem ersten Ton, in die Mitte
-    k.addEventListener('click', () => {
-        streifenAngefasst = jetzt();
-        const si = stimmeIndex(E.stimme), erste = si >= 0 && P.noten[si] && P.noten[si][0];
-        let i = 0;
-        if (erste) while (i + 1 < SEG.length && SEG[i + 1] <= erste.t + 1e-6) i++;
-        const b = s.children[i];
-        const ziel = b ? s.scrollTop + b.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientHeight / 2 + b.offsetHeight / 2 : 0;
-        s.scrollTo({ top: Math.max(0, ziel), behavior: 'smooth' });
-        verstecken();
-    });
+    k.addEventListener('click', () => { zumStimmanfang(false); verstecken(); });
 })();
 
 /** „Blitz“ (@dd 20261108): nach einer Sekunde blitzt es vom Symbol aus auf, jetzt darf man loslassen */
