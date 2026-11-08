@@ -146,10 +146,29 @@ svg { display: block; }
 #stropheSelect option { color: #000; }
 /* Handy: kurze Beschriftung (trainer.js), Vollbild nur als Symbol, damit das Lied lesbar bleibt */
 @media (max-width: 600px) {
-    #stropheSelect { font-size: 16px; padding: 6px 26px 6px 10px; }
-    .topbar:has(.strophewrap:not([hidden])) .fs-btn span { display: none; }
-    .topbar:has(.strophewrap:not([hidden])) .fs-btn { padding: 0 10px; }
-    .topbar:has(.strophewrap:not([hidden])) .songwrap { min-width: 100px; }
+    /* Der Liedname hat Vorrang: engere Abstände, Vollbild nur als Symbol, Lied-Feld mit
+       Mindestbreite für kurze Titel (lange werden mit … gekürzt), Strophe gibt zuerst nach */
+    .topbar { gap: 6px; padding: 0 8px 0 10px; }
+    .fs-btn span { display: none; }
+    .fs-btn { width: 38px; padding: 0; justify-content: center; }
+    .songwrap { flex: 0 1 auto; min-width: 112px; max-width: none; }
+    #songSelect { padding: 7px 28px 7px 10px; }
+    .songwrap .caret { right: 8px; }
+    .strophewrap { flex-shrink: 1; min-width: 64px; }
+    #stropheSelect { font-size: 16px; padding: 6px 24px 6px 9px; width: 100%; min-width: 0; text-overflow: ellipsis; }
+    .strophewrap .caret { right: 7px; }
+}
+/* Sehr schmal (kleines iPhone oder vergrößerte Ansicht): alles etwas knapper, damit das Zahnrad drin bleibt */
+@media (max-width: 360px) {
+    .topbar { gap: 4px; padding: 0 6px 0 8px; }
+    .brand { width: 26px; height: 26px; }
+    .songwrap { min-width: 86px; }
+    #songSelect { font-size: 17px; padding: 7px 24px 7px 8px; }
+    .songwrap .caret { right: 6px; width: 14px; height: 14px; }
+    .strophewrap { min-width: 56px; }
+    #stropheSelect { font-size: 15px; padding: 6px 20px 6px 7px; }
+    .strophewrap .caret { right: 5px; }
+    .icon-btn, .fs-btn { width: 34px; height: 34px; }
 }
 .strophewrap .caret {
     position: absolute;
@@ -1313,18 +1332,6 @@ body:not(.zugang) .nur-zugang { display: none; }
     background: #efede7; color: #1f1f1e; }
 #homescreen .hs-knoepfe .hs-ok { background: #1f1f1e; color: #fff; border-color: #1f1f1e; }
 .k svg .blass { opacity: .35; }
-
-/* Einmaliger Hinweis zur Umstellung auf „Gesang" (trainer.js: klangUmstellungHinweis) */
-#klangHinweis { position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 2147483004;
-    width: min(460px, calc(100vw - 24px)); box-sizing: border-box;
-    display: flex; align-items: center; gap: 14px; padding: 14px 16px;
-    border-radius: 14px; border: 2px solid var(--red); background: #fbfaf7; color: #1f1f1e;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, .35);
-    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
-#klangHinweis p { margin: 0; flex: 1; }
-#klangHinweis button { flex: 0 0 auto; min-height: 50px; padding: 12px 22px; border-radius: 25px;
-    border: 0; background: #1f1f1e; color: #fff; font: 600 18px/1 inherit; cursor: pointer; }
 
 /* ---------- Admin: Pegel je Stimme (nur Hörseite am Mac, ?admin) ----------
    Unten links über dem Notenbereich; zugeklappt nur der Knopf „Pegel“. */

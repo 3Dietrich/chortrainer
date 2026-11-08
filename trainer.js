@@ -60,9 +60,7 @@ let trackMap = {              // Mapping der musikalischen Tracks
 
 const STORAGE_KEY = 'chorTrainerSettings';
 const KLANG_GESANG_KEY = 'chorTrainerKlangGesang';  // Marke: einmalige Umstellung auf „Gesang" erledigt
-const KLANG_HINWEIS_KEY = 'chorTrainerKlangHinweisGesehen';  // Marke: Klang-Hinweis auf diesem Gerät einmal gezeigt
 let klangAufGesangUmgestellt = false;   // in dieser Sitzung von einer alten Wahl auf „Gesang" umgestellt
-let klangHinweisZeigen = false;         // Klang-Hinweis in dieser Sitzung noch zeigen (bis KLANG_HINWEIS_KEY gesetzt)
 
 /** Alle aktuellen Toolbar-Einstellungen in localStorage speichern. */
 function saveSettings() {
@@ -100,11 +98,6 @@ function saveSettings() {
 /** Gespeicherte Einstellungen laden und auf UI-Elemente anwenden. */
 function loadSavedSettings() {
     const data = localStorage.getItem(STORAGE_KEY);
-
-    // Jedes Gerät sieht den Klang-Hinweis genau einmal, egal ob eine alte Wahl migriert
-    // wurde, ob schon „Gesang" gespeichert war oder ob es der erste Besuch ist (kein
-    // STORAGE_KEY). Deshalb vor dem frühen Rücksprung und unabhängig von der Migration.
-    if (!localStorage.getItem(KLANG_HINWEIS_KEY)) klangHinweisZeigen = true;
 
     if (!data) return;
     try {
@@ -923,33 +916,6 @@ async function gesangHinweisZeigen() {
     if (api.score !== score) return;   // inzwischen anderes Lied
     el.textContent = text;
     el.hidden = !text;
-}
-
-/** Einmaliger Hinweis auf den Klang-Standard „Gesang": erklärt ihn und den Weg zurück zu
-    „Duu". Erscheint auf jedem Gerät genau einmal (Marke KLANG_HINWEIS_KEY). */
-function klangUmstellungHinweis() {
-    if (!klangHinweisZeigen || document.getElementById('klangHinweis')) return;
-    const el = document.createElement('div');
-    el.id = 'klangHinweis';
-    el.setAttribute('role', 'status');
-    el.innerHTML = `<p>Der Klang steht auf „Gesang": die Stimmen singen mit Text.
-        In den Einstellungen (Zahnrad) unter „Klang" kannst du jederzeit wieder auf „Duu" zurückstellen.</p>
-        <button type="button">Okay</button>`;
-    el.querySelector('button').onclick = () => el.remove();
-    // Erst jetzt merken, dass der Hinweis wirklich gezeigt wurde – bricht vorher etwas ab,
-    // bleibt die Marke ungesetzt und der Hinweis kommt beim nächsten Mal.
-    localStorage.setItem(KLANG_HINWEIS_KEY, '1');
-    document.documentElement.appendChild(el);
-    // Klebt die Bedienleiste (Play/Loop/Tempo) unten am Fensterrand (Handy), den Hinweis
-    // darüber setzen, damit er sie nicht verdeckt. Die gemessene Höhe enthält schon die
-    // Safe-Area; auf dem Desktop sitzt die Leiste oben, dann bleibt die Vorgabe aus style.css.
-    const leiste = document.getElementById('player');
-    if (leiste) requestAnimationFrame(() => {
-        const r = leiste.getBoundingClientRect();
-        if (r.height > 0 && r.bottom >= window.innerHeight - 2) {
-            el.style.bottom = Math.round(window.innerHeight - r.top + 16) + 'px';
-        }
-    });
 }
 
 /** Tonhöhenecht dehnen (WSOLA): tempo > 1 = schneller. */
@@ -3968,8 +3934,7 @@ function homescreenBegruessen() {
     // Ungefragt nur im Chor-Trainer: Mitglieder sollen ihn auf den Startbildschirm legen,
     // die öffentliche Fassung drängt sich Besuchern nicht auf
     if (hsStand().aus || !MIT_LOGIN) return;
-    // Lesezeichen-Tipp vorerst aus: der einmalige Klang-Hinweis (klangUmstellungHinweis)
-    // soll frei stehen und nicht vom Begrüßungs-Dialog überlagert werden. Zum Wiederanschalten
+    // Lesezeichen-Tipp vorerst aus. Zum Wiederanschalten
     // diese Zeile auf true setzen – homescreenZeigen und das #homescreen-HTML bleiben erhalten.
     const LESEZEICHEN_TIPP_AN = false;
     if (!LESEZEICHEN_TIPP_AN) return;
@@ -4019,7 +3984,6 @@ applySongFromUrl();
 
 // 1c. Bedienelemente auf die geladenen Werte setzen
 buildSoundChips();
-klangUmstellungHinweis();   // einmaliger Hinweis je Gerät: Klang steht auf „Gesang"
 updateBgDisplay();
 updateBpmDisplay();
 document.getElementById('textSizeDisplay').innerText = currentTextSize;
