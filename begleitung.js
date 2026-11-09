@@ -1380,12 +1380,65 @@ function stimmwahlBauen() {
             b.title = n;
             b.setAttribute('aria-label', 'Meine Stimme: ' + n);
             b.setAttribute('aria-pressed', String(E.stimme === n));
-            // stumm, nur die Wahl der eigenen Stimme (@dd 20261108); den Einstieg geben die Pads
-            b.addEventListener('click', () => { stimmeSetzen(n); zumStimmanfang(true); });
+            // Tastatur (Enter/Leertaste): wählen und den Ton kurz anspielen; Finger und Maus: siehe chipsSurfen
+            b.addEventListener('click', e => {
+                if (hilfe || e.detail !== 0) return;
+                chipTonAn(n); setTimeout(chipTonAus, 400);
+                if (E.stimme !== n) stimmeSetzen(n);
+            });
             zeile.appendChild(b);
         }
     }
 }
+/**
+ * S A T B (@dd 20261109): Drücken spielt den Ton an, den diese Stimme an der jetzigen Stelle singt (in einer Pause
+ * keinen), solange der Finger liegt. Über die Knöpfe wischen spielt jeweils die Stimme unter dem Finger an.
+ * Beim Loslassen ist die zuletzt berührte Stimme gewählt; der Streifen bleibt, wo er ist (kein Sprung zum Anfang).
+ */
+let chipTon = null, chipStimme = null;
+function chipTonAn(n) {
+    if (!P) return;
+    audioStart();
+    const ta = ctx.currentTime;
+    chipTonAus();
+    const { n: note } = einstiegFuer(einstieg(), stimmeIndex(n));
+    if (note) chipTon = tonAn(note.midi, 'stimme', ta, false, 0.008);
+}
+function chipTonAus() {
+    if (chipTon && ctx) chipTon.stop(ctx.currentTime, 0.25);
+    chipTon = null;
+}
+(() => {
+    const zeile = $('stimmchips');
+    let finger = null;
+    const unter = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest('#stimmchips button'); };
+    const nehmen = b => {
+        if (!b || b.dataset.stimme === chipStimme) return;
+        chipStimme = b.dataset.stimme;
+        [...zeile.children].forEach(x => x.classList.toggle('gedrueckt', x === b));
+        chipTonAn(chipStimme);
+    };
+    zeile.addEventListener('pointerdown', e => {
+        if (hilfe || e.button > 0) return;
+        const b = unter(e.clientX, e.clientY);
+        if (!b) return;
+        e.preventDefault();
+        finger = e.pointerId; chipStimme = null;
+        try { zeile.setPointerCapture(e.pointerId); } catch (x) {}
+        nehmen(b);
+    });
+    zeile.addEventListener('pointermove', e => { if (e.pointerId === finger) nehmen(unter(e.clientX, e.clientY)); });
+    const ende = e => {
+        if (e.pointerId !== finger) return;
+        finger = null;
+        chipTonAus();
+        [...zeile.children].forEach(x => x.classList.remove('gedrueckt'));
+        if (chipStimme && chipStimme !== E.stimme) stimmeSetzen(chipStimme);
+        chipStimme = null;
+    };
+    zeile.addEventListener('pointerup', ende);
+    zeile.addEventListener('pointercancel', ende);
+})();
 /** Pad, auf dem die eigene Stimme ihren ersten Ton hat */
 function stimmanfangIndex() {
     const si = stimmeIndex(E.stimme), erste = si >= 0 && P.noten[si] && P.noten[si][0];
@@ -1394,7 +1447,7 @@ function stimmanfangIndex() {
     return i;
 }
 /**
- * Zum Anfang der eigenen Stimme (@dd 20261108, Stimmknopf und „Anfang“): das Pad in die oberste Zeile; mit
+ * Zum Anfang der eigenen Stimme (@dd 20261108, Knopf „Anfang“): das Pad in die oberste Zeile; mit
  * stellen = true steht auch die Begleitung dort (nicht, solange sie läuft), weiter startet dann von da.
  */
 function zumStimmanfang(stellen) {

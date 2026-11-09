@@ -100,7 +100,8 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 /* Zeile über dem Akkord: links die Stelle, rechts klein die Stimmenwahl (immer sichtbar, @dd 20261107) */
 #wo { grid-column: 1 / -1; grid-row: 1; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#stimmchips { display: flex; gap: 4px; flex: none; }
+#stimmchips { display: flex; gap: 4px; flex: none; touch-action: none; }   /* über S A T B wischen = anspielen */
+#stimmchips button.gedrueckt { border-color: var(--fokus); }
 /* Stimmwahl: stumm, klein und unauffällig (@dd 20261108); den Einstieg geben die Pads */
 #stimmchips button { min-height: 40px; min-width: 42px; padding: 2px 8px; border-radius: 7px; font-size: 17px; font-weight: 700; color: var(--leise); }
 #stimmchips button[aria-pressed="true"] { color: var(--an-text); }
@@ -297,7 +298,7 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
 </header>
 
 <main id="anzeige" data-hilfe="Oben die Stelle, darunter der Akkord, der gerade klingt, daneben ihr Text. Wo der nächste Tipp erwartet wird, zeigt das Pad mit dem gestrichelten Rand.">
-    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme: aus ihr kommen der Text, die Silben und der Ton beim Drücken einer Silbe. Antippen springt zum Anfang dieser Stimme (steht die Begleitung, startet weiter dort)."></span></div>
+    <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme: aus ihr kommen der Text, die Silben und der Ton beim Drücken einer Silbe. Drücken spielt den Ton an, den diese Stimme hier singt (in einer Pause keinen), und wählt sie. Über S A T B wischen spielt jede Stimme unter dem Finger an. Der Streifen bleibt dabei stehen."></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
 </main>
