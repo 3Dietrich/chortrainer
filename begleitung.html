@@ -55,7 +55,7 @@ try {
 :root[data-kontrast="hoch"] #streifen button .w { font-size: 1.1em; }
 :root[data-kontrast="max"] #streifen button { font-weight: 700; }
 :root[data-kontrast="max"] #streifen button .w { font-size: 1.2em; }
-:root[data-kontrast="max"] #streifen button .t, :root[data-kontrast="max"] #wo, :root[data-kontrast="max"] #dann { font-weight: 700; }
+:root[data-kontrast="max"] #streifen button .t, :root[data-kontrast="max"] #wo { font-weight: 700; }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -93,27 +93,18 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
 #marke.druck { opacity: .35; }
 #marke.scharf { opacity: 1; outline: 3px solid var(--fokus); outline-offset: 2px; transition: none; }
 
-#anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 2px 6px; }
-/* erwarteter Tipp (@dd 20261107): ganz oben, gut lesbar */
-#erwartet { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-bottom: 4px;
-    padding: 3px 12px; border: 2px dashed var(--fokus); border-radius: 9px; font-size: clamp(22px, min(6vw, 4.2vh), 38px); white-space: nowrap; overflow: hidden; }
-#erwartet .was { font-size: 0.6em; color: var(--leise); flex: none; }
-#erwartet .wort { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-#erwartet .wort b { color: var(--fokus); font-weight: 800; }
-#erwartet .wo { font-size: 0.6em; color: var(--leise); margin-left: auto; flex: none; }
-#akkord { grid-row: 3; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
+/* kompakt (@dd 20261109): nur Stelle und darunter Akkord mit Text, damit die Pads viel Platz haben */
+#anzeige { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 14px; align-items: end; padding-block: 0 4px; }
+#akkord { grid-row: 2; font-size: clamp(44px, min(14vw, 9vh), 96px); font-weight: 800; color: var(--warm); line-height: 1; min-width: 1.6em; }
 #akkord.blass { opacity: 0.4; }
 /* Zeile über dem Akkord: links die Stelle, rechts klein die Stimmenwahl (immer sichtbar, @dd 20261107) */
-#wo { grid-column: 1 / -1; grid-row: 2; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
+#wo { grid-column: 1 / -1; grid-row: 1; font-size: 17px; color: var(--leise); display: flex; align-items: center; gap: 8px; min-width: 0; }
 #stelle { margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #stimmchips { display: flex; gap: 4px; flex: none; }
 /* Stimmwahl: stumm, klein und unauffällig (@dd 20261108); den Einstieg geben die Pads */
 #stimmchips button { min-height: 40px; min-width: 42px; padding: 2px 8px; border-radius: 7px; font-size: 17px; font-weight: 700; color: var(--leise); }
 #stimmchips button[aria-pressed="true"] { color: var(--an-text); }
-#jetzt { grid-column: 2; grid-row: 3; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#dann { grid-column: 1 / -1; grid-row: 4; font-size: clamp(16px, min(4.2vw, 3vh), 26px); color: var(--leise); min-height: 1.3em; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#dann b { color: var(--text); font-weight: 600; }
-#dann .ak { color: var(--warm); }
+#jetzt { grid-column: 2; grid-row: 2; align-self: end; font-size: clamp(20px, min(5.5vw, 4vh), 36px); font-weight: 600; line-height: 1.15; min-height: 1.15em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Pads: alle Tippstellen als Feld, füllt den freien Platz, scrollt senkrecht */
 #streifen { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
@@ -197,7 +188,6 @@ header h1 { font-size: 22px; margin: 0; font-weight: 700; white-space: nowrap; o
     #akkord { font-size: clamp(80px, 11vh, 150px); }
     #wo { font-size: 20px; }
     #jetzt { font-size: clamp(30px, 4.5vh, 52px); }
-    #dann { font-size: clamp(22px, 3vh, 34px); }
     #streifen { grid-column: 1; grid-row: 3; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); grid-auto-rows: minmax(92px, 1fr); }
     #streifen button { font-size: clamp(22px, 2.6vh, 30px); }
     #streifen button .t { font-size: clamp(15px, 1.8vh, 20px); }
@@ -306,15 +296,13 @@ body.hilfemodus [data-hilfe]:hover { outline-style: solid; }
     <button id="hilfeKnopf" class="rund" aria-pressed="false" aria-label="Hilfe">?</button>
 </header>
 
-<main id="anzeige" data-hilfe="Oben im gestrichelten Rahmen: worauf der nächste Tipp erwartet wird (Start, Tempo-Tipp, Tipp, nach Stopp: weiter ab), das Wort mit der dicken Silbe, ein Strich, wenn deine Stimme dort einen Ton hält. Darunter der Akkord, der gerade klingt, daneben die Stelle und ihr Text, darunter die nächste Stelle.">
-    <div id="erwartet"></div>
+<main id="anzeige" data-hilfe="Oben die Stelle, darunter der Akkord, der gerade klingt, daneben ihr Text. Wo der nächste Tipp erwartet wird, zeigt das Pad mit dem gestrichelten Rand.">
     <div id="wo"><span id="stelle"></span><span id="stimmchips" data-hilfe="Meine Stimme: aus ihr kommen der Text, die Silben und der Ton beim Drücken einer Silbe. Antippen springt zum Anfang dieser Stimme (steht die Begleitung, startet weiter dort)."></span></div>
     <div id="akkord"></div>
     <div id="jetzt"></div>
-    <div id="dann"></div>
 </main>
 
-<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter die Silbe. Gedrückt halten: der Akkord tippt kurz an, der Ton deiner Stimme an dieser Stelle bleibt liegen (Einstieg). Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
+<div id="streifen" data-hilfe="Pads: alle Tippstellen, oben Stelle und Akkord, darunter die Silbe. Gedrückt halten: der Akkord tippt kurz an, der Ton deiner Stimme an dieser Stelle bleibt liegen (Einstieg). Loslassen: die Begleitung steht auf dieser Stelle, weiter startet von hier. Der Streifen bleibt stehen, solange die Stelle nicht in der untersten Zeile ist; erreicht sie die (oder du tippst dort), rückt diese Zeile zügig nach oben auf die zweite Zeile. Schnell hochwischen: ein Knopf führt ganz nach oben."></div>
 <button id="nachOben" hidden aria-label="Ganz nach oben" data-hilfe="Erscheint beim schnellen Hochwischen: springt im Streifen zum Anfang deiner Stimme (ihr erster Ton).">
     <svg class="sym" viewBox="0 0 24 24"><path d="M5 4h14"/><path d="M12 20V9"/><path d="M6.5 13.5L12 8l5.5 5.5"/></svg>Anfang
 </button>

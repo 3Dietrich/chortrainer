@@ -1107,16 +1107,10 @@ function zeigen() {
     $('akkord').classList.toggle('blass', schaetzt);
     const i = segIndex(p);
     $('jetzt').innerHTML = textHtml(SEG[i], segEnde(i));
-    $('dann').innerHTML = i + 1 < SEG.length
-        ? `dann <b>${segName(SEG[i + 1])}</b> <b class="ak">${akkordeIn(SEG[i + 1], segEnde(i + 1))}</b> ${textHtml(SEG[i + 1], segEnde(i + 1))}` : 'Schluss';
-    // erwarteter Tipp oben (@dd 20261107): Wort mit fetter Tippsilbe bzw. „–“, daneben die Stelle
-    // nach Stopp: wo weiter neu startet; nach dem Liedschluss: wieder bei Seele (statt eines leeren „Ende“, @dd 20261107)
+    // erwarteter Tipp: nur noch als gestricheltes Pad im Streifen (@dd 20261109: Zeile oben weg)
+    // nach Stopp: wo weiter neu startet; nach dem Liedschluss: wieder am Anfang
     const ep = fertig ? (gestopptBei != null ? gestopptBei : anfang) : erwartetePos(p);
     const ei = ep == null ? -1 : SEG.findIndex(x => Math.abs(x - ep) < 1e-6);
-    const art = stimmTon ? 'Einstieg' : fertig ? (gestopptBei != null ? 'weiter ab' : 'neu ab')
-        : hinhoeren ? 'Tempo-Tipp' : (!letzterTipp && !U.laeuft) ? 'Start' : 'Tipp';
-    $('erwartet').innerHTML = ei < 0 ? `<span class="was">${art}</span> <span class="wort">Schluss</span>`
-        : `<span class="was">${art}</span> <span class="wort">${PADS[ei].gross === '·' ? 'zählen' : PADS[ei].gross}</span> <span class="wo">${segName(SEG[ei])}</span>`;
     [...$('streifen').children].forEach((b, k) => { b.classList.toggle('an', k === i); b.classList.toggle('soll', k === ei); });
     streifenFuehren(i);
     selbstKnopfZeigen();
@@ -1153,25 +1147,39 @@ function selbstUmschalten() {
 }
 
 /**
- * Der gesungene Abschnitt bleibt im Streifen etwa im oberen Drittel bis zur Mitte, damit der nächste Text zu
- * sehen ist (@dd 20261107). Gescrollt wird erst, wenn er dieses Band verlässt, dann sanft an den oberen Rand des
- * Bandes; so springt es nur alle paar Zeilen. Wer gerade selbst im Streifen wischt, wird nicht gestört.
+ * Mitführen im Streifen (@dd 20261109): Der Streifen steht still, solange die aktuelle Zeile irgendwo zwischen der
+ * ersten und der vorletzten sichtbaren Zeile liegt, damit man beim Durchspielen nicht danebentippt. Erst wenn sie
+ * in der letzten sichtbaren Zeile ankommt (beim Spielen oder Antippen) oder ganz aus dem Bild ist, rückt sie
+ * zügig auf die zweite Zeile (bei wenig Zeilen auf die erste). Wer gerade selbst im Streifen wischt, wird nicht gestört.
  */
 let streifenAngefasst = -1e9;
 function streifenFuehren(i, gleich = false) {
     const s = $('streifen'), b = s.children[i];
-    if (!b || (!gleich && jetzt() - streifenAngefasst < 2.5)) return;
-    const h = s.clientHeight, rel = b.getBoundingClientRect().top - s.getBoundingClientRect().top;
+    if (!b || (!gleich && jetzt() - streifenAngefasst < 2.5) || rollen.laeuft) return;
+    const h = s.clientHeight;
     if (s.scrollHeight <= h + 2) return;
-    // in der Mitte halten (@dd 20261108): weicht die Zeilenmitte mehr als ein Achtel der Höhe ab, sanft zurück
-    const mitte = rel + b.offsetHeight / 2;
-    if (Math.abs(mitte - h * 0.45) <= h * 0.1) return;
-    // dasselbe Ziel nicht alle 100 ms neu anstoßen: Safari beginnt das sanfte Scrollen dann jedes Mal von vorn
-    // und kommt nicht vom Fleck (@dd 20261108: die Pads bewegten sich am iPhone nicht zur Mitte)
-    const ziel = Math.round(Math.max(0, Math.min(s.scrollHeight - h, s.scrollTop + mitte - h * 0.45)));
-    if (Math.abs(ziel - (streifenFuehren.ziel ?? -999)) < 6 && jetzt() - streifenFuehren.t < 1.2) return;
-    streifenFuehren.ziel = ziel; streifenFuehren.t = jetzt();
-    s.scrollTo({ top: ziel, behavior: 'smooth' });
+    const rel = b.getBoundingClientRect().top - s.getBoundingClientRect().top, bh = b.offsetHeight;
+    const schritt = bh + (parseFloat(getComputedStyle(s).rowGap) || 6), luft = 4;
+    // unter ihr passt keine ganze Zeile mehr = letzte sichtbare Zeile; darüber hinaus = aus dem Bild
+    const unten = rel + bh + schritt > h + luft, oben = rel < -luft;
+    if (!unten && !oben) return;
+    const zeilen = Math.floor((h + luft) / schritt);
+    const ziel = Math.round(Math.max(0, Math.min(s.scrollHeight - h, s.scrollTop + rel - (zeilen >= 4 ? schritt : 0) - luft)));
+    if (Math.abs(ziel - s.scrollTop) < 2) return;   // am Ende des Streifens geht es nicht weiter
+    rollen(s, ziel);
+}
+/** Zügig und gut verfolgbar rollen (eigene Animation statt smooth: am iPhone mal zäh, mal hängend) */
+function rollen(s, ziel, dauer = 260) {
+    const von = s.scrollTop, t0 = performance.now(), angefasst = streifenAngefasst;
+    rollen.laeuft = true;
+    const schritt = t => {
+        const x = Math.min(1, (t - t0) / dauer), e = 1 - Math.pow(1 - x, 3);   // schnell los, weich an
+        s.scrollTop = von + (ziel - von) * e;
+        // fasst man währenddessen den Streifen an, hört es sofort auf
+        if (x < 1 && streifenAngefasst === angefasst) requestAnimationFrame(schritt);
+        else rollen.laeuft = false;
+    };
+    requestAnimationFrame(schritt);
 }
 setInterval(() => { if (U.laeuft) zeigen(); }, 100);
 
@@ -1237,8 +1245,7 @@ function streifenZeigen() {
             springenAuf(pos, false, false);
             padAus(false);
             zeigen();
-            // beim Durchklicken durch die Silben (@dd 20261108): das gedrückte Pad sanft zur Mitte, damit die
-            // nächste Zeile zu sehen bleibt
+            // beim Durchklicken (@dd 20261109): nur wenn das Pad in der letzten sichtbaren Zeile liegt, rückt es hoch
             streifenFuehren(i, true);
         });
         ['pointercancel', 'pointerleave'].forEach(t => b.addEventListener(t, () => {
@@ -1387,14 +1394,14 @@ function stimmanfangIndex() {
     return i;
 }
 /**
- * Zum Anfang der eigenen Stimme (@dd 20261108, Stimmknopf und „Anfang“): das Pad mittig in den Streifen; mit
+ * Zum Anfang der eigenen Stimme (@dd 20261108, Stimmknopf und „Anfang“): das Pad in die oberste Zeile; mit
  * stellen = true steht auch die Begleitung dort (nicht, solange sie läuft), weiter startet dann von da.
  */
 function zumStimmanfang(stellen) {
     const i = stimmanfangIndex(), s = $('streifen'), b = s.children[i];
     if (stellen && !U.laeuft && !hinhoeren && SEG[i] != null) { springenAuf(SEG[i], false, false); gestopptBei = null; }
     streifenAngefasst = jetzt();
-    if (b) s.scrollTo({ top: Math.max(0, s.scrollTop + b.getBoundingClientRect().top - s.getBoundingClientRect().top - s.clientHeight / 2 + b.offsetHeight / 2), behavior: 'smooth' });
+    if (b) rollen(s, Math.max(0, Math.min(s.scrollHeight - s.clientHeight, s.scrollTop + b.getBoundingClientRect().top - s.getBoundingClientRect().top - 4)));
     zeigen();
 }
 function stimmeSetzen(n) {
@@ -1588,7 +1595,7 @@ function themaFarbe() {
             weg = setTimeout(verstecken, 2500);
         }
     }, { passive: true });
-    // zum Anfang der eigenen Stimme (@dd 20261108): das Pad mit ihrem ersten Ton, in die Mitte
+    // zum Anfang der eigenen Stimme (@dd 20261108): das Pad mit ihrem ersten Ton, nach oben
     k.addEventListener('click', () => { zumStimmanfang(false); verstecken(); });
 })();
 
@@ -1638,8 +1645,7 @@ function blitz(el) {
         P = partiturLesen(await rx.text());
         A = await ra.json();
     } catch (e) {
-        $('jetzt').textContent = 'nicht geladen';
-        $('dann').textContent = e.message;
+        $('jetzt').textContent = 'nicht geladen: ' + e.message;
         return;
     }
     let titel = P.titel || lied.replace(/\.musicxml$/i, '');
